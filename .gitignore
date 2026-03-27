@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+*.so
+
+# Node.js
+node_modules/
+
+# Hardhat / Solidity
+artifacts/
+cache/
+typechain-types/
+types/
+*.dbg.json
+coverage/
+coverage.json
+
+# Environment & secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project-specific
+context/
+.claude/
+uv.lock
+*.log

@@ -1,0 +1,37 @@
+name: Smart Contracts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "smart-contracts/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "smart-contracts/**"
+
+jobs:
+  test:
+    name: Compile, Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: smart-contracts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Lint Solidity
+        run: npx solhint 'contracts/**/*.sol'
+
+      - name: Run tests
+        run: npx hardhat test
