@@ -7,8 +7,9 @@ build/
 .venv/
 *.so
 
-# Node.js
+# Node.js / Bun
 node_modules/
+bun.lock
 
 # Hardhat / Solidity
 artifacts/

@@ -1,8 +1,8 @@
 {
-  "name": "smart-contracts",
-  "version": "1.0.0",
+  "name": "@skalenetwork/smartclaws-contracts",
+  "version": "0.1.0",
   "type": "module",
-  "license": "MIT",
+  "license": "LGPL-3.0-or-later",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
