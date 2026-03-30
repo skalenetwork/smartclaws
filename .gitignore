@@ -34,6 +34,10 @@ Thumbs.db
 *.swp
 *.swo
 
+# Generated ABIs (produced by smart-contracts/scripts/export-abi.sh)
+typescript/abi/
+python/src/smartclaws/abi/
+
 # Project-specific
 context/
 .claude/

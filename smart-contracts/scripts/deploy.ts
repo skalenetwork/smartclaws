@@ -13,7 +13,7 @@ async function main() {
 
   const tx = await registry.createChannel(
     deployer.address,
-    1024 * 1024 // 1 MB capacity
+    1024 * 1024
   );
   const receipt = await tx.wait();
 

@@ -1,0 +1,64 @@
+name: TypeScript CLI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "typescript/**"
+      - "smart-contracts/contracts/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "typescript/**"
+      - "smart-contracts/contracts/**"
+
+jobs:
+  test:
+    name: Lint, Type Check & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install contract deps
+        working-directory: smart-contracts
+        run: npm ci
+
+      - name: Compile contracts
+        working-directory: smart-contracts
+        run: npx hardhat compile
+
+      - name: Export ABIs
+        working-directory: smart-contracts
+        run: bash scripts/export-abi.sh
+
+      - name: Install TS deps
+        working-directory: typescript
+        run: bun install
+
+      - name: Lint
+        working-directory: typescript
+        run: bun run lint
+
+      - name: Type check
+        working-directory: typescript
+        run: bun run check
+
+      - name: Unit tests
+        working-directory: typescript
+        run: bun run test:unit
+
+      - name: Start anvil
+        run: bash helper-scripts/helper.sh run_anvil
+
+      - name: Integration tests
+        working-directory: typescript
+        run: bun run test:integration
