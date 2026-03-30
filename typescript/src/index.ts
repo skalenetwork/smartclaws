@@ -1,6 +1,8 @@
 import { program } from "commander";
 import pkg from "../package.json" with { type: "json" };
+import { deviceCommand } from "./commands/device.ts";
 import { initCommand } from "./commands/init.ts";
+import { registerCommand } from "./commands/register.ts";
 import { walletCommand } from "./commands/wallet.ts";
 
 program
@@ -9,6 +11,8 @@ program
   .version(pkg.version);
 
 program.addCommand(initCommand);
+program.addCommand(registerCommand);
+program.addCommand(deviceCommand);
 program.addCommand(walletCommand);
 
 program.parse();

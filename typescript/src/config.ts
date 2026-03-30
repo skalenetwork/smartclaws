@@ -8,6 +8,7 @@ export interface Config {
   chainId: number;
   rpcUrl: string;
   contractAddress: string;
+  deviceGroupAddress: string;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -16,6 +17,7 @@ const DEFAULT_CONFIG: Config = {
   chainId: 0,
   rpcUrl: "",
   contractAddress: "",
+  deviceGroupAddress: "",
 };
 
 export function getConfigDir(): string {
