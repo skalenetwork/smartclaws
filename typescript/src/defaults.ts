@@ -16,7 +16,7 @@ export const NETWORKS: Record<string, Network> = {
     chainName: "skale-bite-sandbox",
     explorerUrl: "",
     nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
-    registryAddress: "0xA97A47eCB389a74BDb4ff62F205CBE79F612e67C",
+    registryAddress: "0x18B62f70ddaA2666FA5933a7b6Ff3943e69ca690",
   },
   mainnet: {
     name: "Europa Mainnet",
