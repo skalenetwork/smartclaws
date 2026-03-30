@@ -4,22 +4,22 @@ import { join } from "node:path";
 
 export interface Config {
   version: 1;
+  network: string;
   chainId: number;
   rpcUrl: string;
-  defaultWallet: string;
   contractAddress: string;
 }
 
 const DEFAULT_CONFIG: Config = {
   version: 1,
+  network: "",
   chainId: 0,
   rpcUrl: "",
-  defaultWallet: "default",
   contractAddress: "",
 };
 
 export function getConfigDir(): string {
-  return join(homedir(), ".smartclaws");
+  return process.env.SMARTCLAWS_HOME || join(homedir(), ".smartclaws");
 }
 
 export function getConfigPath(): string {
@@ -49,9 +49,10 @@ export function saveConfig(config: Config): void {
 }
 
 export function createDefaultConfig(
+  network: string,
   rpcUrl: string,
   chainId: number,
   contractAddress: string,
 ): Config {
-  return { ...DEFAULT_CONFIG, rpcUrl, chainId, contractAddress };
+  return { ...DEFAULT_CONFIG, network, rpcUrl, chainId, contractAddress };
 }

@@ -6,11 +6,13 @@ on:
     paths:
       - "typescript/**"
       - "smart-contracts/contracts/**"
+      - "abi/**"
   pull_request:
     branches: [main]
     paths:
       - "typescript/**"
       - "smart-contracts/contracts/**"
+      - "abi/**"
 
 jobs:
   test:

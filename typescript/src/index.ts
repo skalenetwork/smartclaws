@@ -1,18 +1,14 @@
 import { program } from "commander";
-
-const VERSION = "0.1.0";
+import pkg from "../package.json" with { type: "json" };
+import { initCommand } from "./commands/init.ts";
+import { walletCommand } from "./commands/wallet.ts";
 
 program
   .name("smartclaws")
   .description("SmartClaws CLI — interact with SmartClaws contracts on SKALE")
-  .version(VERSION);
+  .version(pkg.version);
 
-program
-  .command("status")
-  .description("Show current configuration and connection status")
-  .action(() => {
-    console.log(`SmartClaws CLI v${VERSION}`);
-    console.log("Config: not yet configured (run 'smartclaws init')");
-  });
+program.addCommand(initCommand);
+program.addCommand(walletCommand);
 
 program.parse();

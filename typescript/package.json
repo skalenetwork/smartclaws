@@ -11,7 +11,7 @@
     "lint:fix": "biome check --fix src/",
     "test": "bun test",
     "test:unit": "bun test tests/envelope.test.ts tests/config.test.ts tests/wallet.test.ts",
-    "test:integration": "bun test tests/channel.test.ts"
+    "test:integration": "bun test tests/channel.test.ts tests/wallet-balance.test.ts"
   },
   "dependencies": {
     "commander": "^14.0.0",

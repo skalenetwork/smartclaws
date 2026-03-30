@@ -1,30 +1,44 @@
-import { describe, expect, test } from "bun:test";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { generateWallet, loadWallet } from "../src/wallet.ts";
 
 describe("wallet", () => {
-  test("generatePrivateKey produces valid key", () => {
-    const key = generatePrivateKey();
-    expect(key).toMatch(/^0x[0-9a-f]{64}$/);
+  let tempDir: string;
+
+  afterEach(() => {
+    delete process.env.SMARTCLAWS_HOME;
+    if (tempDir && existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true });
+    }
   });
 
-  test("privateKeyToAccount derives address", () => {
-    const key = generatePrivateKey();
-    const account = privateKeyToAccount(key);
-    expect(account.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+  test("generateWallet creates wallet file with valid address and key", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    process.env.SMARTCLAWS_HOME = tempDir;
+
+    const wallet = generateWallet();
+    expect(wallet.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(wallet.privateKey).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(existsSync(join(tempDir, "wallets", "default.json"))).toBe(true);
   });
 
-  test("same key produces same address", () => {
-    const key = generatePrivateKey();
-    const a1 = privateKeyToAccount(key);
-    const a2 = privateKeyToAccount(key);
-    expect(a1.address).toBe(a2.address);
+  test("loadWallet returns null when no wallet exists", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    process.env.SMARTCLAWS_HOME = tempDir;
+
+    expect(loadWallet()).toBeNull();
   });
 
-  test("different keys produce different addresses", () => {
-    const k1 = generatePrivateKey();
-    const k2 = generatePrivateKey();
-    const a1 = privateKeyToAccount(k1);
-    const a2 = privateKeyToAccount(k2);
-    expect(a1.address).not.toBe(a2.address);
+  test("loadWallet returns previously generated wallet", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    process.env.SMARTCLAWS_HOME = tempDir;
+
+    const generated = generateWallet();
+    const loaded = loadWallet();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.address).toBe(generated.address);
+    expect(loaded!.privateKey).toBe(generated.privateKey);
   });
 });
