@@ -13,9 +13,9 @@ import {
   publicClient,
   walletClient,
 } from "../setup.ts";
-import SmartClawsABI from "../../../abi/SmartClaws.json";
-import SmartClawsDeviceGroupABI from "../../../abi/SmartClawsDeviceGroup.json";
-import SmartClawsDeviceABI from "../../../abi/SmartClawsDevice.json";
+import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json";
+import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json";
+import SmartClawsDeviceGroupABI from "@smartclaws/core/abi/SmartClawsDeviceGroup.json";
 import { getContract } from "viem";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";

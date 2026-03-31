@@ -3,7 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARTIFACTS="$SCRIPT_DIR/../artifacts/contracts"
-OUT_DIR="$SCRIPT_DIR/../../abi"
+OUT_DIR="$SCRIPT_DIR/../../packages/core/abi"
 
 CONTRACTS=(SmartClaws SmartClawsChannel SmartClawsAgent SmartClawsDevice SmartClawsDeviceGroup)
 

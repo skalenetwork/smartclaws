@@ -1,9 +1,9 @@
+import { encode } from "@smartclaws/core/envelope";
 import { Command } from "commander";
 import { toHex } from "viem";
 import { loadConfig } from "../config.ts";
 import { getChannelContract, getClients } from "../contracts.ts";
 import { listDevices, loadDevice } from "../device.ts";
-import { encode } from "../envelope.ts";
 import { loadWallet } from "../wallet.ts";
 
 export const publishCommand = new Command("publish")

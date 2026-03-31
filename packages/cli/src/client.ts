@@ -1,6 +1,6 @@
+import { NETWORKS } from "@smartclaws/core/networks";
+import type { Config } from "@smartclaws/core/types";
 import { createPublicClient, defineChain, http } from "viem";
-import type { Config } from "./config.ts";
-import { NETWORKS } from "./defaults.ts";
 
 export function createClient(config: Config) {
   const network = NETWORKS[config.network];

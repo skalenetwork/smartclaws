@@ -1,15 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { Config } from "@smartclaws/core/types";
 
-export interface Config {
-  version: 1;
-  network: string;
-  chainId: number;
-  rpcUrl: string;
-  contractAddress: string;
-  deviceGroupAddress: string;
-}
+export type { Config };
 
 const DEFAULT_CONFIG: Config = {
   version: 1,

@@ -1,10 +1,12 @@
+import SmartClawsChannelABI from "@smartclaws/core/abi/SmartClawsChannel.json" with {
+  type: "json",
+};
+import { decode } from "@smartclaws/core/envelope";
 import { Command } from "commander";
 import { type Address, getContract, toBytes } from "viem";
-import SmartClawsChannelABI from "../../../abi/SmartClawsChannel.json" with { type: "json" };
 import { loadConfig } from "../config.ts";
 import { getClients } from "../contracts.ts";
 import { listDevices, loadDevice } from "../device.ts";
-import { decode } from "../envelope.ts";
 import { loadWallet } from "../wallet.ts";
 
 export const readCommand = new Command("read")

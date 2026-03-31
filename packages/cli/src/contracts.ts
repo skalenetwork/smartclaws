@@ -1,3 +1,13 @@
+import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json" with { type: "json" };
+import SmartClawsChannelABI from "@smartclaws/core/abi/SmartClawsChannel.json" with {
+  type: "json",
+};
+import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json" with { type: "json" };
+import SmartClawsDeviceGroupABI from "@smartclaws/core/abi/SmartClawsDeviceGroup.json" with {
+  type: "json",
+};
+import { NETWORKS } from "@smartclaws/core/networks";
+import type { Config, WalletFile } from "@smartclaws/core/types";
 import {
   type Address,
   createPublicClient,
@@ -7,13 +17,6 @@ import {
   http,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import SmartClawsABI from "../../abi/SmartClaws.json" with { type: "json" };
-import SmartClawsChannelABI from "../../abi/SmartClawsChannel.json" with { type: "json" };
-import SmartClawsDeviceABI from "../../abi/SmartClawsDevice.json" with { type: "json" };
-import SmartClawsDeviceGroupABI from "../../abi/SmartClawsDeviceGroup.json" with { type: "json" };
-import type { Config } from "./config.ts";
-import { NETWORKS } from "./defaults.ts";
-import type { WalletFile } from "./wallet.ts";
 
 function buildChain(config: Config) {
   const network = NETWORKS[config.network];

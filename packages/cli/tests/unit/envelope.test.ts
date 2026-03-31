@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { decode, encode } from "../../src/envelope.ts";
+import { decode, encode } from "@smartclaws/core/envelope";
 
 describe("envelope", () => {
   const topic = "temperature";

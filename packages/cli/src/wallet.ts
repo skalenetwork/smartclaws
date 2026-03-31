@@ -1,12 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { WalletFile } from "@smartclaws/core/types";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { ensureConfigDir, getConfigDir } from "./config.ts";
 
-export interface WalletFile {
-  address: string;
-  privateKey: string;
-}
+export type { WalletFile };
 
 function walletPath(): string {
   return join(getConfigDir(), "wallets", "default.json");

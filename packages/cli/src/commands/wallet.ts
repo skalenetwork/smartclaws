@@ -1,8 +1,8 @@
+import { NETWORKS } from "@smartclaws/core/networks";
 import { Command } from "commander";
 import { type Address, formatEther } from "viem";
 import { createClient } from "../client.ts";
 import { loadConfig } from "../config.ts";
-import { NETWORKS } from "../defaults.ts";
 import { loadWallet } from "../wallet.ts";
 
 export const walletCommand = new Command("wallet").description("Wallet management");

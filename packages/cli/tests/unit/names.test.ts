@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateName } from "../../src/names.ts";
+import { generateName } from "@smartclaws/core/names";
 
 describe("names", () => {
   test("generates adjective-noun format", () => {

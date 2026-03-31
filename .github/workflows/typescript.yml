@@ -4,15 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "typescript/**"
+      - "packages/**"
       - "smart-contracts/contracts/**"
-      - "abi/**"
   pull_request:
     branches: [main]
     paths:
-      - "typescript/**"
+      - "packages/**"
       - "smart-contracts/contracts/**"
-      - "abi/**"
 
 jobs:
   test:
@@ -42,25 +40,28 @@ jobs:
         working-directory: smart-contracts
         run: bash scripts/export-abi.sh
 
-      - name: Install TS deps
-        working-directory: typescript
+      - name: Install workspace deps
         run: bun install
 
       - name: Lint
-        working-directory: typescript
+        working-directory: packages/cli
         run: bun run lint
 
-      - name: Type check
-        working-directory: typescript
+      - name: Type check core
+        working-directory: packages/core
+        run: bunx tsc --noEmit
+
+      - name: Type check CLI
+        working-directory: packages/cli
         run: bun run check
 
       - name: Unit tests
-        working-directory: typescript
+        working-directory: packages/cli
         run: bun run test:unit
 
       - name: Start anvil
         run: bash helper-scripts/helper.sh run_anvil
 
       - name: Integration tests
-        working-directory: typescript
+        working-directory: packages/cli
         run: bun run test:integration

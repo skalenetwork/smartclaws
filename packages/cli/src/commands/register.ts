@@ -1,8 +1,8 @@
+import { generateName } from "@smartclaws/core/names";
 import { Command } from "commander";
 import { type Address, decodeEventLog } from "viem";
 import { loadConfig, saveConfig } from "../config.ts";
 import { getClients, getRegistryContract } from "../contracts.ts";
-import { generateName } from "../names.ts";
 import { loadWallet } from "../wallet.ts";
 
 export const registerCommand = new Command("register")

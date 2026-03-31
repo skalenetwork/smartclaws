@@ -1,13 +1,9 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { DeviceFile } from "@smartclaws/core/types";
 import { getConfigDir } from "./config.ts";
 
-export interface DeviceFile {
-  name: string;
-  deviceContract: string;
-  incomingChannel: string;
-  outgoingChannel: string;
-}
+export type { DeviceFile };
 
 function devicesDir(): string {
   return join(getConfigDir(), "devices");
