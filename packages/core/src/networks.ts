@@ -14,7 +14,7 @@ export const NETWORKS: Record<string, Network> = {
     chainId: 103698795,
     rpcUrl: "https://base-sepolia-testnet.skalenodes.com/v1/bite-v2-sandbox",
     chainName: "skale-bite-sandbox",
-    explorerUrl: "",
+    explorerUrl: "https://base-sepolia-testnet-explorer.skalenodes.com:10032",
     nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
     registryAddress: "0x18B62f70ddaA2666FA5933a7b6Ff3943e69ca690",
   },
