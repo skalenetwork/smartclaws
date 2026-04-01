@@ -1,4 +1,4 @@
-import { ChevronRight, Wrench } from "lucide-react";
+import { ChevronRight, Download, Wrench } from "lucide-react";
 import { useState } from "react";
 import type { Address } from "viem";
 import { AddressAvatar } from "@/components/shared/address-avatar";
@@ -146,6 +146,18 @@ export function Sidebar() {
         >
           <Wrench className="h-4 w-4 shrink-0" />
           All Skills
+        </Link>
+        <Link
+          to="/installation"
+          className={cn(
+            "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+            location.pathname === "/installation"
+              ? "bg-accent text-accent-foreground font-medium"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          )}
+        >
+          <Download className="h-4 w-4 shrink-0" />
+          Installation
         </Link>
       </nav>
     </aside>

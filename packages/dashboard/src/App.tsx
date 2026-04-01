@@ -10,6 +10,7 @@ import { DeviceGroupsPage } from "./pages/device-groups";
 import { GroupDetailPage } from "./pages/group-detail";
 import { OverviewPage } from "./pages/overview";
 import { SkillsPage } from "./pages/skills";
+import { InstallationPage } from "./pages/installation";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ export function App() {
               <Route path="channels/:address" element={<ChannelDetailPage />} />
               <Route path="agents" element={<AgentsPage />} />
               <Route path="skills" element={<SkillsPage />} />
+              <Route path="installation" element={<InstallationPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

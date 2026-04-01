@@ -11,12 +11,22 @@ import { loadWallet } from "../wallet.ts";
 
 export const readCommand = new Command("read")
   .description("Read messages from a device's outgoing channel")
-  .requiredOption("--device <name>", "Device name")
+  .option("--device <name>", "Device name (reads from local device config)")
+  .option("--channel <address>", "Channel address (reads directly, no local device needed)")
   .option("--limit <n>", "Number of messages to read", "10")
   .option("--offset <n>", "Start reading from this offset")
   .option("--raw", "Show raw hex instead of decoded envelopes")
   .option("--json", "Output as JSON")
   .action(async (opts) => {
+    if (!opts.device && !opts.channel) {
+      console.error("Provide --device or --channel.");
+      process.exit(1);
+    }
+    if (opts.device && opts.channel) {
+      console.error("Provide --device or --channel, not both.");
+      process.exit(1);
+    }
+
     const config = loadConfig();
     if (!config) {
       console.error("Not initialized. Run 'smartclaws init' first.");
@@ -29,19 +39,28 @@ export const readCommand = new Command("read")
       process.exit(1);
     }
 
-    const device = loadDevice(opts.device);
-    if (!device) {
-      const devices = listDevices();
-      console.error(`Device '${opts.device}' not found.`);
-      if (devices.length > 0) {
-        console.error(`Available: ${devices.map((d) => d.name).join(", ")}`);
+    let channelAddress: Address;
+    let deviceName: string | undefined;
+
+    if (opts.channel) {
+      channelAddress = opts.channel as Address;
+    } else {
+      const device = loadDevice(opts.device);
+      if (!device) {
+        const devices = listDevices();
+        console.error(`Device '${opts.device}' not found.`);
+        if (devices.length > 0) {
+          console.error(`Available: ${devices.map((d) => d.name).join(", ")}`);
+        }
+        process.exit(1);
       }
-      process.exit(1);
+      channelAddress = device.outgoingChannel as Address;
+      deviceName = device.name;
     }
 
     const { publicClient } = getClients(config, wallet);
     const channel = getContract({
-      address: device.outgoingChannel as Address,
+      address: channelAddress,
       abi: SmartClawsChannelABI.abi,
       client: publicClient,
     });
@@ -81,8 +100,8 @@ export const readCommand = new Command("read")
       console.log(
         JSON.stringify(
           {
-            device: device.name,
-            channel: device.outgoingChannel,
+            device: deviceName ?? null,
+            channel: channelAddress,
             total: Number(count),
             oldest: Number(oldest),
             latest: Number(latest),
