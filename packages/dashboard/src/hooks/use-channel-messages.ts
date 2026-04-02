@@ -1,5 +1,6 @@
+import { keepPreviousData } from "@tanstack/react-query";
 import { decode, type Envelope } from "@smartclaws/core/envelope";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Address, type Hex, hexToBytes } from "viem";
 import { usePublicClient, useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
@@ -33,6 +34,15 @@ export function useChannelMessages(channelAddress: Address, count = 20) {
   const contract = { address: channelAddress, abi: abis.channel, chainId: chain.id } as const;
   const publicClient = usePublicClient({ chainId: chain.id });
 
+  // Track previous address so we can keep data on refetch but clear on channel switch
+  const prevAddressRef = useRef(channelAddress);
+  const addressChanged = prevAddressRef.current !== channelAddress;
+  prevAddressRef.current = channelAddress;
+
+  // Keep previous data only when refetching the same channel (prevents flicker).
+  // On channel switch, return undefined so stale data from the old channel is never shown.
+  const keepDataOnRefetch = addressChanged ? undefined : keepPreviousData;
+
   const { data: stats, isLoading: isLoadingStats } = useReadContracts({
     contracts: [
       { ...contract, functionName: "getMessageCount" },
@@ -41,7 +51,7 @@ export function useChannelMessages(channelAddress: Address, count = 20) {
       { ...contract, functionName: "getMaxCapacityBytes" },
       { ...contract, functionName: "totalBytes" },
     ],
-    query: { refetchInterval: 5_000 },
+    query: { refetchInterval: 5_000, placeholderData: keepDataOnRefetch },
   });
 
   const messageCount = stats?.[0]?.result as bigint | undefined;
@@ -69,6 +79,7 @@ export function useChannelMessages(channelAddress: Address, count = 20) {
     query: {
       enabled: fromOffset !== undefined && readCount > 0,
       refetchInterval: 5_000,
+      placeholderData: keepDataOnRefetch,
     },
   });
 
