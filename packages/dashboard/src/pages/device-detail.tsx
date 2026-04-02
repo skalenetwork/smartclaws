@@ -1,4 +1,12 @@
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, ExternalLink } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowUpRight,
+  ChevronsDown,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 import type { Address } from "viem";
 import { AddressAvatar } from "@/components/shared/address-avatar";
@@ -22,8 +30,19 @@ function DeviceDetailContent({ address }: { address: string }) {
   const { incomingChannel, outgoingChannel, publisher, group, isLoading } = useDeviceDetail(
     address as Address,
   );
-  const { messages } = useChannelMessages(outgoingChannel ?? ("0x" as Address), 1);
-  const devName = messages[0]?.envelope?.dev;
+  const [activeTab, setActiveTab] = useState("outgoing");
+
+  const activeChannel =
+    activeTab === "outgoing" ? outgoingChannel : incomingChannel;
+
+  const channelData = useChannelMessages(activeChannel ?? ("0x" as Address));
+
+  // Also fetch 1 message from outgoing to get device name
+  const { messages: nameMessages } = useChannelMessages(
+    outgoingChannel ?? ("0x" as Address),
+    1,
+  );
+  const devName = nameMessages[0]?.envelope?.dev;
 
   if (isLoading) {
     return (
@@ -72,21 +91,56 @@ function DeviceDetailContent({ address }: { address: string }) {
         </div>
       </div>
 
-      <Tabs defaultValue="outgoing">
-        <TabsList>
-          <TabsTrigger value="outgoing">
-            <ArrowUpRight className="h-4 w-4" />
-            Outgoing Channel
-          </TabsTrigger>
-          <TabsTrigger value="incoming">
-            <ArrowDownLeft className="h-4 w-4" />
-            Incoming Channel
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="outgoing">
+              <ArrowUpRight className="h-4 w-4" />
+              Outgoing Channel
+            </TabsTrigger>
+            <TabsTrigger value="incoming">
+              <ArrowDownLeft className="h-4 w-4" />
+              Incoming Channel
+            </TabsTrigger>
+          </TabsList>
+
+          {activeChannel && channelData.messageCount !== undefined && (
+            <div className="bg-card inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5">
+              <span className="text-xs text-muted-foreground">
+                Showing{" "}
+                <span className="text-foreground font-medium">
+                  {channelData.messages.length}
+                </span>
+                {" / "}
+                <span className="text-foreground font-medium">
+                  {channelData.messageCount.toString()}
+                </span>
+              </span>
+              {channelData.hasMore && (
+                <button
+                  type="button"
+                  onClick={() => channelData.loadMore()}
+                  disabled={channelData.isLoadingMore}
+                  className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent/80 disabled:opacity-50"
+                >
+                  {channelData.isLoadingMore ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ChevronsDown className="h-3 w-3" />
+                  )}
+                  Load more
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         <TabsContent value="outgoing">
           {outgoingChannel ? (
-            <ChannelView address={outgoingChannel} />
+            <ChannelView
+              address={outgoingChannel}
+              data={activeTab === "outgoing" ? channelData : undefined}
+            />
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -98,7 +152,10 @@ function DeviceDetailContent({ address }: { address: string }) {
 
         <TabsContent value="incoming">
           {incomingChannel ? (
-            <ChannelView address={incomingChannel} />
+            <ChannelView
+              address={incomingChannel}
+              data={activeTab === "incoming" ? channelData : undefined}
+            />
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
