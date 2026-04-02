@@ -1,0 +1,15 @@
+{
+  "name": "@smartclaws/core",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./envelope": "./src/envelope.ts",
+    "./networks": "./src/networks.ts",
+    "./names": "./src/names.ts",
+    "./types": "./src/types.ts",
+    "./abi/*": "./abi/*"
+  },
+  "files": ["src", "abi"],
+  "license": "LGPL-3.0-or-later"
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@smartclaws/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "LGPL-3.0-or-later",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build --compile src/index.ts --outfile dist/smartclaws",
+    "check": "tsc --noEmit",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --fix src/",
+    "test": "bun test",
+    "test:unit": "bun test tests/unit/",
+    "test:integration": "bun test tests/integration/"
+  },
+  "dependencies": {
+    "@smartclaws/core": "workspace:*",
+    "commander": "^14.0.0",
+    "viem": "^2.47.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.0",
+    "@types/bun": "^1.3.11",
+    "typescript": "^6.0.0"
+  }
+}

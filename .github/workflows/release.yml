@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      branch: ${{ steps.meta.outputs.branch }}
+      index: ${{ steps.meta.outputs.index }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute release metadata
+        id: meta
+        run: |
+          VERSION=$(jq -r .version packages/cli/package.json)
+          BRANCH="${GITHUB_REF_NAME}"
+
+          # Count previous releases matching this version-branch pattern
+          INDEX=0
+          for tag in $(git tag -l "v${VERSION}-${BRANCH}.*" 2>/dev/null | sort -V); do
+            i="${tag##*.}"
+            if [ "$i" -ge "$INDEX" ] 2>/dev/null; then
+              INDEX=$((i + 1))
+            fi
+          done
+
+          RELEASE_TAG="v${VERSION}-${BRANCH}.${INDEX}"
+          RELEASE_NAME="SmartClaws ${VERSION}-${BRANCH}.${INDEX}"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "index=${INDEX}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: bun-darwin-arm64
+            platform: darwin-arm64
+          - target: bun-darwin-x64
+            platform: darwin-x64
+          - target: bun-linux-x64
+            platform: linux-x64
+          - target: bun-linux-arm64
+            platform: linux-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build binary
+        run: |
+          BINARY_NAME="smartclaws-${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.branch }}-${{ needs.prepare.outputs.index }}-${{ matrix.platform }}"
+          cd packages/cli
+          bun build --compile --target=${{ matrix.target }} src/index.ts --outfile "dist/${BINARY_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartclaws-${{ matrix.platform }}
+          path: packages/cli/dist/smartclaws-*
+
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          merge-multiple: true
+
+      - name: Create tag
+        run: |
+          git tag "${{ needs.prepare.outputs.release_tag }}"
+          git push origin "${{ needs.prepare.outputs.release_tag }}"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          name: ${{ needs.prepare.outputs.release_name }}
+          files: binaries/*
+          generate_release_notes: true
