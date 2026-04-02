@@ -115,6 +115,11 @@ export function ChannelView({ address, data }: ChannelViewProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLTableRowElement>(null);
 
+  // Clear expanded rows when switching channels
+  useEffect(() => {
+    setExpanded(new Set());
+  }, [address]);
+
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el || !hasMore) return;

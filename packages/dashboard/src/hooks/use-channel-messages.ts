@@ -1,4 +1,3 @@
-import { keepPreviousData } from "@tanstack/react-query";
 import { decode, type Envelope } from "@smartclaws/core/envelope";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type Address, type Hex, hexToBytes } from "viem";
@@ -70,7 +69,6 @@ export function useChannelMessages(channelAddress: Address, count = 20) {
     query: {
       enabled: fromOffset !== undefined && readCount > 0,
       refetchInterval: 5_000,
-      placeholderData: keepPreviousData,
     },
   });
 

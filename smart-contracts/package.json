@@ -6,7 +6,8 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "lint": "solhint 'contracts/**/*.sol'"
+    "lint": "solhint 'contracts/**/*.sol'",
+    "verify": "hardhat run scripts/verify.ts --network skaleTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.3",
