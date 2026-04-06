@@ -18,15 +18,6 @@ export const NETWORKS: Record<string, Network> = {
     nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
     registryAddress: "0x18B62f70ddaA2666FA5933a7b6Ff3943e69ca690",
   },
-  mainnet: {
-    name: "Europa Mainnet",
-    chainId: 2046399126,
-    rpcUrl: "https://mainnet.skalenodes.com/v1/europa",
-    chainName: "elated-tan-skat",
-    explorerUrl: "https://elated-tan-skat.explorer.mainnet.skalenodes.com",
-    nativeCurrency: { name: "sFUEL", symbol: "sFUEL", decimals: 18 },
-    registryAddress: "",
-  },
 };
 
 export const DEFAULT_NETWORK = "testnet";
