@@ -29,7 +29,7 @@ If not installed, download the binary for the current platform:
 
 ```bash
 PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/aarch64/arm64/')"
-curl -L -o /usr/local/bin/smartclaws \
+curl -fL -o /usr/local/bin/smartclaws \
   "https://github.com/skalenetwork/smartclaws/releases/latest/download/smartclaws-${PLATFORM}"
 chmod +x /usr/local/bin/smartclaws
 ```
