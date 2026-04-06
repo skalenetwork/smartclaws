@@ -9,12 +9,6 @@ export function OverviewPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-lg font-semibold">Overview</h1>
-        <p className="text-muted-foreground/80 mt-1 text-xs">
-          SmartClaws network at a glance
-        </p>
-      </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard
           title="Device Groups"

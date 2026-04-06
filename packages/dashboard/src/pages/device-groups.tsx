@@ -2,7 +2,6 @@ import { Link } from "react-router";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { DeviceCountPill } from "@/components/shared/device-count-pill";
 import { EmptyState } from "@/components/shared/empty-state";
-import { PageHeader } from "@/components/shared/page-header";
 import { SkillChips } from "@/components/shared/skill-chips";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,8 +13,6 @@ export function DeviceGroupsPage() {
 
   return (
     <div>
-      <PageHeader title="Device Groups" description="All registered device groups on the network" />
-
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (

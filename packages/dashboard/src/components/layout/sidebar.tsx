@@ -1,4 +1,4 @@
-import { ChevronRight, Download, Wrench } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Rocket, Wrench } from "lucide-react";
 import { useState } from "react";
 import type { Address } from "viem";
 import { AddressAvatar } from "@/components/shared/address-avatar";
@@ -108,12 +108,26 @@ export function Sidebar() {
   const { groups, isLoading } = useDeviceGroups();
 
   return (
-    <aside className="hidden md:flex w-56 flex-col bg-card rounded-2xl m-2 mr-0 overflow-y-auto">
-      <Link to="/" className="flex items-center gap-2 px-4 pt-4 pb-2">
+    <aside className="hidden md:flex w-56 flex-col border-r border-border">
+      <Link to="/" className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0">
         <img src={logoSvg} alt="SmartClaws" className="h-4 w-4" />
         <span className="font-medium text-sm tracking-tight" style={{ color: "#FFD7DA" }}>SmartClaws</span>
       </Link>
-      <nav className="flex-1 px-2 pb-3">
+      <nav className="flex-1 px-2 pb-3 overflow-y-auto">
+        <div className="pt-2">
+          <Link
+            to="/overview"
+            className={cn(
+              "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+              location.pathname === "/overview"
+                ? "bg-accent text-accent-foreground font-medium"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            Overview
+          </Link>
+        </div>
         <SectionLabel>Device Groups</SectionLabel>
         <div className="space-y-0.5">
           {isLoading ? (
@@ -148,16 +162,16 @@ export function Sidebar() {
           All Skills
         </Link>
         <Link
-          to="/installation"
+          to="/setup"
           className={cn(
             "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
-            location.pathname === "/installation"
+            location.pathname === "/setup"
               ? "bg-accent text-accent-foreground font-medium"
               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
           )}
         >
-          <Download className="h-4 w-4 shrink-0" />
-          Installation
+          <Rocket className="h-4 w-4 shrink-0" />
+          Setup
         </Link>
       </nav>
     </aside>

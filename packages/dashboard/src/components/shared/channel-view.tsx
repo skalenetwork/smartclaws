@@ -1,5 +1,5 @@
-import { ChevronRight, Database, Hash, Loader2, MessageSquare } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { ChevronRight, Database, Hash, MessageSquare } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import type { Address } from "viem";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatCard } from "@/components/shared/stat-card";
@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type DecodedMessage, useChannelMessages } from "@/hooks/use-channel-messages";
+import { useChannelMessages } from "@/hooks/use-channel-messages";
 import { SensorCharts } from "@/components/shared/sensor-charts";
 
 function formatBytes(bytes: bigint): string {
@@ -92,48 +92,13 @@ function highlightJson(json: string): ReactNode[] {
   return parts;
 }
 
-export interface ChannelData {
-  messages: DecodedMessage[];
-  messageCount: bigint | undefined;
-  maxCapacity: bigint | undefined;
-  totalBytes: bigint | undefined;
-  isLoading: boolean;
-  hasMore: boolean;
-  isLoadingMore: boolean;
-  loadMore: () => void;
-}
-
 interface ChannelViewProps {
   address: Address;
-  data?: ChannelData;
 }
 
-export function ChannelView({ address, data }: ChannelViewProps) {
-  const hookData = useChannelMessages(address);
-  const { messages, messageCount, maxCapacity, totalBytes, isLoading, hasMore, isLoadingMore, loadMore } =
-    data ?? hookData;
+export function ChannelView({ address }: ChannelViewProps) {
+  const { messages, messageCount, maxCapacity, totalBytes, isLoading } = useChannelMessages(address);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const sentinelRef = useRef<HTMLTableRowElement>(null);
-
-  // Clear expanded rows when switching channels
-  useEffect(() => {
-    setExpanded(new Set());
-  }, [address]);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !hasMore) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isLoadingMore) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, loadMore]);
 
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
@@ -278,17 +243,6 @@ export function ChannelView({ address, data }: ChannelViewProps) {
                   </>
                 );
               })}
-              {(hasMore || isLoadingMore) && (
-                <TableRow ref={sentinelRef} className="hover:bg-transparent">
-                  <TableCell colSpan={6} className="py-3 text-center">
-                    {isLoadingMore ? (
-                      <Loader2 className="h-4 w-4 animate-spin inline-block text-muted-foreground" />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Scroll for older messages</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </div>
