@@ -15,14 +15,14 @@ export default defineConfig({
     },
   },
   chainDescriptors: {
-    103698795: {
-      name: "SKALE Bite Sandbox",
+    196243392: {
+      name: "SKALE Sandbox",
       chainType: "generic",
       blockExplorers: {
         etherscan: {
-          url: "https://base-sepolia-testnet-explorer.skalenodes.com",
+          url: "https://vigilant-snappy-arcturus.base-sepolia-testnet-explorer.skalenodes.com",
           apiUrl:
-            "https://base-sepolia-testnet-explorer.skalenodes.com:10032/api",
+            "https://vigilant-snappy-arcturus.base-sepolia-testnet-explorer.skalenodes.com/api",
         },
       },
     },
@@ -37,7 +37,7 @@ export default defineConfig({
       ? {
           skaleTestnet: {
             type: "http" as const,
-            chainId: 103698795,
+            chainId: 196243392,
             url: process.env.SKALE_RPC_URL,
             accounts: process.env.DEPLOYER_PRIVATE_KEY
               ? [process.env.DEPLOYER_PRIVATE_KEY]

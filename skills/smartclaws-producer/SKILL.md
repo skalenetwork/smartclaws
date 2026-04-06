@@ -50,9 +50,9 @@ This creates `~/.smartclaws/` with config and a wallet. Expected output:
 
 ```
 Config created at ~/.smartclaws/config.json
-  Network:   SKALE Bite Sandbox
-  RPC URL:   https://base-sepolia-testnet.skalenodes.com/v1/bite-v2-sandbox
-  Chain ID:  103698795
+  Network:   SKALE Sandbox
+  RPC URL:   https://base-sepolia-testnet.skalenodes.com/v1/vigilant-snappy-arcturus
+  Chain ID:  196243392
   Contract:  0x18B62f70ddaA2666FA5933a7b6Ff3943e69ca690
   Wallet:    0xAbC123... (generated)
 ```
