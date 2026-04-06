@@ -1,6 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { decode, type Envelope } from "@smartclaws/core/envelope";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { type Address, type Hex, hexToBytes } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";

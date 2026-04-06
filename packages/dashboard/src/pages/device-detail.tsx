@@ -2,9 +2,7 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
-  ChevronsDown,
   ExternalLink,
-  Loader2,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -116,21 +114,6 @@ function DeviceDetailContent({ address }: { address: string }) {
                   {channelData.messageCount.toString()}
                 </span>
               </span>
-              {channelData.hasMore && (
-                <button
-                  type="button"
-                  onClick={() => channelData.loadMore()}
-                  disabled={channelData.isLoadingMore}
-                  className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent/80 disabled:opacity-50"
-                >
-                  {channelData.isLoadingMore ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <ChevronsDown className="h-3 w-3" />
-                  )}
-                  Load more
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -139,7 +122,6 @@ function DeviceDetailContent({ address }: { address: string }) {
           {outgoingChannel ? (
             <ChannelView
               address={outgoingChannel}
-              data={activeTab === "outgoing" ? channelData : undefined}
             />
           ) : (
             <Card>
@@ -154,7 +136,6 @@ function DeviceDetailContent({ address }: { address: string }) {
           {incomingChannel ? (
             <ChannelView
               address={incomingChannel}
-              data={activeTab === "incoming" ? channelData : undefined}
             />
           ) : (
             <Card>
