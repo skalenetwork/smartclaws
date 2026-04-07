@@ -2,6 +2,8 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
+  Check,
+  Copy,
   ExternalLink,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,6 +18,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
 import { useDeviceDetail } from "@/hooks/use-device-detail";
 import { getExplorerAddressUrl } from "@/lib/explorer";
+
+function ChannelAddressBar({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  const explorerUrl = getExplorerAddressUrl(address);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5">
+      <AddressAvatar address={address} size={16} kind="channel" />
+      <code className="flex-1 min-w-0 text-xs font-mono text-muted-foreground truncate">
+        {address}
+      </code>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="shrink-0 p-1 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+        title="Copy address"
+      >
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+      {explorerUrl && (
+        <a
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 p-1 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+          title="View in Explorer"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+    </div>
+  );
+}
 
 export function DeviceDetailPage() {
   const { address } = useParams<{ address: string }>();
@@ -117,6 +158,8 @@ function DeviceDetailContent({ address }: { address: string }) {
             </div>
           )}
         </div>
+
+        {activeChannel && <ChannelAddressBar address={activeChannel} />}
 
         <TabsContent value="outgoing">
           {outgoingChannel ? (
