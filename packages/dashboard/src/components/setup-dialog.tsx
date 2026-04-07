@@ -49,7 +49,7 @@ export function SetupDialog() {
         <StepNumber n={4} /> Connect a sensor and start publishing data:
       </MessageBubble>
       <MessageBubble variant="primary">
-        Set up a temperature sensor on my Raspberry Pi and start publishing data
+        Set up a temperature sensor and start publishing data
       </MessageBubble>
 
       {/* Step 5: Query data */}

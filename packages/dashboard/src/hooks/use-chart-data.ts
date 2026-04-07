@@ -20,6 +20,8 @@ export function useChartData(messages: DecodedMessage[]): ChartSeries[] {
       const { ts, p } = msg.envelope;
       for (const [key, val] of Object.entries(p)) {
         if (typeof val !== "number") continue;
+        const lk = key.toLowerCase();
+        if (lk === "ts" || lk === "timestamp") continue;
         let arr = seriesMap.get(key);
         if (!arr) {
           arr = [];
