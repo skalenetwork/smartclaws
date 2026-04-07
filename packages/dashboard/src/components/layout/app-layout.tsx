@@ -1,6 +1,7 @@
 import { Outlet } from "react-router";
 import { Header } from "./header";
 import { HeaderActionsProvider } from "./header-context";
+import { MobileNav } from "./mobile-nav";
 import { Sidebar } from "./sidebar";
 
 export function AppLayout() {
@@ -14,6 +15,7 @@ export function AppLayout() {
             <Outlet />
           </main>
         </div>
+        <MobileNav />
       </div>
     </HeaderActionsProvider>
   );
