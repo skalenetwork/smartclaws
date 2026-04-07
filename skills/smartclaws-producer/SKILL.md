@@ -1,21 +1,38 @@
----
+***
+
 name: smartclaws-producer
 description: >
-  Set up IoT sensors and publish data to SKALE blockchain via SmartClaws.
-  Use when: setting up smartclaws, registering devices, connecting sensors,
-  publishing temperature/humidity/IoT measurements, writing sensor scripts.
+Set up IoT sensors and publish data to SKALE blockchain via SmartClaws.
+Use when: setting up smartclaws, registering devices, connecting sensors,
+publishing temperature/humidity/IoT measurements, writing sensor scripts.
 metadata:
-  openclaw:
-    emoji: "\U0001F4E1"
-    homepage: https://github.com/skalenetwork/smartclaws
-    requires:
-      bins: ["python3"]
-      anyBins: ["curl", "wget"]
----
+openclaw:
+emoji: "\U0001F4E1"
+homepage: https://github.com/skalenetwork/smartclaws
+requires:
+bins: \["python3"]
+anyBins: \["curl", "wget"]
+--------------------------
 
 # SmartClaws Producer
 
 Publish IoT sensor data to the SKALE blockchain using the SmartClaws protocol. This skill handles the full producer pipeline: installing the CLI, initializing a wallet, registering devices, writing sensor-reading scripts, and publishing data on-chain.
+
+## Real Hardware Rule
+
+When the user asks to set up a sensor or publish real-world measurements, assume they mean a real hardware device unless they explicitly say they want a simulation, mock, or pipeline test.
+
+Before writing any publisher script, first determine:
+
+* the exact sensor model / part number
+* how it connects to the host (BLE, USB serial, Wi-Fi, MQTT, GPIO/I2C/SPI, etc.)
+* whether pairing or driver setup is required
+* what library, CLI, or protocol is needed to read the sensor
+
+If the exact sensor model or connection method is unknown, ask the user before proceeding.
+
+Do not generate fake/mock sensor data for a real setup request.
+Only use a mock publisher when the user explicitly requests testing, simulation, or pipeline validation without real hardware.
 
 ## Installation
 
@@ -136,7 +153,17 @@ List registered devices: `smartclaws device list`
 
 ## Writing Sensor Scripts
 
-When the user describes their sensor hardware, write a Python script that:
+Before writing a publisher script:
+
+1. Identify the exact sensor model and connection type.
+2. If the model or protocol is missing, ask the user.
+3. Look up the sensor's pairing / reading instructions.
+4. Determine the required Python package, system dependency, permissions, and read method.
+5. Only then write a hardware-specific publisher script.
+
+Never substitute mock data unless the user explicitly asks for a simulation or test publisher.
+
+When the user has provided their sensor details, write a Python script that:
 
 1. Imports the appropriate sensor library (install with pip if needed)
 2. Reads sensor data in a function
@@ -202,16 +229,30 @@ if __name__ == "__main__":
 
 Requires: `pip install bleak`
 
-The read_sensor function uses BLE GATT characteristic `ebe0ccc1-7a0a-4b0c-8a1a-6ff2997da3a6`. The data bytes decode as:
-- bytes 0-1: temperature (little-endian signed int16, divide by 100)
-- byte 2: humidity (uint8, percentage)
-- bytes 3-4: voltage (little-endian uint16, divide by 1000)
+The read\_sensor function uses BLE GATT characteristic `ebe0ccc1-7a0a-4b0c-8a1a-6ff2997da3a6`. The data bytes decode as:
+
+* bytes 0-1: temperature (little-endian signed int16, divide by 100)
+* byte 2: humidity (uint8, percentage)
+* bytes 3-4: voltage (little-endian uint16, divide by 1000)
 
 See the full working example at `examples/ble-publisher.py` bundled with this skill.
 
-### Example: Mock Sensor (for testing)
+## If the User Says "Set Up a Temperature Sensor"
 
-For testing the pipeline without hardware, use the mock publisher that generates simulated temperature data (sine wave + noise). See `examples/mock-publisher.py` bundled with this skill.
+Do not assume a mock sensor. Ask a short clarifying question such as:
+
+* "What's the exact sensor model?"
+* "How does it connect to this machine: BLE, USB, Wi-Fi, or GPIO/I2C?"
+
+Only after receiving the hardware details should you write the publisher script.
+
+If the user explicitly says they want a mock/test/simulated sensor, then use the mock publisher above.
+
+## Common Mistake to Avoid
+
+**Wrong:** User asks to set up a real sensor, and the agent immediately creates a fake/mock publisher with simulated data.
+
+**Right:** Ask for the sensor model and connection method first, then write a hardware-specific publisher.
 
 ## Publishing Data
 

@@ -1,16 +1,17 @@
----
+***
+
 name: smartclaws-reader
 description: >
-  Read and analyze IoT sensor data from SKALE blockchain via SmartClaws.
-  Use when: querying sensor readings, asking about temperature or other
-  measurements, analyzing trends, checking thresholds, reading on-chain IoT data.
+Read and analyze IoT sensor data from SKALE blockchain via SmartClaws.
+Use when: querying sensor readings, asking about temperature or other
+measurements, analyzing trends, checking thresholds, reading on-chain IoT data.
 metadata:
-  openclaw:
-    emoji: "\U0001F4CA"
-    homepage: https://github.com/skalenetwork/smartclaws
-    requires:
-      anyBins: ["curl", "wget"]
----
+openclaw:
+emoji: "\U0001F4CA"
+homepage: https://github.com/skalenetwork/smartclaws
+requires:
+anyBins: \["curl", "wget"]
+--------------------------
 
 # SmartClaws Reader
 
@@ -135,15 +136,20 @@ When using `--json`, the output structure is:
 ```
 
 Field reference:
-- `device`: device name (null when using --channel instead of --device)
-- `channel`: the on-chain channel address
-- `total`: total number of messages in the channel
-- `oldest` / `latest`: offset range of available messages
-- `messages[].v`: envelope version (always 1)
-- `messages[].ts`: Unix timestamp in seconds
-- `messages[].dev`: device name set by the producer
-- `messages[].topic`: message topic (e.g., "temperature", "sensor")
-- `messages[].p`: the payload object with sensor values
+
+* `device`: device name (null when using --channel instead of --device)
+* `channel`: the on-chain channel address
+* `total`: total number of messages in the channel
+* `oldest` / `latest`: offset range of available messages
+* `messages[].v`: envelope version (always 1)
+* `messages[].ts`: Unix timestamp in seconds
+* `messages[].dev`: device name set by the producer
+* `messages[].topic`: message topic (e.g., "temperature", "sensor")
+* `messages[].p`: the payload object with sensor values
+
+## Data Truthfulness
+
+When answering questions about sensor readings, do not imply that test/mock data is real device data. If the producer was configured with a mock/test publisher, be explicit that the readings are simulated.
 
 ## Answering Data Questions
 
