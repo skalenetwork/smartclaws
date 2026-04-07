@@ -1,6 +1,5 @@
 import { Link } from "react-router";
 import { LayoutDashboard, Rocket } from "lucide-react";
-import logoSvg from "@/assets/logo.svg";
 
 const items = [
   { to: "/overview", label: "Dashboard", icon: LayoutDashboard },
