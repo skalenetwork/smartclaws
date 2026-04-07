@@ -57,21 +57,21 @@ Skills are plain directories containing a `SKILL.md` file. Place them in `~/.ope
 
 ## Publishing Skills to ClawHub
 
-To publish or update skills on [ClawHub](https://clawhub.ai), use the `openclaw` CLI:
+To publish or update skills on [ClawHub](https://clawhub.ai), use the `clawhub` CLI:
 
 ### First-time setup
 
 ```bash
 # Authenticate with ClawHub
-openclaw auth login
+clawhub auth login
 ```
 
 ### Publish a skill
 
 ```bash
 # From the repo root — publish each skill directory
-openclaw skill publish skills/smartclaws-producer
-openclaw skill publish skills/smartclaws-reader
+clawhub skill publish skills/smartclaws-producer
+clawhub skill publish skills/smartclaws-reader
 ```
 
 This reads the `SKILL.md` frontmatter (`name`, `description`, `metadata`) and uploads the skill to ClawHub under your account.
@@ -80,7 +80,7 @@ This reads the `SKILL.md` frontmatter (`name`, `description`, `metadata`) and up
 
 ```bash
 # Bump the version or edit the SKILL.md, then re-publish
-openclaw skill publish skills/smartclaws-producer
+clawhub skill publish skills/smartclaws-producer
 ```
 
 Re-publishing an existing skill name updates it in-place on ClawHub.
@@ -89,8 +89,8 @@ Re-publishing an existing skill name updates it in-place on ClawHub.
 
 ```bash
 # Check that your skills are live
-openclaw skill info smartclaws-producer
-openclaw skill info smartclaws-reader
+clawhub skill info smartclaws-producer
+clawhub skill info smartclaws-reader
 ```
 
 Or browse directly at:
@@ -100,8 +100,8 @@ Or browse directly at:
 ### Install from ClawHub (for users)
 
 ```bash
-openclaw skill install smartclaws-producer
-openclaw skill install smartclaws-reader
+clawhub skill install smartclaws-producer
+clawhub skill install smartclaws-reader
 ```
 
 This downloads the skill into `~/.openclaw/skills/` automatically.
