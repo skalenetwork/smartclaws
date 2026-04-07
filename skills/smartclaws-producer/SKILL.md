@@ -1,18 +1,17 @@
-***
-
+---
 name: smartclaws-producer
 description: >
-Set up IoT sensors and publish data to SKALE blockchain via SmartClaws.
-Use when: setting up smartclaws, registering devices, connecting sensors,
-publishing temperature/humidity/IoT measurements, writing sensor scripts.
+  Set up IoT sensors and publish data to SKALE blockchain via SmartClaws.
+  Use when: setting up smartclaws, registering devices, connecting sensors,
+  publishing temperature/humidity/IoT measurements, writing sensor scripts.
 metadata:
-openclaw:
-emoji: "\U0001F4E1"
-homepage: https://github.com/skalenetwork/smartclaws
-requires:
-bins: \["python3"]
-anyBins: \["curl", "wget"]
---------------------------
+  openclaw:
+    emoji: "\U0001F4E1"
+    homepage: https://github.com/skalenetwork/smartclaws
+    requires:
+      bins: ["python3"]
+      anyBins: ["curl", "wget"]
+---
 
 # SmartClaws Producer
 
