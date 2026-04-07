@@ -1,4 +1,17 @@
 {
   "private": true,
-  "workspaces": ["packages/*"]
+  "version": "0.3.0",
+  "workspaces": ["packages/*", "smart-contracts"],
+  "scripts": {
+    "compile": "cd smart-contracts && bunx hardhat compile",
+    "export-abi": "cd smart-contracts && bunx hardhat compile && bash scripts/export-abi.sh",
+    "test:contracts": "cd smart-contracts && bunx hardhat test",
+    "test:cli": "cd packages/cli && bun test",
+    "lint": "biome check packages/cli/src/ && biome check packages/dashboard/src/",
+    "build:cli": "cd packages/cli && bun run build",
+    "build:dashboard": "cd packages/dashboard && bun run build",
+    "dev:dashboard": "cd packages/dashboard && bun run dev",
+    "version:check": "node scripts/version-check.mjs",
+    "version:bump": "node scripts/version-bump.mjs"
+  }
 }

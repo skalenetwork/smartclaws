@@ -46,7 +46,20 @@ smartclaws --version
 If not installed, download the binary for the current platform:
 
 ```bash
-PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/aarch64/arm64/')"
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+
+# On Apple Silicon, Rosetta shells can report x86_64. Prefer real hardware arch.
+if [ "$OS" = "darwin" ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)" = "1" ]; then
+  ARCH="arm64"
+fi
+
+case "$ARCH" in
+  aarch64|arm64) ARCH="arm64" ;;
+  x86_64|amd64) ARCH="x86_64" ;;
+esac
+
+PLATFORM="${OS}-${ARCH}"
 curl -fL -o /usr/local/bin/smartclaws \
   "https://github.com/skalenetwork/smartclaws/releases/latest/download/smartclaws-${PLATFORM}"
 chmod +x /usr/local/bin/smartclaws

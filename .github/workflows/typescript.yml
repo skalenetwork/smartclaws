@@ -19,29 +19,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Install contract deps
-        working-directory: smart-contracts
-        run: npm ci
-
-      - name: Compile contracts
-        working-directory: smart-contracts
-        run: npx hardhat compile
-
-      - name: Export ABIs
-        working-directory: smart-contracts
-        run: bash scripts/export-abi.sh
-
-      - name: Install workspace deps
+      - name: Install dependencies
         run: bun install
+
+      - name: Check version sync
+        run: bun run version:check
+
+      - name: Compile contracts & export ABIs
+        run: bun run export-abi
 
       - name: Lint
         working-directory: packages/cli
@@ -60,7 +48,7 @@ jobs:
         run: bun run test:unit
 
       - name: Start anvil
-        run: bash helper-scripts/helper.sh run_anvil
+        run: bash scripts/anvil.sh
 
       - name: Integration tests
         working-directory: packages/cli

@@ -1,6 +1,8 @@
 name: Release
 
-on: push
+on:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -22,7 +24,7 @@ jobs:
       - name: Compute release metadata
         id: meta
         run: |
-          VERSION=$(jq -r .version packages/cli/package.json)
+          VERSION=$(jq -r .version package.json)
           BRANCH="${GITHUB_REF_NAME}"
 
           # Count previous releases matching this version-branch pattern
@@ -51,8 +53,6 @@ jobs:
         include:
           - target: bun-darwin-arm64
             platform: darwin-arm64
-          - target: bun-darwin-x64
-            platform: darwin-x86_64
           - target: bun-linux-x64
             platform: linux-x86_64
           - target: bun-linux-arm64

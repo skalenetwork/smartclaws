@@ -35,15 +35,15 @@ export default defineConfig({
   networks: {
     ...(process.env.SKALE_RPC_URL
       ? {
-          skaleTestnet: {
-            type: "http" as const,
-            chainId: 196243392,
-            url: process.env.SKALE_RPC_URL,
-            accounts: process.env.DEPLOYER_PRIVATE_KEY
-              ? [process.env.DEPLOYER_PRIVATE_KEY]
-              : [],
-          },
-        }
+        skaleTestnet: {
+          type: "http" as const,
+          chainId: 196243392,
+          url: process.env.SKALE_RPC_URL,
+          accounts: process.env.DEPLOYER_PRIVATE_KEY
+            ? [process.env.DEPLOYER_PRIVATE_KEY]
+            : [],
+        },
+      }
       : {}),
   },
 });

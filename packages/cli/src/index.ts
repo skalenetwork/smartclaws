@@ -1,5 +1,5 @@
 import { program } from "commander";
-import pkg from "../package.json" with { type: "json" };
+import pkg from "../../../package.json" with { type: "json" };
 import { deviceCommand } from "./commands/device.ts";
 import { initCommand } from "./commands/init.ts";
 import { publishCommand } from "./commands/publish.ts";
