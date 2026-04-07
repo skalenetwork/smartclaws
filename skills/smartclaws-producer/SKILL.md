@@ -4,6 +4,8 @@ description: >
   Set up IoT sensors and publish data to SKALE blockchain via SmartClaws.
   Use when: setting up smartclaws, registering devices, connecting sensors,
   publishing temperature/humidity/IoT measurements, writing sensor scripts.
+license: LGPL-3.0-or-later
+compatibility: Requires Python 3 and curl or wget
 metadata:
   openclaw:
     emoji: "\U0001F4E1"

@@ -42,7 +42,22 @@ smartclaws publish --device temp-sensor --topic temperature --data '{"temp": 22.
 smartclaws read --device temp-sensor --limit 5
 ```
 
-## Installing Skills (from source)
+## Installing Skills
+
+### Via npx (Claude Code, Codex, and other agents)
+
+```bash
+npx skills add skalenetwork/smartclaws
+```
+
+### Via ClawHub (OpenClaw agents)
+
+```bash
+clawhub skill install smartclaws-producer
+clawhub skill install smartclaws-reader
+```
+
+### From source
 
 ```bash
 git clone https://github.com/skalenetwork/smartclaws.git
@@ -53,7 +68,7 @@ cp -r skills/smartclaws-producer ~/.openclaw/skills/
 cp -r skills/smartclaws-reader ~/.openclaw/skills/
 ```
 
-Skills are plain directories containing a `SKILL.md` file. Place them in `~/.openclaw/skills/` and they'll be discovered on the next agent session.
+Skills are plain directories containing a `SKILL.md` file following the [Agent Skills](https://agentskills.io) standard. They work with any compatible agent platform.
 
 ## Publishing Skills to ClawHub
 

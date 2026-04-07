@@ -4,6 +4,8 @@ description: >
   Read and analyze IoT sensor data from SKALE blockchain via SmartClaws.
   Use when: querying sensor readings, asking about temperature or other
   measurements, analyzing trends, checking thresholds, reading on-chain IoT data.
+license: LGPL-3.0-or-later
+compatibility: Requires curl or wget
 metadata:
   openclaw:
     emoji: "\U0001F4CA"
