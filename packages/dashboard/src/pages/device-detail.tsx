@@ -74,9 +74,7 @@ function DeviceDetailContent({ address }: { address: string }) {
   const activeChannel =
     activeTab === "outgoing" ? outgoingChannel : incomingChannel;
 
-  const channelData = useChannelMessages(activeChannel ?? ("0x" as Address));
-
-  // Also fetch 1 message from outgoing to get device name
+  // Fetch 1 message from outgoing to get device name
   const { messages: nameMessages } = useChannelMessages(
     outgoingChannel ?? ("0x" as Address),
     1,
@@ -143,20 +141,7 @@ function DeviceDetailContent({ address }: { address: string }) {
             </TabsTrigger>
           </TabsList>
 
-          {activeChannel && channelData.messageCount !== undefined && (
-            <div className="bg-card inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5">
-              <span className="text-xs text-muted-foreground">
-                Showing{" "}
-                <span className="text-foreground font-medium">
-                  {channelData.messages.length}
-                </span>
-                {" / "}
-                <span className="text-foreground font-medium">
-                  {channelData.messageCount.toString()}
-                </span>
-              </span>
-            </div>
-          )}
+
         </div>
 
         {activeChannel && <ChannelAddressBar address={activeChannel} />}

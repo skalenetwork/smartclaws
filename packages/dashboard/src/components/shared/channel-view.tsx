@@ -1,4 +1,4 @@
-import { ChevronRight, Database, Hash, MessageSquare } from "lucide-react";
+import { ChevronsDown, ChevronRight, Database, Hash, Loader2, MessageSquare } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { Address } from "viem";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -97,7 +97,7 @@ interface ChannelViewProps {
 }
 
 export function ChannelView({ address }: ChannelViewProps) {
-  const { messages, messageCount, maxCapacity, totalBytes, isLoading } = useChannelMessages(address);
+  const { messages, messageCount, maxCapacity, totalBytes, isLoading, isLoadingMore, canLoadMore, loadMore } = useChannelMessages(address);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (key: string) => {
@@ -169,6 +169,37 @@ export function ChannelView({ address }: ChannelViewProps) {
           </div>
         </div>
       </div>
+
+      {messageCount !== undefined && messages.length > 0 && (
+        <div className="flex justify-end">
+          <div className="bg-card inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5">
+            <span className="text-xs text-muted-foreground">
+              Showing{" "}
+              <span className="text-foreground font-medium">
+                {messages.length}
+              </span>
+              {" / "}
+              <span className="text-foreground font-medium">
+                {messageCount.toString()}
+              </span>
+            </span>
+            {canLoadMore && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={isLoadingMore}
+                className="ml-1 rounded-md p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isLoadingMore ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ChevronsDown className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <SensorCharts messages={messages} />
 

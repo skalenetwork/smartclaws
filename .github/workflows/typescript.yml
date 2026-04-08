@@ -30,11 +30,11 @@ jobs:
 
       - name: Install contract deps
         working-directory: smart-contracts
-        run: npm ci
+        run: bun install
 
       - name: Compile contracts
         working-directory: smart-contracts
-        run: npx hardhat compile
+        run: bunx hardhat compile
 
       - name: Export ABIs
         working-directory: smart-contracts
