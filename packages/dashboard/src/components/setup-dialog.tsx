@@ -3,8 +3,8 @@ import { MessageBubble } from "@/components/ui/message-bubble";
 function StepNumber({ n }: { n: number }) {
   return (
     <span
-      className="inline-flex items-center justify-center h-5 w-5 shrink-0 rounded-full text-[10px] font-bold text-black align-middle mr-1.5"
-      style={{ background: "linear-gradient(178deg, #ffd4d7, #ff8594)" }}
+      className="inline-flex items-center justify-center h-5 w-5 shrink-0 rounded-full text-[10px] text-white align-middle mr-2.5"
+      style={{ background: "linear-gradient(to bottom, #FF2A3A, #BE061C)" }}
     >
       {n}
     </span>
@@ -16,7 +16,7 @@ export function SetupDialog() {
     <div className="flex flex-col gap-3">
       {/* Step 1: Install skills */}
       <MessageBubble variant="secondary" clickable={false}>
-        <StepNumber n={1} /> Install the skills:
+        <span className="flex items-center"><StepNumber n={1} /> Install the skills:</span>
       </MessageBubble>
       <MessageBubble variant="primary">
         Install smartclaws-producer and smartclaws-reader skills from ClawHub
@@ -24,7 +24,7 @@ export function SetupDialog() {
 
       {/* Step 2: Set up SmartClaws */}
       <MessageBubble variant="secondary" clickable={false}>
-        <StepNumber n={2} /> Initialize the CLI and generate a wallet:
+        <span className="flex items-center"><StepNumber n={2} /> Initialize the CLI and generate a wallet:</span>
       </MessageBubble>
       <MessageBubble variant="primary">
         Set up SmartClaws and create a new wallet
@@ -38,7 +38,7 @@ export function SetupDialog() {
 
       {/* Step 3: Register device group */}
       <MessageBubble variant="secondary" clickable={false}>
-        <StepNumber n={3} /> Fund the wallet and register:
+        <span className="flex items-center"><StepNumber n={3} /> Fund the wallet and register:</span>
       </MessageBubble>
       <MessageBubble variant="primary">
         Wallet funded. Register a new device group: my-sensors.
@@ -46,7 +46,7 @@ export function SetupDialog() {
 
       {/* Step 4: Set up sensor */}
       <MessageBubble variant="secondary" clickable={false}>
-        <StepNumber n={4} /> Connect a sensor and start publishing data:
+        <span className="flex items-center"><StepNumber n={4} /> Connect a sensor and start publishing data:</span>
       </MessageBubble>
       <MessageBubble variant="primary">
         Set up a temperature sensor and start publishing data
@@ -54,7 +54,7 @@ export function SetupDialog() {
 
       {/* Step 5: Query data */}
       <MessageBubble variant="secondary" clickable={false}>
-        <StepNumber n={5} /> Query your on-chain data:
+        <span className="flex items-center"><StepNumber n={5} /> Query your on-chain data:</span>
       </MessageBubble>
       <MessageBubble variant="primary">
         What's the current temperature? Show me the trend for the last hour

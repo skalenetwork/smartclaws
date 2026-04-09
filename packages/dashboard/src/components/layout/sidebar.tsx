@@ -111,7 +111,7 @@ export function Sidebar() {
     <aside className="hidden md:flex w-56 flex-col border-r border-border">
       <Link to="/" className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0">
         <img src={logoSvg} alt="SmartClaws" className="h-4 w-4" />
-        <span className="font-medium text-sm tracking-tight" style={{ color: "#FFD7DA" }}>SmartClaws</span>
+        <span className="font-semibold text-sm tracking-tight" style={{ background: "linear-gradient(to right, #FF444D, #00B7A3)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>SmartClaws</span>
       </Link>
       <nav className="flex-1 px-2 pb-3 overflow-y-auto">
         <div className="pt-2">
