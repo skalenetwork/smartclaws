@@ -60,7 +60,7 @@ jobs:
         run: bun run test:unit
 
       - name: Start anvil
-        run: bash helper-scripts/helper.sh run_anvil
+        run: bash scripts/anvil.sh
 
       - name: Integration tests
         working-directory: packages/cli
