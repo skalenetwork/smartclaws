@@ -1,6 +1,6 @@
 {
   "name": "@skalenetwork/smartclaws-contracts",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "license": "LGPL-3.0-or-later",
   "scripts": {
@@ -11,9 +11,12 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.3",
-    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts": "5.0.2",
+    "chai": "^5.2.0",
     "dotenv": "^17.3.1",
+    "ethers": "^6.14.0",
     "hardhat": "^3.2.0",
+    "mocha": "^11.0.0",
     "solhint": "^6.1.0"
   }
 }

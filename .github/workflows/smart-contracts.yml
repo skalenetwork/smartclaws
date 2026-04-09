@@ -25,13 +25,16 @@ jobs:
         with:
           node-version: 22
 
-      - run: npm ci
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
 
       - name: Compile contracts
-        run: npx hardhat compile
+        run: bunx hardhat compile
 
       - name: Lint Solidity
-        run: npx solhint 'contracts/**/*.sol'
+        run: bunx solhint 'contracts/**/*.sol'
 
       - name: Run tests
-        run: npx hardhat test
+        run: bunx hardhat test

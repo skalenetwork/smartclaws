@@ -30,11 +30,11 @@ jobs:
 
       - name: Install contract deps
         working-directory: smart-contracts
-        run: npm ci
+        run: bun install
 
       - name: Compile contracts
         working-directory: smart-contracts
-        run: npx hardhat compile
+        run: bunx hardhat compile
 
       - name: Export ABIs
         working-directory: smart-contracts
@@ -60,7 +60,7 @@ jobs:
         run: bun run test:unit
 
       - name: Start anvil
-        run: bash helper-scripts/helper.sh run_anvil
+        run: bash scripts/anvil.sh
 
       - name: Integration tests
         working-directory: packages/cli

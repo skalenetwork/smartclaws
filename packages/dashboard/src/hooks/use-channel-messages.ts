@@ -1,6 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { decode, type Envelope } from "@smartclaws/core/envelope";
-import { useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Address, type Hex, hexToBytes } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
@@ -13,7 +13,8 @@ export interface DecodedMessage {
   error?: string;
 }
 
-export function useChannelMessages(channelAddress: Address, count = 20) {
+export function useChannelMessages(channelAddress: Address, initialCount = 20) {
+  const [count, setCount] = useState(initialCount);
   const contract = { address: channelAddress, abi: abis.channel, chainId: chain.id } as const;
 
   // Track previous address so we can keep data on refetch but clear on channel switch
@@ -54,7 +55,7 @@ export function useChannelMessages(channelAddress: Address, count = 20) {
     return Number(latestOffset - fromOffset) + 1;
   }, [fromOffset, latestOffset]);
 
-  const { data: rawMessages, isLoading: isLoadingMessages } = useReadContract({
+  const { data: rawMessages, isLoading: isLoadingMessages, isFetching: isFetchingMessages } = useReadContract({
     ...contract,
     functionName: "readMessages",
     args: fromOffset !== undefined ? [fromOffset, BigInt(readCount)] : undefined,
@@ -86,6 +87,19 @@ export function useChannelMessages(channelAddress: Address, count = 20) {
       .reverse();
   }, [rawMessages]);
 
+  const canLoadMore = messageCount !== undefined && messages.length < Number(messageCount);
+  const loadingMoreRef = useRef(false);
+  const isLoadingMore = loadingMoreRef.current && isFetchingMessages;
+
+  useEffect(() => {
+    if (!isFetchingMessages) loadingMoreRef.current = false;
+  }, [isFetchingMessages]);
+
+  const loadMore = useCallback(() => {
+    loadingMoreRef.current = true;
+    setCount((prev) => prev + initialCount);
+  }, [initialCount]);
+
   return {
     messages,
     messageCount,
@@ -94,5 +108,8 @@ export function useChannelMessages(channelAddress: Address, count = 20) {
     maxCapacity,
     totalBytes,
     isLoading: isLoadingStats || isLoadingMessages,
+    isLoadingMore,
+    canLoadMore,
+    loadMore,
   };
 }
