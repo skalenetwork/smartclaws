@@ -29,7 +29,7 @@ export function FloatingHeader() {
       <nav className="flex items-center gap-1 rounded-full border border-border/50 bg-background/60 backdrop-blur-xl p-2 shadow-lg">
         <Link to="/" className="flex items-center gap-1.5 px-3 py-1">
           <img src={logoSvg} alt="SmartClaws" className="h-4 w-4" />
-          <span className="hidden md:inline text-sm font-medium tracking-tight" style={{ color: "#FFD7DA" }}>SmartClaws</span>
+          <span className="hidden md:inline text-sm font-semibold tracking-tight" style={{ background: "linear-gradient(to right, #FF444D, #00B7A3)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>SmartClaws</span>
         </Link>
         <div className="h-4 w-px bg-border/50" />
         <Link
