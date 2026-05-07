@@ -124,6 +124,19 @@ contract SmartClawsDeviceGroup is Ownable2Step {
     }
 
     /**
+     * @notice Grants an address write access to a device's incoming channel.
+     * @dev Only the group owner can call this. Needed so an external controller
+     *      wallet can publish command envelopes to the device incoming channel.
+     * @param device Address of the SmartClawsDevice contract.
+     * @param publisher Address to authorize on the incoming channel.
+     */
+    function addIncomingPublisher(address device, address publisher) external onlyOwner {
+        DeviceInfo storage info = _deviceInfo[device];
+        if (!info.registered) revert DeviceNotRegistered(device);
+        SmartClawsChannel(info.incomingChannel).addPublisher(publisher);
+    }
+
+    /**
      * @notice Deactivates the group. Called by the registry during unregistration.
      */
     function deactivate() external onlyRegistry {

@@ -18,6 +18,15 @@ export const NETWORKS: Record<string, Network> = {
     nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
     registryAddress: "0x18B62f70ddaA2666FA5933a7b6Ff3943e69ca690",
   },
+  "base-testnet": {
+    name: "SKALE Base Testnet",
+    chainId: 324705682,
+    rpcUrl: "https://base-sepolia-testnet.skalenodes.com/v1/base-testnet",
+    chainName: "skale-base-testnet",
+    explorerUrl: "https://base-sepolia-testnet-explorer.skalenodes.com",
+    nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
+    registryAddress: "",
+  },
 };
 
 export const DEFAULT_NETWORK = "testnet";
