@@ -6,31 +6,35 @@ SKALE Base Testnet, two-machine setup. No local node required.
 Network      https://base-sepolia-testnet.skalenodes.com/v1/base-testnet  (chain 324705682)
 Explorer     https://base-sepolia-testnet-explorer.skalenodes.com
 
-Publisher machine   Terminal 1 — Shelly simulator (always running)
-Controller machine  Terminal 2 — Claude Code / OpenClaw session (interactive)
+Machine 1 — Developer    deploys contracts once, runs the dashboard
+Machine 2 — OpenClaw     runs all agents (publisher + controller) and the simulator
 ```
 
 **What it shows:**
 
-- Terminal 1 prints a live telemetry stream (power, voltage, switch state) and submits each reading to the chain
-- Terminal 2 can read that telemetry from the blockchain and publish commands back to the device
-- When a command arrives on-chain, Terminal 1 logs exactly what it would call on real Shelly hardware
+- Machine 2 runs a publisher (sim or OpenClaw agent) that submits telemetry to the chain every N seconds
+- Machine 2 runs a controller (OpenClaw agent) that reads that telemetry and publishes commands back
+- Machine 1 opens the dashboard and watches everything happen in real time
 - All data flows through the SKALE chain — both machines talk to the same public RPC
 
 ---
 
 ## Requirements
 
-Both machines need:
-
+**Machine 1 (Developer):**
 - **Bun** — `curl -fsSL https://bun.sh/install | bash`
-- **Python 3.10+** — `python3 --version`
-- **jq** — used by the ABI export script (`which jq`)
+- **jq** — `which jq`
+- This repo cloned and checked out
+
+**Machine 2 (OpenClaw):**
+- **Bun** — `curl -fsSL https://bun.sh/install | bash`
+- **Python 3.10+** — `python3 --version` (needed for simulator)
+- **jq** — `which jq`
 - This repo cloned and checked out to the same commit
 
 ---
 
-## One-Time Build (both machines)
+## One-Time Build
 
 Run these from the repo root on **each machine**. Repeat if you change contract or CLI code.
 
@@ -40,15 +44,9 @@ bun run export-abi
 bun run build:cli
 ```
 
-Add a shell alias so the CLI is available without its full path:
-
-```bash
-alias smartclaws="$(pwd)/packages/cli/dist/smartclaws"
-```
-
 ---
 
-## Step 1 — Deploy the Registry (publisher machine, once)
+## Step 1 — Deploy the Registry `[Machine 1]`
 
 The SmartClaws registry contract must be deployed to the SKALE Base Testnet before anything else.
 You need a funded deployer wallet (CREDITS for gas).
@@ -68,7 +66,7 @@ Look for this line in the output:
 SmartClaws registry deployed to: 0x...
 ```
 
-**Copy that address.** You will use it in every `smartclaws init` call on both machines.
+**Copy that address.** You will use it in every `smartclaws init` call and in the dashboard.
 
 ```bash
 export REGISTRY=0x<registry-address-from-above>
@@ -88,56 +86,60 @@ Then rebuild the CLI: `bun run build:cli`
 
 ---
 
-## Step 2 — Publisher Machine Setup
+## Step 2 — Start the Dashboard `[Machine 1]`
+
+The dashboard only needs the registry address from Step 1. Start it now so you can watch
+device registration, telemetry, and commands appear on-chain in real time as you complete
+the remaining steps.
+
+```bash
+echo "VITE_REGISTRY_ADDRESS=$REGISTRY" > packages/dashboard/.env.local
+bun run dev:dashboard
+```
+
+Open **http://localhost:5173**. Leave it open — it will update live as Machine 2 registers
+devices and the agents start publishing.
+
+> If `$REGISTRY` is not set in your shell, paste the address directly:
+> `echo "VITE_REGISTRY_ADDRESS=0x<your-registry>" > packages/dashboard/.env.local`
+
+---
+
+## Step 3 — Publisher Setup `[Machine 2]`
 
 ### 2a. Generate and fund the publisher wallet
 
 ```bash
-alias smartclaws="$(pwd)/packages/cli/dist/smartclaws"
 export SC_PUB=~/.sc-publisher
 
-SMARTCLAWS_HOME=$SC_PUB smartclaws init \
+SMARTCLAWS_HOME=$SC_PUB packages/cli/dist/smartclaws init \
   --rpc-url https://base-sepolia-testnet.skalenodes.com/v1/base-testnet \
   --chain-id 324705682 \
   --contract $REGISTRY
 ```
 
-This creates `$SC_PUB/wallets/default.json` with a new key pair. Get the address:
+Get the address and fund it with CREDITS:
 
 ```bash
-SMARTCLAWS_HOME=$SC_PUB smartclaws wallet info
-```
-
-Output:
-
-```
-Address: 0xAbC...
-Balance: 0 CREDITS
-```
-
-**Fund this address with CREDITS** from your faucet or another wallet before continuing.
-
-Then verify:
-
-```bash
-SMARTCLAWS_HOME=$SC_PUB smartclaws wallet info
-# Balance should now be > 0
+SMARTCLAWS_HOME=$SC_PUB packages/cli/dist/smartclaws wallet info
+# Address: 0xAbC...
+# Balance: 0 CREDITS  ← fund this before continuing
 ```
 
 ### 2b. Register device group and device
 
 ```bash
 # Create the device group on-chain
-SMARTCLAWS_HOME=$SC_PUB smartclaws register --name dev-shelly --skills shelly-dumb-publisher
+SMARTCLAWS_HOME=$SC_PUB packages/cli/dist/smartclaws register --name dev-shelly --skills shelly-dumb-publisher
 
 # Register the Shelly device (deploys incoming + outgoing channels on-chain)
-SMARTCLAWS_HOME=$SC_PUB smartclaws device register --name shelly-plug-s
+SMARTCLAWS_HOME=$SC_PUB packages/cli/dist/smartclaws device register --name shelly-plug-s
 
 # List the device — note the channel addresses
-SMARTCLAWS_HOME=$SC_PUB smartclaws device list
+SMARTCLAWS_HOME=$SC_PUB packages/cli/dist/smartclaws device list
 ```
 
-The device list output looks like:
+Output:
 
 ```
 shelly-plug-s
@@ -146,7 +148,7 @@ shelly-plug-s
   Incoming:  0x...
 ```
 
-Export these — you will use them for the rest of the session and share them with the controller:
+Export and keep these — you will use them for Steps 3, 4, and the agent startup files:
 
 ```bash
 export OUTGOING_CHANNEL=0x<outgoing-from-above>
@@ -155,25 +157,21 @@ export INCOMING_CHANNEL=0x<incoming-from-above>
 
 ---
 
-## Step 3 — Controller Machine Setup
-
-Do this on the **controller machine** (or the same machine if testing locally with two terminals).
+## Step 4 — Controller Setup `[Machine 2]`
 
 ### 3a. Generate and fund the controller wallet
 
 ```bash
-alias smartclaws="$(pwd)/packages/cli/dist/smartclaws"
 export SC_CTL=~/.sc-controller
 
-SMARTCLAWS_HOME=$SC_CTL smartclaws init \
+SMARTCLAWS_HOME=$SC_CTL packages/cli/dist/smartclaws init \
   --rpc-url https://base-sepolia-testnet.skalenodes.com/v1/base-testnet \
   --chain-id 324705682 \
   --contract $REGISTRY
 
-SMARTCLAWS_HOME=$SC_CTL smartclaws wallet info
+SMARTCLAWS_HOME=$SC_CTL packages/cli/dist/smartclaws wallet info
+# Fund this address with CREDITS before continuing
 ```
-
-**Fund this address with CREDITS** before continuing (needs gas to publish commands).
 
 ```bash
 export CONTROLLER_WALLET=0x<controller-address-from-wallet-info>
@@ -181,10 +179,10 @@ export CONTROLLER_WALLET=0x<controller-address-from-wallet-info>
 
 ---
 
-## Step 4 — Authorize the Controller (publisher machine)
+## Step 5 — Authorize the Controller `[Machine 2]`
 
-The device incoming channel is owned by the device group contract. The publisher (group owner) must
-explicitly grant the controller wallet write access to it. Run this **once** from the publisher machine:
+The publisher (device group owner) must grant the controller wallet write access to the incoming
+channel. Run this once:
 
 ```bash
 SMARTCLAWS_HOME=$SC_PUB bun dev/authorize-controller.ts shelly-plug-s $CONTROLLER_WALLET
@@ -211,13 +209,14 @@ The controller wallet can now publish to:
 
 ---
 
-## Terminal 1 — Publisher (Shelly Simulator)
+## Publisher Session `[Machine 2]`
 
-On the **publisher machine**, open a terminal and set your env vars:
+Two options depending on whether you have real hardware.
+
+### Option A — Shelly Simulator (no hardware needed)
 
 ```bash
-alias smartclaws="$(pwd)/packages/cli/dist/smartclaws"
-
+export SMARTCLAWS_BIN=$(pwd)/packages/cli/dist/smartclaws  # must be exported, not aliased
 export SMARTCLAWS_HOME=~/.sc-publisher
 export DEVICE_NAME=shelly-plug-s
 export INCOMING_CHANNEL=0x<your-incoming-channel>
@@ -250,44 +249,37 @@ Each row is one telemetry message published to the outgoing channel on SKALE.
 
 Leave this running.
 
+### Option B — Publisher OpenClaw agent (real Shelly on the network)
+
+Open an OpenClaw session and paste the contents of `dev/startup-dumb-agent.md`, filling in
+`<registry address>` with your deployed registry from Step 1.
+
+The agent will discover the plug via mDNS, verify setup, and wait for instructions.
+
 ---
 
-## Terminal 2 — Controller Agent (controller machine)
+## Controller Session `[Machine 2]`
 
-On the **controller machine**, open a Claude Code or OpenClaw session:
-
-```bash
-claude
-```
-
-Paste the following context block to give the agent everything it needs. Replace the channel
-addresses with yours from Step 2b:
+Open an OpenClaw session and paste the contents of `dev/startup-smart-agent.md`, replacing the
+two channel address placeholders with the values from Step 2b:
 
 ```
-You are acting as the SmartClaws controller for a Shelly Plug S Gen3 device.
+OUTGOING_CHANNEL = 0x<your-outgoing-channel>
+INCOMING_CHANNEL = 0x<your-incoming-channel>
+```
 
-Your skill: skills/smartclaws-shelly-reader/SKILL.md
+The agent will read the skill file, run the preflight check, read the latest telemetry window,
+evaluate the thermal policy, and report what it found before waiting for further instructions.
 
-Your environment:
-  SMARTCLAWS_HOME = ~/.sc-controller
-  CLI binary      = packages/cli/dist/smartclaws  (or `smartclaws` if aliased)
-  OUTGOING_CHANNEL = 0x<your-outgoing-channel>
-  INCOMING_CHANNEL = 0x<your-incoming-channel>
+### Spawning both agents from a single main agent
 
-To read telemetry:
-  SMARTCLAWS_HOME=~/.sc-controller smartclaws read \
-    --channel 0x<OUTGOING_CHANNEL> --limit 10 --json
+If you prefer to orchestrate from one session, open an OpenClaw session and give it this
+instruction (fill in the channel addresses first in the startup files):
 
-To send a command to the device:
-  SMARTCLAWS_HOME=~/.sc-controller smartclaws publish \
-    --channel 0x<INCOMING_CHANNEL> \
-    --from controller \
-    --topic command.switch.set \
-    --data '{"on": true, "toggle_after": 0}'
-
-When I ask a question about the device, read fresh telemetry first.
-When I give an instruction ("turn it off", "set a 60s timer"), publish the appropriate command.
-Always show the on-chain data you read and confirm what you sent.
+```
+Read dev/startup-dumb-agent.md and spawn a sub-agent for the Shelly publisher.
+Read dev/startup-smart-agent.md and spawn a sub-agent for the Shelly controller.
+Report when both are running.
 ```
 
 ### Example interactions
@@ -295,14 +287,14 @@ Always show the on-chain data you read and confirm what you sent.
 **Read current state:**
 > "What is the device doing right now?"
 
-Claude reads the outgoing channel, reports `output`, `apower_w`, and timestamp.
+The agent reads the outgoing channel, reports `output`, `apower_w`, and timestamp.
 
 **Send a command:**
 > "Turn it off."
 
-Claude publishes `command.switch.set` `{"on": false}` to the incoming channel and reports the tx hash.
+The agent publishes `command.switch.set` `{"on": false}` to the incoming channel and reports the tx hash.
 
-**Watch Terminal 1 react** — within one poll cycle you see:
+**Watch the publisher session react** — within one poll cycle you see:
 
 ```
   ┌─ COMMAND received [offset 0] from 'controller'
@@ -320,15 +312,16 @@ Claude publishes `command.switch.set` `{"on": false}` to the incoming channel an
 
 | What to check | Where to look |
 |---|---|
-| Telemetry publishing | Terminal 1: continuous rows with `ok` |
+| Telemetry publishing | Publisher session: continuous rows with `ok` |
 | Data on-chain | Explorer → outgoing channel address → Internal Txns |
-| Command received by sim | Terminal 1: `COMMAND received` block with the RPC call it would make |
-| Switch state changed | Terminal 1: next row shows `OFF` / `ON` after a command |
+| Command received (sim) | Publisher session: `COMMAND received` block with the RPC call it would make |
+| Switch state changed | Publisher session: next row shows `OFF` / `ON` after a command |
+| Live dashboard | http://localhost:5173 on Machine 1 (started in Step 2) |
 
-**Quick read from any shell on any machine:**
+**Quick read from any shell:**
 
 ```bash
-SMARTCLAWS_HOME=~/.sc-controller smartclaws read \
+SMARTCLAWS_HOME=~/.sc-controller packages/cli/dist/smartclaws read \
   --channel $OUTGOING_CHANNEL --limit 5
 ```
 
@@ -341,17 +334,17 @@ Reading: 13..17
 ...
 ```
 
-**Send a command manually (no Claude needed):**
+**Send a command manually (no agent needed):**
 
 ```bash
-SMARTCLAWS_HOME=~/.sc-controller smartclaws publish \
+SMARTCLAWS_HOME=~/.sc-controller packages/cli/dist/smartclaws publish \
   --channel $INCOMING_CHANNEL \
   --from controller \
   --topic command.switch.set \
   --data '{"on": false}'
 ```
 
-Then watch Terminal 1.
+Then watch the publisher session.
 
 ---
 
@@ -361,10 +354,13 @@ Then watch Terminal 1.
 
 | Thing | How to get it |
 |---|---|
-| Registry | Step 1 deploy output |
-| Outgoing channel | `SMARTCLAWS_HOME=~/.sc-publisher smartclaws device list` |
+| Registry | Step 1 deploy output (Machine 1) |
+| Outgoing channel | `SMARTCLAWS_HOME=~/.sc-publisher packages/cli/dist/smartclaws device list` (Machine 2) |
 | Incoming channel | Same |
-| Controller wallet | `SMARTCLAWS_HOME=~/.sc-controller smartclaws wallet info` |
+| Controller wallet | `SMARTCLAWS_HOME=~/.sc-controller packages/cli/dist/smartclaws wallet info` (Machine 2) |
+
+Pass `OUTGOING_CHANNEL`, `INCOMING_CHANNEL` to `dev/startup-smart-agent.md` on Machine 2.
+Pass `REGISTRY` to `packages/dashboard/.env.local` on Machine 1.
 
 ### Explorer links
 
@@ -373,18 +369,6 @@ Registry:         https://base-sepolia-testnet-explorer.skalenodes.com/address/<
 Outgoing channel: https://base-sepolia-testnet-explorer.skalenodes.com/address/<OUTGOING_CHANNEL>
 Incoming channel: https://base-sepolia-testnet-explorer.skalenodes.com/address/<INCOMING_CHANNEL>
 ```
-
-### Share channel addresses with the controller machine
-
-After Step 2, you only need to share two values across machines:
-
-```
-OUTGOING_CHANNEL=0x...
-INCOMING_CHANNEL=0x...
-REGISTRY=0x...
-```
-
-No private keys leave the publisher machine.
 
 ### Simulator state
 
@@ -407,24 +391,24 @@ bun run build:cli
 ## How It's Wired
 
 ```
-Publisher machine                       Controller machine
-dev/shelly-sim.py                       Claude / OpenClaw
+Machine 1 (Developer)                  Machine 2 (OpenClaw)
+                                        Publisher session
+Dashboard (http://localhost:5173)         shelly-sim.py  OR  publisher agent
       │                                        │
-      │  smartclaws publish --device           │  smartclaws read --channel OUTGOING
-      ▼                                        ▼
-[outgoing channel on SKALE Base Testnet] ──────────────────────── read ──▶
-
-      │  smartclaws read --channel INCOMING    │  smartclaws publish --channel INCOMING
-      ▼                                        ▼
-[incoming channel on SKALE Base Testnet] ◀─────────────────────── write ──
-
-      │
-      │  "Would call GET /rpc/Switch.Set?id=0&on=false"
-      ▼
-  (logged to Terminal 1, no real hardware needed)
+      │  reads via RPC                         │  smartclaws publish --device
+      │                                        ▼
+      └──────────── [outgoing channel on SKALE Base Testnet] ──── read ──▶
+                                                                           │
+                                        Controller session                 │
+                                          OpenClaw agent  ◀────────────────┘
+                                               │
+                    [incoming channel on SKALE Base Testnet] ◀──── write ──┘
+                                               │
+                         Publisher session polls this and logs what it
+                         would call on real hardware (or calls it directly)
 ```
 
-- Outgoing channel: `telemetry.switch_status` envelopes, published by the sim every N seconds
-- Incoming channel: `command.switch.set` envelopes, published by the controller
+- Outgoing channel: `telemetry.switch_status` envelopes, published by the publisher session
+- Incoming channel: `command.switch.set` envelopes, published by the controller session
 - Both are append-only on-chain logs; anyone with the address can read, only authorized wallets can write
-- The sim polls incoming every cycle and logs what it would do on real hardware
+- No private keys leave Machine 2; Machine 1 only reads from the chain

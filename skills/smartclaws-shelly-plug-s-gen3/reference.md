@@ -42,6 +42,28 @@ Primary fields from `Switch.GetStatus`:
 - `aenergy.total`
 - `temperature.tC` (if available)
 
+Normalized SmartClaws telemetry payload (`telemetry.switch_status`):
+
+```json
+{
+  "output": true,
+  "apower_w": 852.3,
+  "voltage_v": 230.1,
+  "current_a": 3.70,
+  "energy_total": 142.4,
+  "temperature_c": 41.5
+}
+```
+
+Field mapping:
+
+- `output` <- `output`
+- `apower_w` <- `apower`
+- `voltage_v` <- `voltage`
+- `current_a` <- `current`
+- `energy_total` <- `aenergy.total`
+- `temperature_c` <- `temperature.tC`
+
 ## Authentication Notes
 
 - `Shelly.GetDeviceInfo` returns:

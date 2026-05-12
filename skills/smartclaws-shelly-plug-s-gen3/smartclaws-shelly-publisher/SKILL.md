@@ -3,8 +3,8 @@ name: smartclaws-shelly-publisher
 description: >
   Operate the dumb edge bridge for Shelly Plug S Gen3: discover the device,
   read telemetry on demand, publish to SmartClaws on demand or in a loop,
-  and check the incoming channel for commands — confirming with the operator
-  before applying anything to the physical relay.
+  and check the incoming channel for commands — applying valid switch commands
+  to the physical relay.
 license: LGPL-3.0-or-later
 compatibility: Requires Python 3.10+, requests, and smartclaws CLI
 metadata:
@@ -12,15 +12,19 @@ metadata:
     emoji: "\U0001F4E1"
     homepage: https://github.com/skalenetwork/smartclaws
     requires:
-      bins: ["python3", "smartclaws"]
+      bins: ["python3", "smartclaws", "openclaw"]
 ---
 
 # SmartClaws Shelly Publisher (Edge Bridge)
 
+Device bundle: `skills/smartclaws-shelly-plug-s-gen3`
+Reference: `skills/smartclaws-shelly-plug-s-gen3/reference.md`
+
 This is **Agent 1** (dumb bridge). It does not make policy decisions.
 
 Operate interactively. Wait for operator instructions between each action.
-Never autonomously loop, publish, or actuate without being told to.
+Never enable autonomous scheduling without being told to.
+When processing valid `command.switch.set` commands, execute them without per-command confirmation.
 
 ---
 
@@ -62,9 +66,22 @@ Set `SHELLY_HOST` internally. All subsequent Shelly calls use this endpoint.
 SMARTCLAWS_HOME   path to publisher config dir  (e.g. ~/.sc-publisher)
 DEVICE_NAME       SmartClaws device name         (e.g. shelly-plug-s)
 INCOMING_CHANNEL  device incoming channel address (0x...)
+STATE_FILE        local offset state file         (e.g. ~/.sc-publisher/state/shelly-publisher-state.json)
 ```
 
 Confirm these are set and that `smartclaws device list` shows the device before accepting any other instruction.
+
+Preflight (run before long loops or cron setup):
+
+```bash
+command -v python3
+command -v smartclaws
+command -v openclaw
+python3 -c "import requests"
+SMARTCLAWS_HOME=~/.sc-publisher smartclaws device list
+```
+
+If any check fails, stop and report the missing dependency/config before proceeding.
 
 ---
 
@@ -144,6 +161,77 @@ Stop the current loop immediately. Report how many cycles completed and the last
 
 ---
 
+### Start cron autopilot (wake -> check commands -> publish -> exit)
+
+**Trigger:** "enable cron", "run every N seconds", "autopilot every N"
+
+Use OpenClaw cron for unattended periodic execution. This mode is explicit opt-in and must be enabled by operator request.
+
+Session mode default for this skill: use the current session so cron wakes the same agent session the operator is speaking to.
+
+Behavior per run:
+1. Load `last_incoming_offset` from `STATE_FILE` (default `-1` when file missing).
+2. Read incoming channel from `last_incoming_offset + 1`.
+3. For each valid `command.switch.set`, apply command to Shelly.
+4. Update `last_incoming_offset` to the highest processed offset.
+5. Read current telemetry from Shelly.
+6. Publish telemetry to `telemetry.switch_status`.
+7. Persist latest offset/state to `STATE_FILE` and exit.
+
+Notes:
+- Autonomous mode has full authority to execute valid `command.switch.set` commands.
+- Only apply known command topic `command.switch.set`.
+- Reject malformed payloads and log skip reason.
+
+Create recurring job (interval provided by operator):
+
+```bash
+openclaw cron add \
+  --name "shelly-publisher-cycle" \
+  --every <interval> \
+  --session current \
+  --message "Run one Shelly publisher cycle: read incoming commands, apply valid command.switch.set item if any, read telemetry, publish telemetry, persist last_incoming_offset, then exit." \
+  --wake now
+```
+
+Recommended interval: `1m` to `2m` for normal operation.
+
+After creating the job, report job id/name and next run time.
+
+Stop behavior: operator can remove cron at any time; if a run is currently active, stop applies after that run finishes.
+
+---
+
+### Cron status
+
+**Trigger:** "cron status", "is autopilot running", "show schedule"
+
+Check and report scheduler state:
+
+```bash
+openclaw cron list
+openclaw cron show <job-id>
+```
+
+Report: enabled/disabled, interval, next run, and most recent run result.
+
+---
+
+### Stop cron autopilot
+
+**Trigger:** "stop cron", "disable autopilot", "cancel scheduled run"
+
+Disable autonomous periodic runs by removing the cron job:
+
+```bash
+openclaw cron remove <job-id>
+```
+
+If job id is unknown, find it first with `openclaw cron list` by matching name `shelly-publisher-cycle`.
+Confirm removal by showing `openclaw cron list` output afterward.
+
+---
+
 ### Check incoming channel
 
 **Trigger:** "check for commands", "any new commands?", "read incoming"
@@ -176,30 +264,27 @@ No new commands. Last checked offset: 2.
 ```
 
 Update and remember the last read offset after every check.
-Do not apply any command without explicit operator approval (see below).
+Execute valid `command.switch.set` commands immediately (no per-command approval).
+Persist the updated offset to `STATE_FILE` after each check.
 
 ---
 
 ### Apply a command to Shelly
 
-**Trigger:** operator says "apply it", "execute command [N]", "do it", or refers to a specific offset
+**Trigger:** command message with topic `command.switch.set`
 
-Never apply a command automatically. Always confirm first.
+Apply immediately after validation (no confirmation prompt).
 
-Show exactly what will happen:
+Execution format:
 
 ```
-About to apply command [offset 3]:
+Applying command [offset 3]:
   Topic:   command.switch.set
   Payload: {"on": false, "toggle_after": 0}
   Action:  GET http://192.168.1.50/rpc/Switch.Set?id=0&on=false
-
-Confirm? (yes / no)
 ```
 
-Only proceed on explicit confirmation. If the operator says no, discard the command and report it skipped.
-
-On confirmation, call the Shelly endpoint and report the result:
+After execution, report the result:
 
 ```
 Applied. Shelly responded: {"was_on": true, "has_timer": false}
@@ -215,13 +300,17 @@ New switch state: OFF
 | `SHELLY_HOST` | discovered endpoint, set at startup |
 | `last_incoming_offset` | highest offset read from the incoming channel; start at -1 |
 | `publishing_active` | whether a publish loop is currently running |
+| `cron_job_id` | OpenClaw cron job id for autopilot cycle (if enabled) |
+| `cron_enabled` | whether recurring autopilot cron is currently enabled |
 
 ---
 
 ## What This Agent Never Does
 
 - Does not decide when to turn the relay on or off
-- Does not apply commands without operator confirmation
+- Does not apply unknown command topics
+- Does not apply malformed command payloads
+- Does not enable, edit, or remove cron schedules unless the operator explicitly asks
 - Does not publish continuously without being told to
 - Does not make any policy decisions
 
