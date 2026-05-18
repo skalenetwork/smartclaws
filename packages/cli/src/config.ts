@@ -31,6 +31,9 @@ export function ensureConfigDir(): void {
 
   const devicesDir = join(dir, "devices");
   if (!existsSync(devicesDir)) mkdirSync(devicesDir, { recursive: true });
+
+  const agentsDir = join(dir, "agents");
+  if (!existsSync(agentsDir)) mkdirSync(agentsDir, { recursive: true });
 }
 
 export function loadConfig(): Config | null {

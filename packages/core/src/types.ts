@@ -18,3 +18,12 @@ export interface DeviceFile {
   incomingChannel: string;
   outgoingChannel: string;
 }
+
+export interface AgentFile {
+  name: string;
+  agentId: string;
+  metadata: string;
+  agentContract: string;
+  incomingChannel: string;
+  outgoingChannel: string;
+}

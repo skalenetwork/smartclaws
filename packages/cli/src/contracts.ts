@@ -1,4 +1,5 @@
 import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json" with { type: "json" };
+import SmartClawsAgentABI from "@smartclaws/core/abi/SmartClawsAgent.json" with { type: "json" };
 import SmartClawsChannelABI from "@smartclaws/core/abi/SmartClawsChannel.json" with {
   type: "json",
 };
@@ -64,6 +65,16 @@ export function getDeviceContract(address: Address, config: Config) {
   return getContract({
     address,
     abi: SmartClawsDeviceABI.abi,
+    client: publicClient,
+  });
+}
+
+export function getAgentContract(address: Address, config: Config) {
+  const chain = buildChain(config);
+  const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
+  return getContract({
+    address,
+    abi: SmartClawsAgentABI.abi,
     client: publicClient,
   });
 }
