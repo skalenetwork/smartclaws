@@ -116,17 +116,17 @@ Deliverable: a concise design spec (no code yet).
 Generate final files only after Phase 1-3 are complete.
 
 Always generate:
-- `skills/<device>-publisher/SKILL.md` (simple bridge agent)
-- `skills/<device>-reader/SKILL.md` (smart policy agent)
+- `skills/<device>/<device>-publisher/SKILL.md` (simple bridge agent)
+- `skills/<device>/<device>-reader/SKILL.md` (smart policy agent)
 
 Generate when needed:
-- `examples/<device>-publisher.py`
-- `examples/mock-publisher.py` (only for explicit simulation/testing)
-- `reference.md` for protocol details
+- `skills/<device>/examples/<device>-publisher.py`
+- `skills/<device>/examples/mock-publisher.py` (only for explicit simulation/testing)
+- `skills/<device>/reference.md` for protocol details
 
 ## Required Output Templates For Generated Skills
 
-### Template A - Simple Agent Skill (`<device>-publisher`)
+### Template A - Simple Agent Skill (`skills/<device>/<device>-publisher/SKILL.md`)
 
 Include these sections in order:
 
@@ -143,7 +143,7 @@ Include these sections in order:
 11. `## Failure Modes and Recovery`
 12. `## Common Errors`
 
-### Template B - Smart Agent Skill (`<device>-reader`)
+### Template B - Smart Agent Skill (`skills/<device>/<device>-reader/SKILL.md`)
 
 Include these sections in order:
 
@@ -205,8 +205,8 @@ Use this when invoking the workflow:
 ```text
 Create a SmartClaws two-skill bundle for <DEVICE_MODEL>.
 Generate:
-1) a simple bridge skill (<device>-publisher), and
-2) a smart controller skill (<device>-reader).
+1) a simple bridge skill (skills/<device>/<device>-publisher/SKILL.md), and
+2) a smart controller skill (skills/<device>/<device>-reader/SKILL.md).
 Follow a research-first process: discovery, validation, design, then generation.
 Do not generate final SKILL.md files until all required inputs are verified.
 Return discovery notes, validation table, composition plan, and then write both skills.
