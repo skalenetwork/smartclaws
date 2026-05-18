@@ -251,10 +251,14 @@ Leave this running.
 
 ### Option B — Publisher OpenClaw agent (real Shelly on the network)
 
-Open an OpenClaw session and paste the contents of `dev/startup-dumb-agent.md`, filling in
-`<registry address>` with your deployed registry from Step 1.
+Give an existing OpenClaw operator/orchestrator agent the contents of
+`dev/startup-dumb-agent.md`, filling in `<registry address>` with your deployed
+registry from Step 1. That file tells the orchestrator how to create or reuse a
+separate `smartclaws-shelly-publisher` agent profile, attach the Shelly
+publisher skill, and start the publisher session.
 
-The agent will discover the plug via mDNS, verify setup, and wait for instructions.
+The new publisher agent will discover the plug via mDNS, verify setup, and wait
+for instructions.
 
 ---
 
@@ -277,7 +281,7 @@ If you prefer to orchestrate from one session, open an OpenClaw session and give
 instruction (fill in the channel addresses first in the startup files):
 
 ```
-Read dev/startup-dumb-agent.md and spawn a sub-agent for the Shelly publisher.
+Read dev/startup-dumb-agent.md and follow it to create or reuse the independent Shelly publisher agent.
 Read dev/startup-smart-agent.md and spawn a sub-agent for the Shelly controller.
 Report when both are running.
 ```
