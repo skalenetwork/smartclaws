@@ -84,7 +84,7 @@ For `Switch.Set`, build Python params as `{"id": 0, "on": True|False}` and inclu
 
 1. **mDNS** — use Python `zeroconf` when installed; otherwise try `avahi-browse`, then `dns-sd`. Look for `_shelly._tcp` and `_http._tcp`, prioritize hostnames matching `shellyplugsg3-*.local`. If no mDNS tool is available, append a warning event and continue to subnet scan.
 2. **Verify** — probe each candidate with `/rpc/Shelly.GetDeviceInfo` using Python `requests`, accept only responses with `gen: 3` and Plug S family model.
-3. **Subnet scan** — determine the active IPv4 CIDR from `ip -o -4 addr show scope global`; scan only that subnet, capped to `/24` if larger, and probe `/rpc/Shelly.GetDeviceInfo` with a 1 second timeout.
+3. **Subnet scan** — collect all global IPv4 subnets from `ip -o -4 addr show scope global` (handles multi-homed hosts). For each subnet, first probe hosts already in the ARP cache (`ip neigh show`) — these are instant hits. Then parallel-scan remaining hosts (50 concurrent workers, 1 s timeout each). Cap any subnet wider than `/24` to a `/24` anchored on the interface address; respect subnets narrower than `/24` as-is. Stop as soon as any host returns `gen: 3` and a Plug S model.
 4. **Ask operator** — only if all automated discovery fails.
 
 mDNS command patterns when Python `zeroconf` is unavailable:
@@ -103,23 +103,72 @@ Subnet scan helper pattern:
 ```bash
 python3 - <<'PY'
 import ipaddress, json, subprocess, requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+def probe(ip):
+    try:
+        r = requests.get(f"http://{ip}/rpc/Shelly.GetDeviceInfo", timeout=1)
+        if r.ok:
+            data = r.json()
+            if data.get("gen") == 3 and "Plug" in json.dumps(data):
+                return str(ip), data
+    except Exception:
+        pass
+    return None
+
+# Collect all global IPv4 subnets (handles multi-homed hosts)
 out = subprocess.check_output(["ip", "-o", "-4", "addr", "show", "scope", "global"], text=True)
+subnets = []
 for line in out.splitlines():
-    cidr = line.split()[3]
+    parts = line.split()
+    if len(parts) < 4:
+        continue
+    cidr = parts[3]
     net = ipaddress.ip_interface(cidr).network
     if net.prefixlen < 24:
         net = ipaddress.ip_network(f"{ipaddress.ip_interface(cidr).ip}/24", strict=False)
-    for ip in net.hosts():
-        try:
-            r = requests.get(f"http://{ip}/rpc/Shelly.GetDeviceInfo", timeout=1)
-            if r.ok:
-                data = r.json()
-                if data.get("gen") == 3 and "Plug" in json.dumps(data):
-                    print(json.dumps({"host": str(ip), "device_info": data}))
-                    raise SystemExit(0)
-        except requests.RequestException:
-            pass
+    if net not in subnets:
+        subnets.append(net)
+
+if not subnets:
+    print("No global IPv4 interfaces found")
+    raise SystemExit(1)
+
+# ARP cache first — instant for already-reachable hosts
+arp_out = subprocess.check_output(["ip", "neigh", "show"], text=True)
+arp_hits = []
+for line in arp_out.splitlines():
+    if "FAILED" in line or "INCOMPLETE" in line:
+        continue
+    parts = line.split()
+    if not parts:
+        continue
+    try:
+        ip = ipaddress.ip_address(parts[0])
+        if any(ip in net for net in subnets):
+            arp_hits.append(ip)
+    except ValueError:
+        pass
+
+for ip in arp_hits:
+    result = probe(ip)
+    if result:
+        host, info = result
+        print(json.dumps({"host": host, "device_info": info}))
+        raise SystemExit(0)
+
+# Parallel scan of remaining hosts across all subnets
+arp_set = set(arp_hits)
+candidates = [ip for net in subnets for ip in net.hosts() if ip not in arp_set]
+with ThreadPoolExecutor(max_workers=50) as ex:
+    futures = {ex.submit(probe, ip): ip for ip in candidates}
+    for fut in as_completed(futures):
+        result = fut.result()
+        if result:
+            host, info = result
+            print(json.dumps({"host": host, "device_info": info}))
+            raise SystemExit(0)
+
 print("No Shelly Plug S Gen3 found by subnet scan")
 PY
 ```
@@ -302,11 +351,11 @@ Just read and report.
 **Trigger:** "publish telemetry", "publish one reading", "send to chain"
 
 1. Read from Shelly (`/rpc/Switch.GetStatus?id=0`)
-2. Publish to the outgoing channel. Use `--device`; the SmartClaws CLI resolves the device outgoing channel from the local publisher config. Keep `outgoing_channel` in `STATE_FILE` for dashboard/status only.
+2. Publish to the outgoing channel. Always use `--device`; never use `--channel`. The `--channel` flag bypasses device resolution and publishes with `dev: controller` in the envelope instead of the device name, which corrupts the on-chain record.
 
 ```bash
 SMARTCLAWS_HOME=~/.sc-publisher "$SMARTCLAWS_BIN" publish \
-  --device shelly-plug-s \
+  --device "$DEVICE_NAME" \
   --topic telemetry.switch_status \
   --data '{"output":<bool>,"apower_w":<float>,"voltage_v":<float>,"current_a":<float>,"energy_total":<float>,"temperature_c":<float>}'
 ```
@@ -354,10 +403,10 @@ view should read `EVENT_LOG` and `STATE_FILE`; OpenClaw chat delivery is
 optional and should not be required.
 
 One Shelly publisher cycle means exactly this, in order:
-1. Reconstruct runtime constants from `AGENTS.md`: `SMARTCLAWS_HOME`, `DEVICE_NAME`, `STATE_FILE`, `EVENT_LOG`, `EVENT_APPEND`, and `SMARTCLAWS_BIN`.
+1. Confirm runtime constants from this skill's Required Environment section: `SMARTCLAWS_HOME`, `DEVICE_NAME`, `STATE_FILE`, `EVENT_LOG`, `EVENT_APPEND`, and `SMARTCLAWS_BIN`.
 2. Load `STATE_FILE`. If it is missing, append `state_missing`, fail, and do not rediscover inside cron.
 3. Read `incoming_channel` from `STATE_FILE`. If absent, append a `state_incomplete` failed event and stop; do not guess the channel address.
-4. Read `shelly_host`, `outgoing_channel`, and `last_incoming_offset` from `STATE_FILE`. If any required value is missing, append `state_incomplete` and fail with a concise setup-needed report.
+4. Read `shelly_host` and `last_incoming_offset` from `STATE_FILE`. If `shelly_host` is missing, append `state_incomplete` and fail with a concise setup-needed report. `last_incoming_offset` defaults to `-1` if absent.
 5. Set `SHELLY_HOST = state.shelly_host` for Shelly HTTP calls and `INCOMING_CHANNEL = state.incoming_channel` for SmartClaws reads.
 6. Append a `start` event with `EVENT_APPEND`.
 7. Probe the incoming channel without an offset to get `total`, `oldest`, and `latest`.
@@ -369,7 +418,7 @@ One Shelly publisher cycle means exactly this, in order:
 13. Append an `applied_command` event when applied, or a `skipped_command` event when the latest message is unknown or malformed.
 14. Set `last_incoming_offset = latest` after inspecting the latest message, even if it was skipped.
 15. Read current Shelly telemetry from `/rpc/Switch.GetStatus?id=0` using `SHELLY_HOST` from state.
-16. Publish one `telemetry.switch_status` message to the SmartClaws outgoing channel using `--device`; do not require `OUTGOING_CHANNEL` as an environment variable.
+16. Publish one `telemetry.switch_status` message using `--device "$DEVICE_NAME"`; never use `--channel`. Do not require `OUTGOING_CHANNEL` as an environment variable.
 17. Persist updated state to `STATE_FILE`, including offset, relay state, latest tx hash, and `updated_at`.
 18. Append a compact `done` event, or append one `failed` event if any step fails.
 19. Report one concise success/failure summary and exit.
@@ -391,7 +440,7 @@ openclaw cron add \
   --every <interval> \
   --session isolated \
   --agent smartclaws-shelly-publisher \
-  --message "Run one Shelly publisher cycle exactly as defined in your smartclaws-shelly-publisher skill: reconstruct runtime constants from AGENTS.md, load STATE_FILE, use shelly_host and channels from state, inspect only the latest incoming command, apply it only if it is a valid command.switch.set message, treat older unseen commands as superseded, read current Shelly telemetry, publish exactly one telemetry.switch_status message, update STATE_FILE, append status events only via EVENT_APPEND, report one concise success/failure summary, then exit." \
+  --message "Read your smartclaws-shelly-publisher SKILL.md in full, then run exactly one cron cycle as specified in the skill's cron cycle steps — follow them closely." \
   --no-deliver \
   --wake now
 ```
@@ -517,20 +566,18 @@ Applying command [offset 3]:
   Action:  GET http://192.168.1.50/rpc/Switch.Set?id=0&on=false&toggle_after=30
 ```
 
-Python call pattern:
+Python call pattern. Substitute `<host>`, `<on>`, and `<toggle_after>` from STATE_FILE and the parsed command payload before running — do not rely on shell env vars in cron:
 
 ```bash
-python3 - <<'PY'
-import json, os, requests
+python3 - <<PY
+import json, requests
 from requests.auth import HTTPDigestAuth
-host = os.environ["SHELLY_HOST"]
-params = {"id": 0, "on": False}
-toggle_after = os.environ.get("TOGGLE_AFTER")
-if toggle_after:
-    params["toggle_after"] = int(toggle_after)
-auth = None
-if os.environ.get("SHELLY_USER") and os.environ.get("SHELLY_PASSWORD"):
-    auth = HTTPDigestAuth(os.environ["SHELLY_USER"], os.environ["SHELLY_PASSWORD"])
+host = "<state.shelly_host>"
+params = {"id": 0, "on": <payload.on as Python bool: True or False>}
+toggle_after = <payload.toggle_after as int, or None if absent>
+if toggle_after is not None:
+    params["toggle_after"] = toggle_after
+auth = None  # add HTTPDigestAuth(user, password) if auth_en
 r = requests.get(f"http://{host}/rpc/Switch.Set", params=params, auth=auth, timeout=5)
 r.raise_for_status()
 print(json.dumps(r.json()))
