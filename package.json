@@ -2,6 +2,9 @@
   "private": true,
   "version": "0.3.0",
   "workspaces": ["packages/*", "smart-contracts"],
+  "dependencies": {
+    "viem": "^2.47.0"
+  },
   "scripts": {
     "compile": "cd smart-contracts && bunx hardhat compile",
     "export-abi": "cd smart-contracts && bunx hardhat compile && bash scripts/export-abi.sh",
