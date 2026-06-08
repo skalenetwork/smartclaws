@@ -131,16 +131,13 @@ decisions that should have happened.
 
 When you *are* in the main session, you own the cadence:
 - The recurring job has a **fixed name: `smartclaws-master-cycle`**.
-- A sensible starting cadence is **hourly** (`--every 60m`). You may widen it
-  (e.g. every few hours) if conditions are stable and frequent cycling adds no
-  value, or tighten it when near a comfort bound or a tariff transition — your
-  judgment. Use **whole-minute** durations (sub-minute is not guaranteed).
+- A sensible starting cadence is **every 10 minutes** (`--every 10m`). Use **whole-minute** durations (sub-minute is not guaranteed). suggest adjutments to the user if you think a different cadence would be better, or apply the cadence the user suggests (warn if it looks unreasonable, but just to prompt confirmation).
 - To schedule or update the cadence:
 
 ```bash
 openclaw cron add \
   --name smartclaws-master-cycle \
-  --every 60m \
+  --every 10m \
   --agent {{OPENCLAW_AGENT_ID}} \
   --session isolated \
   --no-deliver \

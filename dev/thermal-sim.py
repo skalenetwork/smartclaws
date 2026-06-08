@@ -55,7 +55,7 @@ from datetime import datetime, timezone
 SC_HOME = os.environ.get("SMARTCLAWS_HOME", os.path.expanduser("~/.sc-thermal"))
 DEVICE_NAME = os.environ.get("DEVICE_NAME", "thermal-sensor-1")
 SHELLY_OUT = os.environ.get("SHELLY_OUTGOING_CHANNEL", "")
-POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "5"))
+POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "120"))
 # Slow, demo-friendly curve: stays within 20-29C, surfs ~22-24C over ~40-60 min.
 # Asymptotes bracket the desired range so it never overshoots the hard bounds;
 # large time constants keep the trend gentle (~0.05-0.15 C/min near the band).
@@ -64,7 +64,7 @@ T_ASYMP_ON = float(os.environ.get("T_ASYMP_ON", "27.0"))    # heating ceiling (r
 TAU_HEAT_S = float(os.environ.get("TAU_HEAT_S", "2400"))    # ~40 min heating time constant
 TAU_COOL_S = float(os.environ.get("TAU_COOL_S", "3000"))    # ~50 min cooling time constant
 NOISE_C = float(os.environ.get("NOISE_C", "0.05"))
-STALE_RELAY_MAX_S = float(os.environ.get("STALE_RELAY_MAX_S", "30"))
+STALE_RELAY_MAX_S = float(os.environ.get("STALE_RELAY_MAX_S", "300"))
 INITIAL_TEMP_C = float(os.environ.get("INITIAL_TEMP_C", "23.0"))  # mid-band start (only used if no state)
 SMARTCLAWS = os.environ.get("SMARTCLAWS_BIN", "smartclaws")
 STATE_FILE = os.environ.get(

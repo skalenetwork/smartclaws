@@ -12,14 +12,15 @@ Publish and read IoT sensor data on the [SKALE](https://skale.space) blockchain.
 | `@skalenetwork/smartclaws-contracts` | `smart-contracts` | Solidity contracts (channel, device group, agent) |
 | `smartclaws` (Python) | `python` | Python SDK and CLI |
 
-## Skills
+## Demo
 
-| Skill | Path | Description |
-|-------|------|-------------|
-| `smartclaws-producer` | `skills/smartclaws-producer` | Set up sensors and publish data on-chain |
-| `smartclaws-reader` | `skills/smartclaws-reader` | Read and analyze on-chain sensor data |
+**→ [Shelly Thermal Demo Setup](dev/demo-shelly-thermal-setup.md)**
+
+End-to-end demo with a real Shelly Plug S, thermal simulator, energy tariff simulator, and an OpenClaw master agent that controls the relay on-chain to balance comfort and energy cost.
 
 ## Quick Start
+
+> **Note:** Pre-built binaries are published from the `main` branch. If you are on `develop` or want the latest code, build from source (see [Development](#development)).
 
 ```bash
 # Install the CLI
@@ -55,84 +56,20 @@ smartclaws publish --device temp-sensor --topic temperature --data '{"temp": 22.
 smartclaws read --device temp-sensor --limit 5
 ```
 
-## Installing Skills
+## Skills
 
-### Via npx (Claude Code, Codex, and other agents)
+> **⚠️ Under maintenance.**
+>
+> The skills live in this repo under `skills/` (general-purpose producer/reader) and `open-claw-setups/` (full agent workspaces). ClawHub publishing, `npx skills add`, and registry installation are not operational yet.
+>
+> To use the skills today, copy them directly from the repo into your agent workspace — see the [Demo Setup](dev/demo-shelly-thermal-setup.md) for a working example.
 
-```bash
-npx skills add skalenetwork/smartclaws
-```
-
-### Via ClawHub (OpenClaw agents)
-
-```bash
-clawhub skill install smartclaws-producer
-clawhub skill install smartclaws-reader
-```
-
-### From source
-
-```bash
-git clone https://github.com/skalenetwork/smartclaws.git
-cd smartclaws
-
-# Copy skills into your OpenClaw workspace
-cp -r skills/smartclaws-producer ~/.openclaw/skills/
-cp -r skills/smartclaws-reader ~/.openclaw/skills/
-```
-
-Skills are plain directories containing a `SKILL.md` file following the [Agent Skills](https://agentskills.io) standard. They work with any compatible agent platform.
-
-## Publishing Skills to ClawHub
-
-To publish or update skills on [ClawHub](https://clawhub.ai), use the `clawhub` CLI:
-
-### First-time setup
-
-```bash
-# Authenticate with ClawHub
-clawhub auth login
-```
-
-### Publish a skill
-
-```bash
-# From the repo root — publish each skill directory
-clawhub skill publish skills/smartclaws-producer
-clawhub skill publish skills/smartclaws-reader
-```
-
-This reads the `SKILL.md` frontmatter (`name`, `description`, `metadata`) and uploads the skill to ClawHub under your account.
-
-### Update an existing skill
-
-```bash
-# Bump the version or edit the SKILL.md, then re-publish
-clawhub skill publish skills/smartclaws-producer
-```
-
-Re-publishing an existing skill name updates it in-place on ClawHub.
-
-### Verify the listing
-
-```bash
-# Check that your skills are live
-clawhub skill info smartclaws-producer
-clawhub skill info smartclaws-reader
-```
-
-Or browse directly at:
-- https://clawhub.ai/skills/smartclaws-producer
-- https://clawhub.ai/skills/smartclaws-reader
-
-### Install from ClawHub (for users)
-
-```bash
-clawhub skill install smartclaws-producer
-clawhub skill install smartclaws-reader
-```
-
-This downloads the skill into `~/.openclaw/skills/` automatically.
+| Skill | Path | Description |
+|-------|------|-------------|
+| `smartclaws-producer` | `skills/smartclaws-producer` | Set up sensors and publish data on-chain |
+| `smartclaws-reader` | `skills/smartclaws-reader` | Read and analyze on-chain sensor data |
+| `smartclaws-shelly-plug-s-gen3` | `skills/smartclaws-shelly-plug-s-gen3` | Shelly Plug S Gen3 specific skills |
+| Shelly master agent workspace | `open-claw-setups/shelly-master-1/` | Full OpenClaw agent setup for energy-flex control |
 
 ## Development
 
@@ -141,7 +78,7 @@ This downloads the skill into `~/.openclaw/skills/` automatically.
 bun install
 
 # Build CLI
-cd packages/cli && bun run build
+bun run build:cli
 
 # Run smart contract tests
 cd smart-contracts && bun run test

@@ -50,7 +50,7 @@ SC_HOME = os.environ.get("SMARTCLAWS_HOME", os.path.expanduser("~/.sc-controller
 DEVICE_NAME = os.environ.get("DEVICE_NAME", "shelly-plug-s")
 SHELLY_HOST = os.environ.get("SHELLY_HOST", "")
 INCOMING_CHANNEL = os.environ.get("INCOMING_CHANNEL", "")
-POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
+POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "120"))
 SMARTCLAWS = os.environ.get("SMARTCLAWS_BIN", "smartclaws")
 STATE_FILE = os.environ.get(
     "STATE_FILE", os.path.join(SC_HOME, "shelly-bridge.state.json")
@@ -199,14 +199,6 @@ def main() -> None:
     while True:
         tick += 1
         ts = time.strftime("%H:%M:%S")
-        try:
-            telem = read_switch_status()
-            ok = publish_telemetry("telemetry.switch_status", telem)
-            print(f"[{ts}] #{tick:04d} | {'ON ' if telem['output'] else 'OFF'} | "
-                  f"{telem['apower_w']:7.2f} W | {telem['voltage_v']:.1f} V | "
-                  f"{'ok' if ok else 'PUBLISH-FAILED'}")
-        except Exception as e:
-            print(f"[{ts}] #{tick:04d} | [ERR] read telemetry: {e}", file=sys.stderr)
 
         if INCOMING_CHANNEL:
             data = read_incoming()
@@ -218,6 +210,15 @@ def main() -> None:
                     state = handle_command(msg, state)
                     state["last_command_offset"] = int(msg.get("offset", -1))
                     save_state(state)
+
+        try:
+            telem = read_switch_status()
+            ok = publish_telemetry("telemetry.switch_status", telem)
+            print(f"[{ts}] #{tick:04d} | {'ON ' if telem['output'] else 'OFF'} | "
+                  f"{telem['apower_w']:7.2f} W | {telem['voltage_v']:.1f} V | "
+                  f"{'ok' if ok else 'PUBLISH-FAILED'}")
+        except Exception as e:
+            print(f"[{ts}] #{tick:04d} | [ERR] read telemetry: {e}", file=sys.stderr)
 
         time.sleep(POLL_SECONDS)
 

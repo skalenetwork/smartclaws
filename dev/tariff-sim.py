@@ -12,10 +12,6 @@ The 24h shape:
   17-22  evening peak (expensive)
   23-24  taper        (mid)
 
-Modes:
-  realtime     — one tick = one second, wraps every 24h
-  accelerated  — 24h compressed into ACCEL_SECONDS (default 600s = 10 min)
-
 Output file schema:
   {
     "now": {
@@ -30,8 +26,7 @@ Output file schema:
       ...
     ],
     "config": {
-      "mode": "accelerated",
-      "day_seconds": 600,
+      "day_seconds": 7200,
       "started_at_iso": "2026-05-19T12:00:00Z",
       "tier_thresholds": {"cheap_max": 45.0, "expensive_min": 95.0},
       "lookahead_horizon_s": 300,
@@ -44,8 +39,8 @@ Required env vars:
 
 Optional env vars:
   TARIFF_FILE         output JSON path (default: ~/.sc-controller/tariff.json)
-  TARIFF_MODE         "accelerated" or "realtime" (default: accelerated)
-  ACCEL_SECONDS       compressed-day length when accelerated (default: 600)
+  DAY_SECONDS         simulated day length in real seconds (default: 7200)
+                      7200 = 2-hour day, 3600 = 1-hour day, 86400 = real-time
   TICK_SECONDS        how often to rewrite the file (default: 1)
   LOOKAHEAD_HORIZON   future horizon in seconds (default: 300)
   LOOKAHEAD_STEP      step between lookahead samples (default: 30)
@@ -68,11 +63,10 @@ from datetime import datetime, timezone
 TARIFF_FILE = os.path.expanduser(
     os.environ.get("TARIFF_FILE", "~/.sc-controller/tariff.json")
 )
-MODE = os.environ.get("TARIFF_MODE", "accelerated")
-ACCEL_SECONDS = float(os.environ.get("ACCEL_SECONDS", "600"))
+DAY_SECONDS = float(os.environ.get("DAY_SECONDS", "7200"))
 TICK_SECONDS = float(os.environ.get("TICK_SECONDS", "1"))
-LOOKAHEAD_HORIZON = float(os.environ.get("LOOKAHEAD_HORIZON", "300"))
-LOOKAHEAD_STEP = float(os.environ.get("LOOKAHEAD_STEP", "30"))
+LOOKAHEAD_HORIZON = float(os.environ.get("LOOKAHEAD_HORIZON", "1800"))
+LOOKAHEAD_STEP = float(os.environ.get("LOOKAHEAD_STEP", "120"))
 PRICE_NOISE = float(os.environ.get("PRICE_NOISE_EUR", "1.5"))
 PRINT_STATUS = os.environ.get("PRINT_STATUS", "1") == "1"
 
@@ -163,8 +157,7 @@ def banner(day_length_s: float, cheap_max: float, expensive_min: float) -> None:
     print("=" * 60)
     print("  SmartClaws Tariff Simulator")
     print("=" * 60)
-    print(f"  Mode:           {MODE}")
-    print(f"  Day length:     {day_length_s:.0f} s")
+    print(f"  Day length:     {day_length_s:.0f} s  (1 day = {day_length_s:.0f}s real time)")
     print(f"  Tick interval:  {TICK_SECONDS} s")
     print(f"  Output file:    {TARIFF_FILE}")
     print(f"  Tier (cheap):   <= {cheap_max:.1f} EUR/MWh")
@@ -178,11 +171,7 @@ def banner(day_length_s: float, cheap_max: float, expensive_min: float) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    if MODE not in ("accelerated", "realtime"):
-        print(f"ERROR: unknown TARIFF_MODE={MODE!r}", file=sys.stderr)
-        sys.exit(2)
-
-    day_length_s = ACCEL_SECONDS if MODE == "accelerated" else 86400.0
+    day_length_s = DAY_SECONDS
     cheap_max, expensive_min = compute_tier_thresholds(day_length_s)
     started_at = datetime.now(timezone.utc)
     started_wall = time.time()
@@ -234,7 +223,6 @@ def main() -> None:
             },
             "lookahead": lookahead,
             "config": {
-                "mode": MODE,
                 "day_seconds": int(day_length_s),
                 "started_at_iso": started_at.isoformat().replace("+00:00", "Z"),
                 "tier_thresholds": {
