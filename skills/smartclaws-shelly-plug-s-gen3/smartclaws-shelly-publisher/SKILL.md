@@ -205,7 +205,7 @@ EVENT_APPEND      append helper executable        (e.g. ~/.sc-publisher/bin/shel
 SMARTCLAWS_BIN    optional path to CLI binary     (e.g. packages/cli/dist/smartclaws)
 ```
 
-Cron runs use isolated sessions. Do not rely on shell exports from the setup chat. Each cycle must reconstruct runtime values from this skill, `AGENTS.md`, and `STATE_FILE`. Treat environment variables as convenient defaults only. Required constants from `AGENTS.md`: `SMARTCLAWS_HOME`, `DEVICE_NAME`, `STATE_FILE`, `EVENT_LOG`, `EVENT_APPEND`, and `SMARTCLAWS_BIN`. Required runtime values from `STATE_FILE`: `incoming_channel`, `outgoing_channel`, and `shelly_host`.
+Cron runs use isolated sessions. Do not rely on shell exports from the setup chat. Each cycle must reconstruct runtime values from this skill's Required Environment section and `STATE_FILE`. Treat environment variables as convenient defaults only. Required constants: `SMARTCLAWS_HOME`, `DEVICE_NAME`, `STATE_FILE`, `EVENT_LOG`, `EVENT_APPEND`, and `SMARTCLAWS_BIN` — all defined above. Required runtime values from `STATE_FILE`: `incoming_channel`, `outgoing_channel`, and `shelly_host`.
 
 Confirm these are set and that `smartclaws device list` shows the device before accepting any other instruction. If `SMARTCLAWS_BIN` is provided, use that binary instead of assuming `smartclaws` is on `PATH`.
 
@@ -432,6 +432,10 @@ Notes:
 - Only apply known command topic `command.switch.set`.
 - Reject malformed payloads and log skip reason.
 
+Before creating the cron job, resolve your own agent ID: call `sessions_list`,
+find the session whose `kind` is `main`, and read its `agentId`. Use that value
+for `--agent` — do not hardcode a name.
+
 Create recurring job (interval provided by operator):
 
 ```bash
@@ -439,8 +443,8 @@ openclaw cron add \
   --name "shelly-publisher-cycle" \
   --every <interval> \
   --session isolated \
-  --agent smartclaws-shelly-publisher \
-  --message "Read your smartclaws-shelly-publisher SKILL.md in full, then run exactly one cron cycle as specified in the skill's cron cycle steps — follow them closely." \
+  --agent <your-agentId> \
+  --message "Using your injected smartclaws-shelly-publisher skill, run exactly one cron cycle as specified in the cron cycle steps — do not summarise or skip any step." \
   --no-deliver \
   --wake now
 ```

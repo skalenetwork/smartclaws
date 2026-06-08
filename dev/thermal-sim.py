@@ -56,13 +56,16 @@ SC_HOME = os.environ.get("SMARTCLAWS_HOME", os.path.expanduser("~/.sc-thermal"))
 DEVICE_NAME = os.environ.get("DEVICE_NAME", "thermal-sensor-1")
 SHELLY_OUT = os.environ.get("SHELLY_OUTGOING_CHANNEL", "")
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "5"))
-AMBIENT_C = float(os.environ.get("AMBIENT_C", "20.0"))
-T_ASYMP_ON = float(os.environ.get("T_ASYMP_ON", "32.0"))
-TAU_HEAT_S = float(os.environ.get("TAU_HEAT_S", "90"))
-TAU_COOL_S = float(os.environ.get("TAU_COOL_S", "180"))
-NOISE_C = float(os.environ.get("NOISE_C", "0.08"))
+# Slow, demo-friendly curve: stays within 20-29C, surfs ~22-24C over ~40-60 min.
+# Asymptotes bracket the desired range so it never overshoots the hard bounds;
+# large time constants keep the trend gentle (~0.05-0.15 C/min near the band).
+AMBIENT_C = float(os.environ.get("AMBIENT_C", "21.0"))      # cooling floor (relay OFF target)
+T_ASYMP_ON = float(os.environ.get("T_ASYMP_ON", "27.0"))    # heating ceiling (relay ON target)
+TAU_HEAT_S = float(os.environ.get("TAU_HEAT_S", "2400"))    # ~40 min heating time constant
+TAU_COOL_S = float(os.environ.get("TAU_COOL_S", "3000"))    # ~50 min cooling time constant
+NOISE_C = float(os.environ.get("NOISE_C", "0.05"))
 STALE_RELAY_MAX_S = float(os.environ.get("STALE_RELAY_MAX_S", "30"))
-INITIAL_TEMP_C = float(os.environ.get("INITIAL_TEMP_C", str(AMBIENT_C)))
+INITIAL_TEMP_C = float(os.environ.get("INITIAL_TEMP_C", "23.0"))  # mid-band start (only used if no state)
 SMARTCLAWS = os.environ.get("SMARTCLAWS_BIN", "smartclaws")
 STATE_FILE = os.environ.get(
     "STATE_FILE", os.path.join(SC_HOME, "thermal-sim.state.json")
