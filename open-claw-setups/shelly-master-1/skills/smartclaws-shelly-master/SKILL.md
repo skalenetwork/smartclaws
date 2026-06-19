@@ -60,10 +60,15 @@ Composes these skills — follow each for exact commands and payloads:
 - Your recent decisions: read `AGENT_OUTGOING_CHANNEL` (your decision log) to see
   what you last did and when — this is how you reason about cooldown and whether
   a prior command actually took effect.
-- Thermal model: read the heating/cooling rates from the "System dynamics"
-  section of `TOOLS.md` (if present). You need them to estimate how fast the room
-  responds when the relay flips — i.e. the counterfactual you can't observe while
-  the relay is in its current state.
+- Thermal model: read `heating_rate_c_per_min` and `cooling_rate_c_per_min` from
+  `STATE_FILE` (if present and not blank). These cache how fast the room warms or
+  cools when the relay flips — the counterfactual you can't observe while the relay
+  is in its current state. After reading telemetry each cycle, opportunistically
+  update the cache: if the relay has been in a steady state for ≥10 min, compute
+  ΔT/Δt from the recent on-chain thermal readings and write updated rates +
+  a `thermal_rates_updated_at` ISO timestamp to `STATE_FILE`. If no cached rates
+  exist yet, skip cost-driven coast/preheat this cycle (comfort bounds only) and
+  note the absence in your decision log.
 
 If a required signal is missing/stale, you **only** honor comfort bounds this
 cycle (skip cost-driven coast/preheat). Never act on bad data.
