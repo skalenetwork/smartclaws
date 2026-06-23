@@ -1,0 +1,251 @@
+name: Publish SmartClaws Plugin to ClawHub
+
+# Auto-publishes every push to main after build/test/validation passes.
+# Manual dispatch is also available from any branch for controlled releases.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packages/core/**"
+      - "packages/sdk/**"
+      - "packages/openclaw-plugin/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/openclaw-plugin-publish.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-smartclaws-openclaw-plugin-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check publish eligibility
+    runs-on: ubuntu-24.04
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      version_bumped: ${{ steps.check.outputs.version_bumped }}
+      relevant_changes: ${{ steps.check.outputs.relevant_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check changed files and version bump
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "relevant_changes=true" >> "$GITHUB_OUTPUT"
+            echo "version_bumped=true" >> "$GITHUB_OUTPUT"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch: allowing publish path."
+            exit 0
+          fi
+
+          before="${{ github.event.before }}"
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            before="$(git rev-parse HEAD^)"
+          fi
+
+          changed="$(git diff --name-only "$before" "${{ github.sha }}")"
+          echo "Changed files:"
+          printf '%s\n' "$changed"
+
+          relevant_changes=false
+          while IFS= read -r file; do
+            case "$file" in
+              packages/core/*|packages/sdk/*|packages/openclaw-plugin/*|package.json|bun.lock|.github/workflows/openclaw-plugin-publish.yml)
+                relevant_changes=true
+                ;;
+            esac
+          done <<< "$changed"
+
+          current_version="$(node -p "JSON.parse(require('fs').readFileSync('packages/openclaw-plugin/package.json','utf8')).version")"
+          previous_version=""
+          if git cat-file -e "$before:packages/openclaw-plugin/package.json" 2>/dev/null; then
+            previous_version="$(git show "$before:packages/openclaw-plugin/package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")"
+          fi
+
+          version_bumped=false
+          if [ -z "$previous_version" ] || [ "$current_version" != "$previous_version" ]; then
+            version_bumped=true
+          fi
+
+          should_publish=false
+          if [ "$relevant_changes" = "true" ] && [ "$version_bumped" = "true" ]; then
+            should_publish=true
+          fi
+
+          echo "relevant_changes=$relevant_changes" >> "$GITHUB_OUTPUT"
+          echo "version_bumped=$version_bumped" >> "$GITHUB_OUTPUT"
+          echo "should_publish=$should_publish" >> "$GITHUB_OUTPUT"
+          echo "Current version: $current_version"
+          echo "Previous version: ${previous_version:-<none>}"
+          echo "Relevant changes: $relevant_changes"
+          echo "Version bumped: $version_bumped"
+          echo "Should publish: $should_publish"
+
+  test:
+    name: Build, test, and validate plugin
+    needs: preflight
+    if: needs.preflight.outputs.should_publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build core
+        run: bun run build:core
+
+      - name: Build SDK
+        run: bun run build:sdk
+
+      - name: Build plugin
+        run: bun run build:plugin
+
+      - name: Type check plugin
+        working-directory: packages/openclaw-plugin
+        run: bun run check
+
+      - name: Run SDK tests
+        run: bun run test:sdk
+
+      - name: Verify plugin manifest is current
+        run: bun run plugin:manifest:check
+
+      - name: Validate OpenClaw plugin
+        run: bun run plugin:validate
+
+      - name: Verify version parity
+        working-directory: packages/openclaw-plugin
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+          const manifest = JSON.parse(fs.readFileSync('openclaw.plugin.json', 'utf8')).version;
+          if (pkg !== manifest) {
+            console.error(`Version mismatch: package=${pkg} manifest=${manifest}`);
+            process.exit(1);
+          }
+          console.log(`Validated SmartClaws plugin version ${pkg}`);
+          NODE
+
+  publish-plugin:
+    name: Publish plugin
+    needs: [preflight, test]
+    if: needs.preflight.outputs.should_publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build publish artifacts
+        run: |
+          bun run build:core
+          bun run build:sdk
+          bun run build:plugin
+          bun run plugin:manifest:check
+          bun run plugin:validate
+
+      - name: Verify version parity
+        working-directory: packages/openclaw-plugin
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+          const manifest = JSON.parse(fs.readFileSync('openclaw.plugin.json', 'utf8')).version;
+          if (pkg !== manifest) {
+            console.error(`Version mismatch: package=${pkg} manifest=${manifest}`);
+            process.exit(1);
+          }
+          console.log(`Publishing SmartClaws plugin version ${pkg}`);
+          NODE
+
+      - name: Stage publish directory
+        id: pack
+        run: |
+          rm -rf publish/smartclaws-openclaw-plugin
+          mkdir -p publish/smartclaws-openclaw-plugin
+          cp -r \
+            packages/openclaw-plugin/dist \
+            packages/openclaw-plugin/openclaw.plugin.json \
+            packages/openclaw-plugin/package.json \
+            packages/openclaw-plugin/README.md \
+            publish/smartclaws-openclaw-plugin/
+          echo "publish_path=publish/smartclaws-openclaw-plugin" >> "$GITHUB_OUTPUT"
+
+      - name: Install ClawHub CLI
+        run: npm install --global clawhub@latest
+
+      - name: Authenticate ClawHub CLI
+        env:
+          CLAWHUB_API_TOKEN: ${{ secrets.CLAWHUB_API_TOKEN }}
+        run: |
+          if [ -z "$CLAWHUB_API_TOKEN" ]; then
+            echo "::error::Missing required secret CLAWHUB_API_TOKEN"
+            exit 1
+          fi
+          clawhub login --token "$CLAWHUB_API_TOKEN" --no-browser
+
+      - name: Verify ClawHub authentication
+        run: clawhub whoami
+
+      - name: Validate package for ClawHub
+        run: clawhub package validate "${{ steps.pack.outputs.publish_path }}"
+
+      - name: Publish package to ClawHub
+        run: |
+          current_version="$(node -p "JSON.parse(require('fs').readFileSync('packages/openclaw-plugin/package.json','utf8')).version")"
+          versions_json="$(curl -fsS "https://clawhub.ai/api/v1/packages/smartclaws-openclaw-plugin/versions" 2>/dev/null || true)"
+          if [ -n "$versions_json" ]; then
+            already="$(node -e "
+              const data = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+              const versions = (data.items || []).map(x => x.version);
+              console.log(versions.includes(process.argv[1]) ? 'true' : 'false');
+            " "$current_version" <<<"$versions_json")"
+            if [ "$already" = "true" ]; then
+              echo "::notice::Version $current_version is already on the registry; skipping publish. Bump package.json + openclaw.plugin.json to ship a release."
+              exit 0
+            fi
+          fi
+          clawhub package publish "${{ steps.pack.outputs.publish_path }}" \
+            --family code-plugin \
+            --source-repo "${{ github.repository }}" \
+            --source-commit "${{ github.sha }}" \
+            --source-ref "${{ github.ref_name }}"

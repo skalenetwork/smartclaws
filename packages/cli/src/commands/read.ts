@@ -1,13 +1,5 @@
-import SmartClawsChannelABI from "@smartclaws/core/abi/SmartClawsChannel.json" with {
-  type: "json",
-};
-import { decode } from "@smartclaws/core/envelope";
+import { listDevices, loadConfig, readMessages, resolveChannel, SmartClawsError } from "@smartclaws/sdk";
 import { Command } from "commander";
-import { type Address, getContract, toBytes } from "viem";
-import { loadConfig } from "../config.ts";
-import { getClients } from "../contracts.ts";
-import { listDevices, loadDevice } from "../device.ts";
-import { loadWallet } from "../wallet.ts";
 
 export const readCommand = new Command("read")
   .description("Read messages from a device's outgoing channel")
@@ -18,94 +10,65 @@ export const readCommand = new Command("read")
   .option("--raw", "Show raw hex instead of decoded envelopes")
   .option("--json", "Output as JSON")
   .action(async (opts) => {
-    if (!opts.device && !opts.channel) {
-      console.error("Provide --device or --channel.");
-      process.exit(1);
-    }
-    if (opts.device && opts.channel) {
-      console.error("Provide --device or --channel, not both.");
-      process.exit(1);
-    }
-
     const config = loadConfig();
     if (!config) {
       console.error("Not initialized. Run 'smartclaws init' first.");
       process.exit(1);
     }
 
-    const wallet = loadWallet();
-    if (!wallet) {
-      console.error("No wallet found. Run 'smartclaws init' first.");
-      process.exit(1);
-    }
-
-    let channelAddress: Address;
+    let channelAddress: `0x${string}`;
     let deviceName: string | undefined;
-
-    if (opts.channel) {
-      channelAddress = opts.channel as Address;
-    } else {
-      const device = loadDevice(opts.device);
-      if (!device) {
-        const devices = listDevices();
+    try {
+      const resolved = resolveChannel({ device: opts.device, channel: opts.channel });
+      channelAddress = resolved.channelAddress;
+      deviceName = resolved.device;
+    } catch (e: unknown) {
+      if (e instanceof SmartClawsError && e.code === "DEVICE_NOT_FOUND") {
         console.error(`Device '${opts.device}' not found.`);
+        const devices = listDevices();
         if (devices.length > 0) {
           console.error(`Available: ${devices.map((d) => d.name).join(", ")}`);
         }
         process.exit(1);
       }
-      channelAddress = device.outgoingChannel as Address;
-      deviceName = device.name;
+      console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
+      process.exit(1);
     }
 
-    const { publicClient } = getClients(config, wallet);
-    const channel = getContract({
-      address: channelAddress,
-      abi: SmartClawsChannelABI.abi,
-      client: publicClient,
-    });
+    const result = await readMessages(
+      {
+        channelAddress,
+        limit: Number(opts.limit),
+        offset: opts.offset !== undefined ? Number(opts.offset) : undefined,
+      },
+      config,
+    );
 
-    const count = (await channel.read.getMessageCount()) as bigint;
-    if (count === 0n) {
-      console.log("No messages.");
+    if (result.total === 0) {
+      if (opts.json) {
+        console.log(
+          JSON.stringify(
+            { device: deviceName ?? null, channel: channelAddress, total: 0, messages: [] },
+            null,
+            2,
+          ),
+        );
+      } else {
+        console.log("No messages.");
+      }
       return;
     }
 
-    const oldest = (await channel.read.getOldestMessageOffset()) as bigint;
-    const latest = (await channel.read.getLatestMessageOffset()) as bigint;
-    const available = latest - oldest + 1n;
-    const limit = BigInt(opts.limit) > available ? available : BigInt(opts.limit);
-    const from =
-      opts.offset !== undefined
-        ? BigInt(opts.offset)
-        : latest - limit + 1n < oldest
-          ? oldest
-          : latest - limit + 1n;
-    const readCount = from + limit > latest + 1n ? latest + 1n - from : limit;
-
-    const [payloads, offsets] = (await channel.read.readMessages([from, readCount])) as [
-      readonly `0x${string}`[],
-      readonly bigint[],
-    ];
-
     if (opts.json) {
-      const messages = payloads.map((p, i) => {
-        try {
-          const env = decode(toBytes(p));
-          return { offset: Number(offsets[i]), ...env };
-        } catch {
-          return { offset: Number(offsets[i]), raw: p };
-        }
-      });
       console.log(
         JSON.stringify(
           {
             device: deviceName ?? null,
-            channel: channelAddress,
-            total: Number(count),
-            oldest: Number(oldest),
-            latest: Number(latest),
-            messages,
+            channel: result.channel,
+            total: result.total,
+            oldest: result.oldest,
+            latest: result.latest,
+            messages: result.messages,
           },
           null,
           2,
@@ -114,20 +77,17 @@ export const readCommand = new Command("read")
       return;
     }
 
-    console.log(`Messages: ${count} total (offsets ${oldest}..${latest})`);
-    console.log(`Reading: ${from}..${from + readCount - 1n}\n`);
+    console.log(`Messages: ${result.total} total (offsets ${result.oldest}..${result.latest})`);
+    console.log(`Reading: ${result.from}..${result.to}\n`);
 
-    for (let i = 0; i < payloads.length; i++) {
+    for (const m of result.messages) {
       if (opts.raw) {
-        console.log(`[${offsets[i]}] ${payloads[i]}`);
+        console.log(`[${m.offset}] ${m.rawHex}`);
+      } else if (m.decodeError) {
+        console.log(`[${m.offset}] (decode error) ${m.rawHex.slice(0, 40)}...`);
       } else {
-        try {
-          const env = decode(toBytes(payloads[i]));
-          const ts = new Date(env.ts * 1000).toISOString();
-          console.log(`[${offsets[i]}] ${ts} ${env.dev}/${env.topic} ${JSON.stringify(env.p)}`);
-        } catch {
-          console.log(`[${offsets[i]}] (decode error) ${payloads[i].slice(0, 40)}...`);
-        }
+        const ts = new Date((m.ts ?? 0) * 1000).toISOString();
+        console.log(`[${m.offset}] ${ts} ${m.dev}/${m.topic} ${JSON.stringify(m.p)}`);
       }
     }
   });

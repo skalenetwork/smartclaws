@@ -1,10 +1,17 @@
 import { generateName } from "@smartclaws/core/names";
 import { Command } from "commander";
 import { type Address, decodeEventLog } from "viem";
-import { getAgentPath, listAgents, loadAgent, saveAgent } from "../agent.ts";
-import { loadConfig } from "../config.ts";
-import { getAgentContract, getClients, getRegistryContract } from "../contracts.ts";
-import { loadWallet } from "../wallet.ts";
+import {
+  getAgentContract,
+  getAgentPath,
+  getClients,
+  getRegistryContract,
+  listAgents,
+  loadAgent,
+  loadConfig,
+  loadWallet,
+  saveAgent,
+} from "@smartclaws/sdk";
 
 const DEFAULT_CHANNEL_CAPACITY = 1024 * 1024;
 

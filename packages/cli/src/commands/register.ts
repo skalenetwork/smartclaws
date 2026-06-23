@@ -1,9 +1,7 @@
 import { generateName } from "@smartclaws/core/names";
 import { Command } from "commander";
 import { type Address, decodeEventLog } from "viem";
-import { loadConfig, saveConfig } from "../config.ts";
-import { getClients, getRegistryContract } from "../contracts.ts";
-import { loadWallet } from "../wallet.ts";
+import { getClients, getRegistryContract, loadConfig, loadWallet, saveConfig } from "@smartclaws/sdk";
 
 export const registerCommand = new Command("register")
   .description("Register a new device group on-chain")

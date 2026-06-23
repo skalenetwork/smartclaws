@@ -3,8 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Address, decodeEventLog } from "viem";
-import { createDefaultConfig, saveConfig } from "../../src/config.ts";
-import { loadDevice } from "../../src/device.ts";
+import { createDefaultConfig, loadDevice, saveConfig } from "@smartclaws/sdk";
 import {
   account,
   createChannel,

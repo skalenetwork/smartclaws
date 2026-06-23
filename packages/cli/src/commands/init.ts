@@ -1,7 +1,6 @@
 import { DEFAULT_NETWORK, getNetwork, NETWORKS } from "@smartclaws/core/networks";
 import { Command } from "commander";
-import { createDefaultConfig, loadConfig, saveConfig } from "../config.ts";
-import { generateWallet, loadWallet } from "../wallet.ts";
+import { createDefaultConfig, generateWallet, loadConfig, loadWallet, saveConfig } from "@smartclaws/sdk";
 
 export const initCommand = new Command("init")
   .description("Initialize SmartClaws configuration and wallet")

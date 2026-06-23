@@ -1,9 +1,15 @@
 import { Command } from "commander";
 import { type Address, decodeEventLog } from "viem";
-import { loadConfig } from "../config.ts";
-import { getClients, getDeviceContract, getDeviceGroupContract } from "../contracts.ts";
-import { listDevices, loadDevice, saveDevice } from "../device.ts";
-import { loadWallet } from "../wallet.ts";
+import {
+  getClients,
+  getDeviceContract,
+  getDeviceGroupContract,
+  listDevices,
+  loadConfig,
+  loadDevice,
+  loadWallet,
+  saveDevice,
+} from "@smartclaws/sdk";
 
 const DEFAULT_CHANNEL_CAPACITY = 1024 * 1024;
 

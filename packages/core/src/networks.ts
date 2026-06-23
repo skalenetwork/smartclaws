@@ -9,15 +9,6 @@ export interface Network {
 }
 
 export const NETWORKS: Record<string, Network> = {
-  testnet: {
-    name: "SKALE Sandbox",
-    chainId: 196243392,
-    rpcUrl: "https://base-sepolia-testnet.skalenodes.com/v1/vigilant-snappy-arcturus",
-    chainName: "skale-sandbox",
-    explorerUrl: "https://vigilant-snappy-arcturus.base-sepolia-testnet-explorer.skalenodes.com",
-    nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
-    registryAddress: "0x18B62f70ddaA2666FA5933a7b6Ff3943e69ca690",
-  },
   "base-testnet": {
     name: "SKALE Base Testnet",
     chainId: 324705682,
@@ -29,7 +20,7 @@ export const NETWORKS: Record<string, Network> = {
   },
 };
 
-export const DEFAULT_NETWORK = "testnet";
+export const DEFAULT_NETWORK = "base-testnet";
 
 export function getNetwork(name: string): Network {
   const network = NETWORKS[name];

@@ -1,9 +1,5 @@
-import { NETWORKS } from "@smartclaws/core/networks";
+import { getWalletInfo, loadConfig, loadWallet, SmartClawsError } from "@smartclaws/sdk";
 import { Command } from "commander";
-import { type Address, formatEther } from "viem";
-import { createClient } from "../client.ts";
-import { loadConfig } from "../config.ts";
-import { loadWallet } from "../wallet.ts";
 
 export const walletCommand = new Command("wallet").description("Wallet management");
 
@@ -26,11 +22,10 @@ walletCommand
     }
 
     try {
-      const client = createClient(config);
-      const balance = await client.getBalance({ address: wallet.address as Address });
-      const symbol = NETWORKS[config.network]?.nativeCurrency.symbol ?? "sFUEL";
-      console.log(`Balance: ${formatEther(balance)} ${symbol}`);
+      const info = await getWalletInfo(config, wallet);
+      console.log(`Balance: ${info.balance} ${info.symbol}`);
     } catch (e: unknown) {
-      console.log(`Balance: error fetching (${(e as Error).message})`);
+      const msg = e instanceof SmartClawsError ? e.message : (e as Error).message;
+      console.log(`Balance: error fetching (${msg})`);
     }
   });

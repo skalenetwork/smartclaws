@@ -14,9 +14,9 @@ describe("config", () => {
   });
 
   test("createDefaultConfig sets fields correctly", () => {
-    const config = createDefaultConfig("testnet", "https://rpc.example.com", 1351057110, "0xABC");
+    const config = createDefaultConfig("base-testnet", "https://rpc.example.com", 1351057110, "0xABC");
     expect(config.version).toBe(1);
-    expect(config.network).toBe("testnet");
+    expect(config.network).toBe("base-testnet");
     expect(config.rpcUrl).toBe("https://rpc.example.com");
     expect(config.chainId).toBe(1351057110);
     expect(config.contractAddress).toBe("0xABC");
@@ -24,7 +24,7 @@ describe("config", () => {
 
   test("config round-trips through JSON", () => {
     tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
-    const config = createDefaultConfig("testnet", "https://rpc.example.com", 42, "0x123");
+    const config = createDefaultConfig("base-testnet", "https://rpc.example.com", 42, "0x123");
     const path = join(tempDir, "config.json");
     writeFileSync(path, JSON.stringify(config, null, 2));
 

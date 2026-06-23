@@ -1,10 +1,12 @@
-import { encode } from "@smartclaws/core/envelope";
+import {
+  listDevices,
+  loadConfig,
+  loadWallet,
+  publishMessage,
+  resolveChannel,
+  SmartClawsError,
+} from "@smartclaws/sdk";
 import { Command } from "commander";
-import { toHex } from "viem";
-import { loadConfig } from "../config.ts";
-import { getChannelContract, getClients } from "../contracts.ts";
-import { listDevices, loadDevice } from "../device.ts";
-import { loadWallet } from "../wallet.ts";
 
 export const publishCommand = new Command("publish")
   .description("Publish a message to a device outgoing channel or any authorized channel")
@@ -14,15 +16,6 @@ export const publishCommand = new Command("publish")
   .requiredOption("--topic <topic>", "Message topic (e.g. telemetry.switch_status, command.switch.set)")
   .requiredOption("--data <json>", "Payload as JSON (e.g. '{\"on\":true}')")
   .action(async (opts) => {
-    if (!opts.device && !opts.channel) {
-      console.error("Provide --device or --channel.");
-      process.exit(1);
-    }
-    if (opts.device && opts.channel) {
-      console.error("Provide --device or --channel, not both.");
-      process.exit(1);
-    }
-
     const config = loadConfig();
     if (!config) {
       console.error("Not initialized. Run 'smartclaws init' first.");
@@ -43,35 +36,33 @@ export const publishCommand = new Command("publish")
       process.exit(1);
     }
 
-    const { publicClient } = getClients(config, wallet);
-
-    if (opts.device) {
-      const device = loadDevice(opts.device);
-      if (!device) {
-        const devices = listDevices();
+    let channelAddress: `0x${string}`;
+    let from: string;
+    try {
+      const resolved = resolveChannel({ device: opts.device, channel: opts.channel });
+      channelAddress = resolved.channelAddress;
+      // Device publishes identify as the device; direct channel uses --from.
+      from = resolved.device ?? opts.from;
+    } catch (e: unknown) {
+      if (e instanceof SmartClawsError && e.code === "DEVICE_NOT_FOUND") {
         console.error(`Device '${opts.device}' not found.`);
+        const devices = listDevices();
         if (devices.length > 0) {
           console.error(`Available: ${devices.map((d) => d.name).join(", ")}`);
         }
         process.exit(1);
       }
-
-      const encoded = encode(opts.topic, payload, device.name);
-      const channel = getChannelContract(device.outgoingChannel as `0x${string}`, config, wallet);
-      const hash = await channel.write.publishMessage([toHex(encoded)]);
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-      console.log(`Published to ${device.name}/${opts.topic}`);
-      console.log(`  Tx:     ${hash}`);
-      console.log(`  Status: ${receipt.status}`);
-    } else {
-      const encoded = encode(opts.topic, payload, opts.from);
-      const channel = getChannelContract(opts.channel as `0x${string}`, config, wallet);
-      const hash = await channel.write.publishMessage([toHex(encoded)]);
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-      console.log(`Published ${opts.from}/${opts.topic} to channel ${opts.channel}`);
-      console.log(`  Tx:     ${hash}`);
-      console.log(`  Status: ${receipt.status}`);
+      console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
+      process.exit(1);
     }
+
+    const result = await publishMessage({ channelAddress, topic: opts.topic, payload, from }, config, wallet);
+
+    if (opts.device) {
+      console.log(`Published to ${from}/${result.topic}`);
+    } else {
+      console.log(`Published ${from}/${result.topic} to channel ${channelAddress}`);
+    }
+    console.log(`  Tx:     ${result.txHash}`);
+    console.log(`  Status: ${result.status}`);
   });
