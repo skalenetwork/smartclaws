@@ -1,5 +1,5 @@
 import type { DefineToolPluginOptions } from "openclaw/plugin-sdk/tool-plugin";
-import { ConfigSchema } from "../plugin-config.js";
+import type { ConfigSchema } from "../plugin-config.js";
 
 type SmartClawsToolsCallback = DefineToolPluginOptions<typeof ConfigSchema>["tools"];
 

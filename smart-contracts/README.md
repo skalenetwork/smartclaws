@@ -37,7 +37,7 @@ npm run lint            # Lint Solidity
 Set `SKALE_RPC_URL` and `DEPLOYER_PRIVATE_KEY` in `.env`, then:
 
 ```bash
-npx hardhat run scripts/deploy.ts --network skaleTestnet
+npx hardhat run scripts/deploy.ts --network baseTestnet
 ```
 
 ## Stack

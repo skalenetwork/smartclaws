@@ -29,6 +29,11 @@ function buildChain(config: Config) {
   });
 }
 
+export function getPublicClient(config: Config) {
+  const chain = buildChain(config);
+  return createPublicClient({ chain, transport: http(config.rpcUrl) });
+}
+
 export function getClients(config: Config, wallet: WalletFile) {
   const chain = buildChain(config);
   const account = privateKeyToAccount(wallet.privateKey as `0x${string}`);
@@ -50,6 +55,15 @@ export function getRegistryContract(config: Config, wallet: WalletFile) {
   });
 }
 
+export function getRegistryReadContract(config: Config) {
+  const publicClient = getPublicClient(config);
+  return getContract({
+    address: config.contractAddress as Address,
+    abi: SmartClawsABI.abi,
+    client: publicClient,
+  });
+}
+
 export function getDeviceGroupContract(address: Address, config: Config, wallet: WalletFile) {
   const { publicClient, walletClient } = getClients(config, wallet);
   return getContract({
@@ -59,9 +73,17 @@ export function getDeviceGroupContract(address: Address, config: Config, wallet:
   });
 }
 
+export function getDeviceGroupReadContract(address: Address, config: Config) {
+  const publicClient = getPublicClient(config);
+  return getContract({
+    address,
+    abi: SmartClawsDeviceGroupABI.abi,
+    client: publicClient,
+  });
+}
+
 export function getDeviceContract(address: Address, config: Config) {
-  const chain = buildChain(config);
-  const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
+  const publicClient = getPublicClient(config);
   return getContract({
     address,
     abi: SmartClawsDeviceABI.abi,
@@ -69,13 +91,30 @@ export function getDeviceContract(address: Address, config: Config) {
   });
 }
 
+export function getDeviceWriteContract(address: Address, config: Config, wallet: WalletFile) {
+  const { publicClient, walletClient } = getClients(config, wallet);
+  return getContract({
+    address,
+    abi: SmartClawsDeviceABI.abi,
+    client: { public: publicClient, wallet: walletClient },
+  });
+}
+
 export function getAgentContract(address: Address, config: Config) {
-  const chain = buildChain(config);
-  const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
+  const publicClient = getPublicClient(config);
   return getContract({
     address,
     abi: SmartClawsAgentABI.abi,
     client: publicClient,
+  });
+}
+
+export function getAgentWriteContract(address: Address, config: Config, wallet: WalletFile) {
+  const { publicClient, walletClient } = getClients(config, wallet);
+  return getContract({
+    address,
+    abi: SmartClawsAgentABI.abi,
+    client: { public: publicClient, wallet: walletClient },
   });
 }
 

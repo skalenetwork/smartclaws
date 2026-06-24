@@ -1,5 +1,6 @@
-import { getWalletInfo, loadConfig, loadWallet, SmartClawsError } from "@smartclaws/sdk";
+import { getWalletInfo, SmartClawsError } from "@smartclaws/sdk";
 import { Command } from "commander";
+import { loadConfigOrExit, loadWalletOrExit } from "../runtime.ts";
 
 export const walletCommand = new Command("wallet").description("Wallet management");
 
@@ -7,15 +8,11 @@ walletCommand
   .command("info")
   .description("Show wallet address and balance")
   .action(async () => {
-    const wallet = loadWallet();
-    if (!wallet) {
-      console.error("No wallet found. Run 'smartclaws init' first.");
-      process.exit(1);
-    }
+    const config = loadConfigOrExit();
+    const wallet = loadWalletOrExit(config);
 
     console.log(`Address: ${wallet.address}`);
 
-    const config = loadConfig();
     if (!config?.rpcUrl) {
       console.log("Balance: unknown (no RPC configured)");
       return;

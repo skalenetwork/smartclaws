@@ -5,7 +5,7 @@ import { decode, encode } from "@smartclaws/core/envelope";
 import type { Config, WalletFile } from "@smartclaws/core/types";
 import { type Address, getContract, toBytes, toHex } from "viem";
 import { createClient } from "../client.js";
-import { getChannelContract, getClients } from "../contracts.js";
+import { getChannelContract, getClients, getDeviceWriteContract } from "../contracts.js";
 import { loadDevice } from "../device.js";
 import { SmartClawsError } from "../errors.js";
 
@@ -19,6 +19,7 @@ export interface ChannelTarget {
 export interface ResolvedChannel {
   channelAddress: Address;
   device?: string;
+  deviceAddress?: Address;
 }
 
 /**
@@ -44,7 +45,11 @@ export function resolveChannel(target: ChannelTarget, homeDir?: string): Resolve
       device: target.device,
     });
   }
-  return { channelAddress: device.outgoingChannel as Address, device: device.name };
+  return {
+    channelAddress: device.outgoingChannel as Address,
+    device: device.name,
+    deviceAddress: device.deviceContract as Address,
+  };
 }
 
 export interface ReadMessage {
@@ -88,10 +93,7 @@ export async function readMessages(params: ReadParams, config: Config): Promise<
       limit: params.limit,
     });
   }
-  if (
-    params.offset !== undefined &&
-    (!Number.isSafeInteger(params.offset) || params.offset < 0)
-  ) {
+  if (params.offset !== undefined && (!Number.isSafeInteger(params.offset) || params.offset < 0)) {
     throw new SmartClawsError("INVALID_RANGE", "`offset` must be a non-negative integer.", {
       offset: params.offset,
     });
@@ -203,6 +205,41 @@ export async function publishMessage(
 
   return {
     channel: channelAddress,
+    topic,
+    dev: from,
+    txHash: hash,
+    status: receipt.status,
+  };
+}
+
+export interface DevicePublishParams {
+  deviceAddress: Address;
+  topic: string;
+  payload: Record<string, unknown>;
+  /** Envelope `dev` field — usually the device id/name. */
+  from: string;
+}
+
+/**
+ * Publish telemetry through SmartClawsDevice.publishTelemetry so the device
+ * contract enforces PUBLISHER_ROLE and channel ownership correctly.
+ */
+export async function publishDeviceTelemetry(
+  params: DevicePublishParams,
+  config: Config,
+  wallet: WalletFile,
+): Promise<PublishResult> {
+  const { deviceAddress, topic, payload, from } = params;
+  const encoded = encode(topic, payload, from);
+  const device = getDeviceWriteContract(deviceAddress, config, wallet);
+  const { publicClient } = getClients(config, wallet);
+
+  const hash = await device.write.publishTelemetry([toHex(encoded)]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  const outgoingChannel = (await device.read.getOutgoingMessagesChannel()) as Address;
+
+  return {
+    channel: outgoingChannel,
     topic,
     dev: from,
     txHash: hash,

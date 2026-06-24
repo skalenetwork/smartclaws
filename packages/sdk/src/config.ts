@@ -1,25 +1,27 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Config } from "@smartclaws/core/types";
+import type { Config, LegacyConfigV1, SmartClawsMode, WalletFile } from "@smartclaws/core/types";
+import { SmartClawsError } from "./errors.js";
 
-export type { Config };
+export type { Config, SmartClawsMode };
+
+const DEFAULT_MODE: SmartClawsMode = "controller";
 
 const DEFAULT_CONFIG: Config = {
-  version: 1,
+  version: 2,
   network: "",
   chainId: 0,
   rpcUrl: "",
   contractAddress: "",
+  walletAddress: "",
+  mode: DEFAULT_MODE,
   deviceGroupAddress: "",
+  attachedGroupAddress: "",
+  attachedAgentAddress: "",
+  attachedDeviceAddresses: [],
 };
 
-/**
- * Resolve the SmartClaws home directory. An explicit `homeDir` (e.g. from a
- * plugin's config) always wins; otherwise fall back to `SMARTCLAWS_HOME`, then
- * `~/.smartclaws`. Passing `homeDir` explicitly lets callers avoid mutating
- * `process.env`, so concurrent callers can use different homes safely.
- */
 export function getConfigDir(homeDir?: string): string {
   return homeDir || process.env.SMARTCLAWS_HOME || join(homedir(), ".smartclaws");
 }
@@ -32,25 +34,48 @@ export function ensureConfigDir(homeDir?: string): void {
   const dir = getConfigDir(homeDir);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-  const walletsDir = join(dir, "wallets");
-  if (!existsSync(walletsDir)) mkdirSync(walletsDir, { recursive: true });
+  for (const child of ["wallets", "groups", "devices", "agents", "cache"]) {
+    const childDir = join(dir, child);
+    if (!existsSync(childDir)) mkdirSync(childDir, { recursive: true });
+  }
+}
 
-  const devicesDir = join(dir, "devices");
-  if (!existsSync(devicesDir)) mkdirSync(devicesDir, { recursive: true });
+function migrateConfig(raw: unknown): Config {
+  const maybe = raw as Partial<Config> & Partial<LegacyConfigV1>;
+  if (maybe.version === 2) {
+    return {
+      ...DEFAULT_CONFIG,
+      ...maybe,
+      attachedDeviceAddresses: Array.isArray(maybe.attachedDeviceAddresses)
+        ? maybe.attachedDeviceAddresses
+        : [],
+    } as Config;
+  }
 
-  const agentsDir = join(dir, "agents");
-  if (!existsSync(agentsDir)) mkdirSync(agentsDir, { recursive: true });
+  const legacy = maybe as LegacyConfigV1;
+  return {
+    ...DEFAULT_CONFIG,
+    network: legacy.network ?? "",
+    chainId: legacy.chainId ?? 0,
+    rpcUrl: legacy.rpcUrl ?? "",
+    contractAddress: legacy.contractAddress ?? "",
+    deviceGroupAddress: legacy.deviceGroupAddress ?? "",
+    attachedGroupAddress: legacy.deviceGroupAddress ?? "",
+  };
 }
 
 export function loadConfig(homeDir?: string): Config | null {
   const path = getConfigPath(homeDir);
   if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf-8")) as Config;
+  return migrateConfig(JSON.parse(readFileSync(path, "utf-8")));
 }
 
 export function saveConfig(config: Config, homeDir?: string): void {
   ensureConfigDir(homeDir);
-  writeFileSync(getConfigPath(homeDir), `${JSON.stringify(config, null, 2)}\n`);
+  writeFileSync(
+    getConfigPath(homeDir),
+    `${JSON.stringify({ ...DEFAULT_CONFIG, ...config }, null, 2)}\n`,
+  );
 }
 
 export function createDefaultConfig(
@@ -58,6 +83,19 @@ export function createDefaultConfig(
   rpcUrl: string,
   chainId: number,
   contractAddress: string,
+  mode: SmartClawsMode = DEFAULT_MODE,
+  walletAddress = "",
 ): Config {
-  return { ...DEFAULT_CONFIG, network, rpcUrl, chainId, contractAddress };
+  return { ...DEFAULT_CONFIG, network, rpcUrl, chainId, contractAddress, mode, walletAddress };
+}
+
+export function assertHomeWallet(config: Config, wallet: WalletFile): void {
+  if (!config.walletAddress) return;
+  if (config.walletAddress.toLowerCase() !== wallet.address.toLowerCase()) {
+    throw new SmartClawsError(
+      "HOME_WALLET_MISMATCH",
+      `This SmartClaws HOME belongs to ${config.walletAddress}, but the loaded wallet is ${wallet.address}.`,
+      { configWallet: config.walletAddress, wallet: wallet.address },
+    );
+  }
 }

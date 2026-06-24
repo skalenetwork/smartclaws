@@ -1,4 +1,9 @@
-import { publishMessage, resolveChannel } from "@smartclaws/sdk";
+import {
+  publishDeviceTelemetry,
+  publishMessage,
+  resolveChannel,
+  SmartClawsError,
+} from "@smartclaws/sdk";
 import { Type } from "typebox";
 import { requireWallet, resolveConfig } from "../plugin-config.js";
 import type { SmartClawsToolFactory } from "./types.js";
@@ -27,11 +32,26 @@ export function publishTool(tool: SmartClawsToolFactory) {
       context.signal?.throwIfAborted();
       const cfg = resolveConfig(config);
       const wallet = requireWallet(config.smartclawsHome);
-      const { channelAddress, device } = resolveChannel(
+      const { channelAddress, device, deviceAddress } = resolveChannel(
         { device: params.device, channel: params.channel },
         config.smartclawsHome,
       );
-      const from = device ?? params.from ?? "controller";
+      if (device) {
+        if (!deviceAddress) {
+          throw new SmartClawsError(
+            "DEVICE_NOT_FOUND",
+            `Device '${params.device}' is missing its contract address.`,
+            { device: params.device },
+          );
+        }
+        return await publishDeviceTelemetry(
+          { deviceAddress, topic: params.topic, payload: params.payload, from: device },
+          cfg,
+          wallet,
+        );
+      }
+
+      const from = params.from ?? "controller";
       return await publishMessage(
         { channelAddress, topic: params.topic, payload: params.payload, from },
         cfg,

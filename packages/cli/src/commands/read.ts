@@ -1,5 +1,6 @@
-import { listDevices, loadConfig, readMessages, resolveChannel, SmartClawsError } from "@smartclaws/sdk";
+import { listDevices, readMessages, resolveChannel, SmartClawsError } from "@smartclaws/sdk";
 import { Command } from "commander";
+import { loadConfigOrExit, loadOptionalWalletOrExit } from "../runtime.ts";
 
 export const readCommand = new Command("read")
   .description("Read messages from a device's outgoing channel")
@@ -10,11 +11,8 @@ export const readCommand = new Command("read")
   .option("--raw", "Show raw hex instead of decoded envelopes")
   .option("--json", "Output as JSON")
   .action(async (opts) => {
-    const config = loadConfig();
-    if (!config) {
-      console.error("Not initialized. Run 'smartclaws init' first.");
-      process.exit(1);
-    }
+    const config = loadConfigOrExit();
+    loadOptionalWalletOrExit(config);
 
     let channelAddress: `0x${string}`;
     let deviceName: string | undefined;

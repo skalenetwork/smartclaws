@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { saveAgent } from "../../src/agent.js";
 import { createDefaultConfig, ensureConfigDir } from "../../src/config.js";
 import { saveDevice } from "../../src/device.js";
 import { SmartClawsError } from "../../src/errors.js";
@@ -93,6 +94,54 @@ describe("getWalletInfo", () => {
       expect(e).toBeInstanceOf(SmartClawsError);
       expect((e as SmartClawsError).code).toBe("NO_RPC");
     }
+  });
+});
+
+describe("local cache filenames", () => {
+  afterEach(() => {
+    if (tempDir && existsSync(tempDir)) rmSync(tempDir, { recursive: true });
+  });
+
+  let tempDir: string;
+
+  test("stores devices by contract address, not untrusted device id", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    ensureConfigDir(tempDir);
+    saveDevice(
+      {
+        name: "../evil-device",
+        deviceContract: "0x00000000000000000000000000000000000000d1",
+        incomingChannel: "0x00000000000000000000000000000000000000d2",
+        outgoingChannel: "0x00000000000000000000000000000000000000d3",
+      },
+      tempDir,
+    );
+
+    expect(existsSync(join(tempDir, "evil-device.json"))).toBe(false);
+    expect(readdirSync(join(tempDir, "devices"))).toEqual([
+      "0x00000000000000000000000000000000000000D1.json",
+    ]);
+  });
+
+  test("stores agents by contract address, not untrusted agent id", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    ensureConfigDir(tempDir);
+    saveAgent(
+      {
+        name: "../evil-agent",
+        agentId: "../evil-agent",
+        metadata: "",
+        agentContract: "0x00000000000000000000000000000000000000a1",
+        incomingChannel: "0x00000000000000000000000000000000000000a2",
+        outgoingChannel: "0x00000000000000000000000000000000000000a3",
+      },
+      tempDir,
+    );
+
+    expect(existsSync(join(tempDir, "evil-agent.json"))).toBe(false);
+    expect(readdirSync(join(tempDir, "agents"))).toEqual([
+      "0x00000000000000000000000000000000000000A1.json",
+    ]);
   });
 });
 

@@ -10,13 +10,25 @@ function walletPath(homeDir?: string): string {
   return join(getConfigDir(homeDir), "wallets", "default.json");
 }
 
-export function generateWallet(homeDir?: string): WalletFile {
+export function saveWallet(wallet: WalletFile, homeDir?: string): WalletFile {
   ensureConfigDir(homeDir);
-  const privateKey = generatePrivateKey();
-  const account = privateKeyToAccount(privateKey);
-  const wallet: WalletFile = { address: account.address, privateKey };
   writeFileSync(walletPath(homeDir), `${JSON.stringify(wallet, null, 2)}\n`, { mode: 0o600 });
   return wallet;
+}
+
+export function walletFromPrivateKey(privateKey: string): WalletFile {
+  const normalized = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
+  const account = privateKeyToAccount(normalized as never);
+  return { address: account.address, privateKey: normalized };
+}
+
+export function generateWallet(homeDir?: string): WalletFile {
+  const privateKey = generatePrivateKey();
+  return saveWallet(walletFromPrivateKey(privateKey), homeDir);
+}
+
+export function importWallet(privateKey: string, homeDir?: string): WalletFile {
+  return saveWallet(walletFromPrivateKey(privateKey), homeDir);
 }
 
 export function loadWallet(homeDir?: string): WalletFile | null {

@@ -20,9 +20,13 @@ export const ConfigSchema = Type.Object({
   ),
   rpcUrl: Type.Optional(Type.String({ description: "Override RPC URL." })),
   chainId: Type.Optional(
-    Type.Number({ description: "Override chain ID (required with rpcUrl when no network is set)." }),
+    Type.Number({
+      description: "Override chain ID (required with rpcUrl when no network is set).",
+    }),
   ),
-  registryAddress: Type.Optional(Type.String({ description: "Override registry contract address." })),
+  registryAddress: Type.Optional(
+    Type.String({ description: "Override registry contract address." }),
+  ),
 });
 
 export type PluginConfig = Static<typeof ConfigSchema>;

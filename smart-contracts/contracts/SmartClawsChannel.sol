@@ -2,74 +2,57 @@
 pragma solidity ^0.8.28;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Pagination} from "./Pagination.sol";
+import {ISmartClawsChannel} from "./interfaces/ISmartClawsChannel.sol";
+import {InvalidRegistryAddress} from "./Errors.sol";
 
 /**
  * @title SmartClawsChannel
  * @notice Append-only message log with circular buffer pruning based on byte capacity.
  * @dev Messages are stored as opaque byte payloads with monotonically increasing offsets.
  *      When total stored bytes exceed `maxCapacityBytes`, the oldest messages are pruned.
- *      Writes can be permanently disabled while preserving read access.
+ *
+ *      Two independent write gates exist and they compose:
+ *        - `writesEnabled` (disableWrites): permanent, terminal decommission.
+ *        - Pausable `paused()` (pause/unpause): reversible, temporary suspension.
+ *      A publish requires writes enabled AND not paused. The permanent gate
+ *      dominates: unpausing never re-enables a channel that was disableWrites'd.
+ *      Reads remain functional in every state.
  */
-contract SmartClawsChannel is Ownable2Step {
+contract SmartClawsChannel is Ownable, Pausable, ISmartClawsChannel {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using Pagination for EnumerableSet.AddressSet;
 
     // --- State ---
 
-    address public immutable registry;
-    uint256 public immutable maxCapacityBytes;
+    address public immutable override registry;
+    uint256 public immutable override maxCapacityBytes;
 
-    uint256 public totalBytes;
-    uint256 public startOffset;
-    uint256 public nextOffset;
-    bool public writesEnabled = true;
+    uint256 public override totalBytes;
+    uint256 public override startOffset;
+    uint256 public override nextOffset;
+    bool public override writesEnabled = true;
 
     mapping(uint256 offset => bytes payload) private _messages;
     mapping(uint256 offset => uint256 size) private _messageSizes;
     EnumerableSet.AddressSet private _publishers;
 
-    // --- Events ---
-
-    event MessagePublished(address indexed channel, uint256 indexed offset);
-    event WritesDisabled(address indexed channel);
-    event PublisherAdded(address indexed publisher);
-    event PublisherRemoved(address indexed publisher);
-
-    // --- Errors ---
-
-    error WritesAreDisabled();
-    error Unauthorized();
-    error PayloadExceedsCapacity(uint256 payloadSize, uint256 maxCapacity);
-    error EmptyPayload();
-    error ChannelEmpty();
-    error MessagePruned(uint256 requestedOffset, uint256 oldestAvailable);
-    error InvalidOffset(uint256 requestedOffset, uint256 nextOffset);
-    error PublisherAlreadyAuthorized(address publisher);
-    error PublisherNotAuthorized(address publisher);
-    error CannotModifyOwnerAsPublisher();
-    error BatchTooLarge(uint256 requested, uint256 available);
-    error ZeroRegistry();
-    error ZeroCapacity();
-
     // --- Modifiers ---
 
     modifier whenWritesEnabled() {
-        if (!writesEnabled) revert WritesAreDisabled();
+        require(writesEnabled, WritesAreDisabled());
         _;
     }
 
     modifier onlyAuthorized() {
-        if (msg.sender != owner() && !_publishers.contains(msg.sender)) {
-            revert Unauthorized();
-        }
+        require(msg.sender == owner() || _publishers.contains(msg.sender), Unauthorized());
         _;
     }
 
     modifier onlyOwnerOrRegistry() {
-        if (msg.sender != owner() && msg.sender != registry) {
-            revert Unauthorized();
-        }
+        require(msg.sender == owner() || msg.sender == registry, Unauthorized());
         _;
     }
 
@@ -85,8 +68,8 @@ contract SmartClawsChannel is Ownable2Step {
         uint256 maxCapacityBytes_,
         address registry_
     ) Ownable(initialOwner) {
-        if (registry_ == address(0)) revert ZeroRegistry();
-        if (maxCapacityBytes_ == 0) revert ZeroCapacity();
+        require(registry_ != address(0), InvalidRegistryAddress(address(0)));
+        require(maxCapacityBytes_ != 0, ZeroCapacity());
 
         registry = registry_;
         maxCapacityBytes = maxCapacityBytes_;
@@ -98,10 +81,26 @@ contract SmartClawsChannel is Ownable2Step {
      * @notice Permanently disables future writes. Reads remain functional.
      * @dev Callable by owner or registry (for unregistration flows).
      */
-    function disableWrites() external onlyOwnerOrRegistry {
+    function disableWrites() external override onlyOwnerOrRegistry {
         if (!writesEnabled) return;
         writesEnabled = false;
         emit WritesDisabled(address(this));
+    }
+
+    /**
+     * @notice Temporarily suspends writes. Reversible via {unpause}. Reads still work.
+     * @dev Independent of {disableWrites}; the permanent gate dominates.
+     */
+    function pause() external override onlyOwnerOrRegistry {
+        _pause();
+    }
+
+    /**
+     * @notice Lifts a temporary suspension set by {pause}.
+     * @dev Does not affect {disableWrites}: a decommissioned channel stays read-only.
+     */
+    function unpause() external override onlyOwnerOrRegistry {
+        _unpause();
     }
 
     /**
@@ -112,12 +111,10 @@ contract SmartClawsChannel is Ownable2Step {
      */
     function publishMessage(
         bytes calldata payload
-    ) external whenWritesEnabled onlyAuthorized {
+    ) external override whenWritesEnabled whenNotPaused onlyAuthorized {
         uint256 pSize = payload.length;
-        if (pSize == 0) revert EmptyPayload();
-        if (pSize > maxCapacityBytes) {
-            revert PayloadExceedsCapacity(pSize, maxCapacityBytes);
-        }
+        require(pSize != 0, EmptyPayload());
+        require(pSize <= maxCapacityBytes, PayloadExceedsCapacity(pSize, maxCapacityBytes));
 
         // Prune oldest messages until there is room.
         while (totalBytes + pSize > maxCapacityBytes && startOffset < nextOffset) {
@@ -136,16 +133,40 @@ contract SmartClawsChannel is Ownable2Step {
         emit MessagePublished(address(this), offset);
     }
 
+    /**
+     * @notice Manually evicts up to `maxMessages` of the oldest stored messages.
+     * @dev Maintenance escape hatch: auto-pruning on publish is O(eviction count),
+     *      so a channel packed with many tiny messages could make a later large
+     *      publish exceed the block gas limit. An owner/registry can call this
+     *      first (in bounded, caller-sized batches) to trim the backlog so the
+     *      publish has room. Independent of the pause/disable gates — it only
+     *      advances the read window and frees storage; readers of evicted offsets
+     *      get MessagePruned thereafter.
+     * @param maxMessages Upper bound on messages to evict this call (gas control).
+     * @return pruned Number of messages actually evicted.
+     */
+    function prune(uint256 maxMessages) external override onlyOwner returns (uint256 pruned) {
+        while (pruned < maxMessages && startOffset < nextOffset) {
+            totalBytes -= _messageSizes[startOffset];
+            delete _messages[startOffset];
+            delete _messageSizes[startOffset];
+            unchecked {
+                ++startOffset;
+                ++pruned;
+            }
+        }
+        if (pruned != 0) emit MessagesPruned(address(this), startOffset, pruned);
+    }
+
     // --- Publisher Management ---
 
     /**
      * @notice Grants write access to an address.
      * @param publisher Address to authorize.
      */
-    function addPublisher(address publisher) external onlyOwner {
-        if (publisher == owner()) revert CannotModifyOwnerAsPublisher();
-        bool added = _publishers.add(publisher);
-        if (!added) revert PublisherAlreadyAuthorized(publisher);
+    function addPublisher(address publisher) external override onlyOwner {
+        require(publisher != owner(), CannotModifyOwnerAsPublisher());
+        require(_publishers.add(publisher), PublisherAlreadyAuthorized(publisher));
         emit PublisherAdded(publisher);
     }
 
@@ -153,10 +174,9 @@ contract SmartClawsChannel is Ownable2Step {
      * @notice Revokes write access from an address.
      * @param publisher Address to deauthorize.
      */
-    function removePublisher(address publisher) external onlyOwner {
-        if (publisher == owner()) revert CannotModifyOwnerAsPublisher();
-        bool removed = _publishers.remove(publisher);
-        if (!removed) revert PublisherNotAuthorized(publisher);
+    function removePublisher(address publisher) external override onlyOwner {
+        require(publisher != owner(), CannotModifyOwnerAsPublisher());
+        require(_publishers.remove(publisher), PublisherNotAuthorized(publisher));
         emit PublisherRemoved(publisher);
     }
 
@@ -169,10 +189,10 @@ contract SmartClawsChannel is Ownable2Step {
      */
     function readMessage(
         uint256 offset
-    ) external view returns (bytes memory payload) {
-        if (nextOffset == 0) revert ChannelEmpty();
-        if (offset >= nextOffset) revert InvalidOffset(offset, nextOffset);
-        if (offset < startOffset) revert MessagePruned(offset, startOffset);
+    ) external view override returns (bytes memory payload) {
+        require(nextOffset != 0, ChannelEmpty());
+        require(offset < nextOffset, InvalidOffset(offset, nextOffset));
+        require(offset >= startOffset, MessagePruned(offset, startOffset));
         return _messages[offset];
     }
 
@@ -187,13 +207,13 @@ contract SmartClawsChannel is Ownable2Step {
     function readMessages(
         uint256 fromOffset,
         uint256 count
-    ) external view returns (bytes[] memory payloads, uint256[] memory offsets) {
-        if (nextOffset == 0) revert ChannelEmpty();
-        if (fromOffset < startOffset) revert MessagePruned(fromOffset, startOffset);
-        if (fromOffset >= nextOffset) revert InvalidOffset(fromOffset, nextOffset);
+    ) external view override returns (bytes[] memory payloads, uint256[] memory offsets) {
+        require(nextOffset != 0, ChannelEmpty());
+        require(fromOffset >= startOffset, MessagePruned(fromOffset, startOffset));
+        require(fromOffset < nextOffset, InvalidOffset(fromOffset, nextOffset));
 
         uint256 available = nextOffset - fromOffset;
-        if (count > available) revert BatchTooLarge(count, available);
+        require(count <= available, BatchTooLarge(count, available));
 
         payloads = new bytes[](count);
         offsets = new uint256[](count);
@@ -209,23 +229,23 @@ contract SmartClawsChannel is Ownable2Step {
     /**
      * @notice Returns the offset of the most recent message.
      */
-    function getLatestMessageOffset() external view returns (uint256) {
-        if (nextOffset == 0 || nextOffset <= startOffset) revert ChannelEmpty();
+    function getLatestMessageOffset() external view override returns (uint256) {
+        require(nextOffset != 0 && nextOffset > startOffset, ChannelEmpty());
         return nextOffset - 1;
     }
 
     /**
      * @notice Returns the offset of the oldest available (non-pruned) message.
      */
-    function getOldestMessageOffset() external view returns (uint256) {
-        if (nextOffset == 0 || nextOffset <= startOffset) revert ChannelEmpty();
+    function getOldestMessageOffset() external view override returns (uint256) {
+        require(nextOffset != 0 && nextOffset > startOffset, ChannelEmpty());
         return startOffset;
     }
 
     /**
      * @notice Returns the number of messages currently stored.
      */
-    function getMessageCount() external view returns (uint256) {
+    function getMessageCount() external view override returns (uint256) {
         if (nextOffset <= startOffset) return 0;
         return nextOffset - startOffset;
     }
@@ -235,21 +255,24 @@ contract SmartClawsChannel is Ownable2Step {
      * @param account Address to check.
      * @return True if the address is the owner or an authorized publisher.
      */
-    function isAuthorizedPublisher(address account) external view returns (bool) {
+    function isAuthorizedPublisher(address account) external view override returns (bool) {
         return account == owner() || _publishers.contains(account);
     }
 
     /**
      * @notice Returns all authorized publisher addresses (excludes owner).
      */
-    function getPublishers() external view returns (address[] memory) {
+    function getPublishers() external view override returns (address[] memory) {
         return _publishers.values();
     }
 
     /**
-     * @notice Returns the total byte capacity of this channel.
+     * @notice Returns up to `limit` authorized publishers starting at `offset`.
      */
-    function getMaxCapacityBytes() external view returns (uint256) {
-        return maxCapacityBytes;
+    function getPublishers(
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (address[] memory) {
+        return _publishers.slice(offset, limit);
     }
 }
