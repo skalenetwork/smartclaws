@@ -18,6 +18,14 @@ export const ROLES = {
   MASTER: id("MASTER_ROLE"),
 };
 
+/** AccessControl role identifiers used by SmartClawsAgent. */
+export const AGENT_ROLES = {
+  DEFAULT_ADMIN: ZeroHash,
+  AGENT_ADMIN: id("AGENT_ADMIN_ROLE"),
+  PUBLISHER: id("PUBLISHER_ROLE"),
+  SENDER: id("SENDER_ROLE"),
+};
+
 // One shared connection for the whole run. getOrCreate() returns the cached
 // connection on repeat calls, which is what lets loadFixture snapshots persist
 // across test files. (Replaces the deprecated network.connect().)

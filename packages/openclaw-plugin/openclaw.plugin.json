@@ -35,11 +35,15 @@
     "tools": [
       "smartclaws_wallet_info",
       "smartclaws_read",
-      "smartclaws_publish"
+      "smartclaws_publish",
+      "smartclaws_notify"
     ]
   },
   "toolMetadata": {
     "smartclaws_publish": {
+      "optional": true
+    },
+    "smartclaws_notify": {
       "optional": true
     }
   }

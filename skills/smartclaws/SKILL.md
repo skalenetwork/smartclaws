@@ -35,9 +35,11 @@ The chain is the message bus and the source of truth. The pieces:
   **channels**: an *outgoing* channel (telemetry it publishes) and an *incoming*
   channel (commands sent to it). Publishing is role-gated (PUBLISHER for
   telemetry, MASTER for commands).
-- **Agent** — an on-chain identity for an AI agent, with its own outgoing channel
-  (e.g. a decision/audit log). (An agent's incoming channel exists but cannot be
-  written to yet.)
+- **Agent** — an on-chain identity for an AI agent, with two channels: an
+  *outgoing* channel (e.g. a decision/audit log it publishes, role-gated by
+  PUBLISHER) and an *incoming* channel others can address (role-gated by SENDER).
+  Writing to another agent's incoming channel is "notifying" it — the basis for
+  agent-to-agent coordination.
 - **Channel** — an append-only message log. Messages are SmartClaws *envelopes*:
   `{ v, ts, dev, topic, p }` where `p` is your JSON payload.
 
@@ -45,16 +47,17 @@ You never invent addresses. Channels, devices, and authority come from setup.
 
 ## The Plugin Tools (your runtime)
 
-Once the SmartClaws plugin is installed and configured, you have three tools:
+Once the SmartClaws plugin is installed and configured, you have four tools:
 
 | Tool | What it does | Wallet? |
 | --- | --- | --- |
 | `smartclaws_wallet_info` | Returns the configured wallet address + balance. Never returns a private key. | reads |
 | `smartclaws_read` | Reads decoded messages from a device's outgoing channel or a direct channel address. | no |
-| `smartclaws_publish` | Publishes an envelope through a device (telemetry) or to a direct channel. Signs a transaction. | signs |
+| `smartclaws_publish` | Publishes an envelope through a device (telemetry), your agent's outgoing channel (e.g. a decision log), or a direct channel. Signs a transaction. | signs |
+| `smartclaws_notify` | Sends a message to another agent's incoming channel (needs SENDER_ROLE on that agent). Signs a transaction. | signs |
 
-`smartclaws_publish` is a write tool and is **optional** — it must be explicitly
-allowlisted in the agent config before you can call it.
+`smartclaws_publish` and `smartclaws_notify` are write tools and are **optional** —
+each must be explicitly allowlisted in the agent config before you can call it.
 
 **What the plugin does NOT do (today):** it cannot create a wallet, register a
 group/device/agent, or grant roles. Those on-chain *setup* actions use the

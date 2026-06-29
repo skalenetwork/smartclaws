@@ -37,7 +37,8 @@ Before running the cycle, identify:
 - **The bridge mode**: `telemetry-only`, `chain-commanded`, or
   `operator-assisted`. If absent, **fail closed to `telemetry-only`**.
 - **The SmartClaws plugin** — `smartclaws_read` / `smartclaws_publish` /
-  `smartclaws_wallet_info`.
+  `smartclaws_wallet_info` (and `smartclaws_notify` if your setup coordinates with
+  another agent's inbox).
 
 If setup is missing or more than one device is assigned with no clear primary,
 **stop and run the `smartclaws` onboarding skill** or ask the owner. This

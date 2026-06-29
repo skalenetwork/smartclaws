@@ -3,6 +3,12 @@ pragma solidity ^0.8.28;
 
 interface ISmartClawsAgent {
     event AgentDeactivated(address indexed agent);
+    event AgentOutboundPublished(
+        address indexed agent,
+        address indexed channel,
+        address indexed publisher
+    );
+    event AgentInboundPublished(address indexed agent, address indexed channel, address indexed sender);
 
     error Unauthorized();
     error AlreadyInactive();
@@ -13,6 +19,8 @@ interface ISmartClawsAgent {
     function createdAt() external view returns (uint256);
     function active() external view returns (bool);
 
+    function publishOutbound(bytes calldata payload) external;
+    function publishInbound(bytes calldata payload) external;
     function deactivate() external;
     function pause() external;
     function unpause() external;

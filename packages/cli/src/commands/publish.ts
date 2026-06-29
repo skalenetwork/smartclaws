@@ -2,8 +2,8 @@ import {
   hydrateDevice,
   listDevices,
   loadDevice,
+  publishChannelMessage,
   publishDeviceTelemetry,
-  publishMessage,
   resolveChannel,
   SmartClawsError,
 } from "@smartclaws/sdk";
@@ -98,7 +98,7 @@ export const publishCommand = new Command("publish")
       }
 
       const resolved = resolveChannel({ channel: opts.channel });
-      const result = await publishMessage(
+      const result = await publishChannelMessage(
         { channelAddress: resolved.channelAddress, topic: opts.topic, payload, from: opts.from },
         config,
         wallet,

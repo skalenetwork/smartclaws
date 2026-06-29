@@ -18,7 +18,15 @@ smartclawsHome: ~/.smartclaws
 agent:
   id: main
   name: Home Controller
-  outgoingChannel: 0x...   # your decision/audit log (you write here)
+  outgoingChannel: 0x...   # your decision/audit log (you write here, via publishOutbound)
+  incomingChannel: 0x...   # your inbox: others notify you here if granted SENDER_ROLE
+
+# Other agents you may notify (publish to their incoming channel). Requires the
+# target's owner to have granted you SENDER_ROLE. Omit if you coordinate with none.
+notifiable:
+  worker-1:
+    name: Air-Quality Worker
+    incomingChannel: 0x...   # you write here via smartclaws_notify / `agent notify`
 
 # Every device you read or command. Install the named device skill for each.
 devices:

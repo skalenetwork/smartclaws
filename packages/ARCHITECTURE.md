@@ -101,7 +101,12 @@ Examples:
 - `resolveChannel({ device } | { channel }, homeDir)` resolves a local device or
   direct channel target.
 - `readMessages(...)` reads and decodes channel messages without a wallet.
-- `publishMessage(...)` signs a transaction and returns transaction metadata.
+- `publishChannelMessage(...)` signs a transaction and returns transaction metadata.
+- `publishDeviceTelemetry(...)` publishes via `SmartClawsDevice.publishTelemetry`.
+- `publishAgentOutbound(...)` / `publishAgentInbound(...)` publish via
+  `SmartClawsAgent.publishOutbound` / `publishInbound` (agent log / notify).
+- `grantAgentPermission(...)` / `revokeAgentPermission(...)` manage agent
+  publisher/sender/agent-admin roles (mirror the device equivalents).
 - `getWalletInfo(...)` returns wallet address and balance, never private keys.
 - `summarizeHome(...)` returns a read-only, secret-free snapshot of an existing
   HOME (wallet address, network, mode, attached entities, record counts, and
@@ -149,7 +154,8 @@ It currently exposes:
 | --- | --- | --- |
 | `smartclaws_wallet_info` | read | Returns address and balance; never returns a private key. |
 | `smartclaws_read` | read | Reads decoded channel messages. No wallet required. |
-| `smartclaws_publish` | write, optional | Publishes an envelope and returns transaction status. |
+| `smartclaws_publish` | write, optional | Publishes an envelope through a device, the caller's agent (outbound), or a direct channel. Returns transaction status. |
+| `smartclaws_notify` | write, optional | Publishes to another agent's incoming channel (SmartClawsAgent.publishInbound; requires SENDER_ROLE). Returns transaction status. |
 
 Tool names are stable public API. Keep them lowercase, unique, specific, and
 backward-compatible once released.
@@ -310,7 +316,8 @@ Implemented:
 
 - `smartclaws_wallet_info`
 - `smartclaws_read`
-- `smartclaws_publish`
+- `smartclaws_publish` (device telemetry, agent outbound, or direct channel)
+- `smartclaws_notify` (agent inbound / agent-to-agent)
 
 Likely future read/status tools:
 
@@ -321,7 +328,7 @@ Likely future setup/write tools:
 - `smartclaws_init`
 - `smartclaws_register_group`
 - `smartclaws_register_device`
-- `smartclaws_authorize_publisher`
+- `smartclaws_grant_role` (device publisher/master and agent publisher/sender/admin)
 
 Write tools should be optional and should return transaction hashes, receipt
 status, and relevant addresses.

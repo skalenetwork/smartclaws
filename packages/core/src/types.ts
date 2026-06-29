@@ -6,6 +6,10 @@ export interface EntityCapabilities {
   isDeviceAdmin?: boolean;
   isPublisher?: boolean;
   isMaster?: boolean;
+  /** Agent AGENT_ADMIN_ROLE: administers the agent's publisher/sender roles. */
+  isAgentAdmin?: boolean;
+  /** Agent SENDER_ROLE: may publish to the agent's incoming channel. */
+  isSender?: boolean;
 }
 
 export interface Config {

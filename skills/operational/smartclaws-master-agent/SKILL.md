@@ -35,7 +35,7 @@ Before running the cycle, identify:
   `commandable`.
 - **Device contract skills** for every device you read or command.
 - **The SmartClaws plugin** — `smartclaws_read` / `smartclaws_publish` /
-  `smartclaws_wallet_info`.
+  `smartclaws_notify` / `smartclaws_wallet_info`.
 
 If `SMARTCLAWS.md` is missing or lacks a device/channel you need, **stop and run
 the `smartclaws` onboarding skill** (or ask the owner). Never invent addresses,
@@ -52,7 +52,12 @@ While running a cycle you:
   **for whether the current caller/session is allowed to make you act — your
   `AGENTS.md` authorizes it.** This skill does not define that allowlist; defer to
   `AGENTS.md` and refuse if it doesn't grant the action.
-- Log every outcome to your agent outgoing channel.
+- Optionally **notify another agent** by publishing to its incoming channel with
+  `smartclaws_notify` (requires SENDER_ROLE on that agent, granted by its owner) —
+  the basis for delegating to or coordinating with a sub-agent. Same authority
+  rule: only when `AGENTS.md` authorizes it and the target is named in
+  `SMARTCLAWS.md`. Never notify an agent you weren't told about.
+- Log every outcome to your own agent outgoing channel.
 
 This procedure never touches local hardware directly (that's a bridge's job),
 never publishes to an absent/null/telemetry-only incoming channel, and never
@@ -79,8 +84,10 @@ choice, set in `AGENTS.md` or your own setup — not here.
 
 Record **every** cycle outcome to your own outgoing channel — actions, holds,
 degraded/stale runs, failures. On-chain logs are cheap and filterable; don't
-self-censor. Publish with `smartclaws_publish` to your agent outgoing channel,
-topic `decision.log` (unless `SMARTCLAWS.md` overrides it).
+self-censor. Publish with `smartclaws_publish` using your **`agent`** target
+(this writes through the agent contract's `publishOutbound`, which your owner role
+holds — a raw channel write to the agent's own channel is rejected), topic
+`decision.log` (unless `SMARTCLAWS.md` overrides it).
 
 Payload — a human-readable `reason` plus structured fields:
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ISmartClawsAgent} from "./interfaces/ISmartClawsAgent.sol";
@@ -11,14 +12,22 @@ import {InvalidRegistryAddress} from "./Errors.sol";
 /**
  * @title SmartClawsAgent
  * @notice Represents an individual OpenClaw AI Agent with fixed channels.
- * @dev The agent contract owns both of its channels, so transferring agent
- *      ownership keeps channel control aligned without any extra bookkeeping
- *      (the channels are owned by `address(this)`, never by the agent's owner).
- *      The registry can deactivate the agent, which disables its channels.
+ * @dev The agent contract owns both of its channels, so all writes are mediated
+ *      through role-gated agent methods. Transferring agent ownership moves the
+ *      standing DEFAULT_ADMIN_ROLE / AGENT_ADMIN_ROLE / PUBLISHER_ROLE grants to
+ *      the new owner so ownership and role administration stay aligned. The
+ *      registry can deactivate the agent, which disables its channels.
  *      `agentId` / `metadata` are mutable-by-nobody descriptors set at creation;
  *      agents are expected to be re-registered rather than edited in place.
  */
-contract SmartClawsAgent is Ownable2Step, ISmartClawsAgent {
+contract SmartClawsAgent is Ownable2Step, AccessControl, ISmartClawsAgent {
+    /// @notice Agent administrator; manages PUBLISHER_ROLE and SENDER_ROLE.
+    bytes32 public constant AGENT_ADMIN_ROLE = keccak256("AGENT_ADMIN_ROLE");
+    /// @notice May publish messages to the agent's outgoing channel.
+    bytes32 public constant PUBLISHER_ROLE = keccak256("PUBLISHER_ROLE");
+    /// @notice May publish messages to the agent's incoming channel.
+    bytes32 public constant SENDER_ROLE = keccak256("SENDER_ROLE");
+
     address public immutable override registry;
     ISmartClawsChannel internal immutable incomingChannel;
     ISmartClawsChannel internal immutable outgoingChannel;
@@ -29,6 +38,19 @@ contract SmartClawsAgent is Ownable2Step, ISmartClawsAgent {
 
     modifier onlyRegistryOrOwner() {
         require(msg.sender == registry || msg.sender == owner(), Unauthorized());
+        _;
+    }
+
+    modifier onlyRegistryOwnerOrAgentAdmin() {
+        require(
+            msg.sender == registry || msg.sender == owner() || hasRole(AGENT_ADMIN_ROLE, msg.sender),
+            Unauthorized()
+        );
+        _;
+    }
+
+    modifier whenActive() {
+        require(active, AlreadyInactive());
         _;
     }
 
@@ -49,17 +71,37 @@ contract SmartClawsAgent is Ownable2Step, ISmartClawsAgent {
         agentId = agentId_;
         metadata = metadata_;
         createdAt = block.timestamp;
+
+        _setRoleAdmin(AGENT_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(PUBLISHER_ROLE, AGENT_ADMIN_ROLE);
+        _setRoleAdmin(SENDER_ROLE, AGENT_ADMIN_ROLE);
+
+        _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
+        _grantRole(AGENT_ADMIN_ROLE, initialOwner);
+        _grantRole(PUBLISHER_ROLE, initialOwner);
     }
 
-    function publishMessage(bytes calldata payload) external onlyOwner {
-        require(active, AlreadyInactive());
+    /**
+     * @notice Publishes an agent-authored message to the outgoing channel.
+     * @param payload The message bytes.
+     */
+    function publishOutbound(
+        bytes calldata payload
+    ) external override whenActive onlyRole(PUBLISHER_ROLE) {
         outgoingChannel.publishMessage(payload);
+        emit AgentOutboundPublished(address(this), address(outgoingChannel), msg.sender);
     }
 
-    // TODO
-    // Need to add "notify" function. It should allow other parties to publish to the incoming channel.
-    // After that, we may update this contract to AccessControl
-    // END of TODO
+    /**
+     * @notice Publishes a message addressed to the agent's incoming channel.
+     * @param payload The message bytes.
+     */
+    function publishInbound(
+        bytes calldata payload
+    ) external override whenActive onlyRole(SENDER_ROLE) {
+        incomingChannel.publishMessage(payload);
+        emit AgentInboundPublished(address(this), address(incomingChannel), msg.sender);
+    }
 
     /**
      * @notice Deactivates the agent. Called by the registry during unregistration.
@@ -72,16 +114,17 @@ contract SmartClawsAgent is Ownable2Step, ISmartClawsAgent {
 
     /**
      * @notice Temporarily suspends writes on both channels. Reversible via {unpause}.
-     * @dev Distinct from {deactivate}, which is permanent. Pausing leaves `active`
+     * @dev Distinct from {deactivate}, which is permanent. Callable by the
+     *      owner, registry, or AGENT_ADMIN_ROLE. Pausing leaves `active`
      *      untouched; both gates must be clear for the agent to publish.
      */
-    function pause() external override onlyRegistryOrOwner {
+    function pause() external override onlyRegistryOwnerOrAgentAdmin {
         incomingChannel.pause();
         outgoingChannel.pause();
     }
 
     /// @notice Lifts a {pause}. Does not revive a deactivated agent.
-    function unpause() external override onlyRegistryOrOwner {
+    function unpause() external override onlyRegistryOwnerOrAgentAdmin {
         incomingChannel.unpause();
         outgoingChannel.unpause();
     }
@@ -89,14 +132,14 @@ contract SmartClawsAgent is Ownable2Step, ISmartClawsAgent {
     /// @notice Manually evicts up to `maxMessages` oldest entries from the incoming channel.
     function pruneIncoming(
         uint256 maxMessages
-    ) external override onlyRegistryOrOwner returns (uint256 pruned) {
+    ) external override onlyRegistryOwnerOrAgentAdmin returns (uint256 pruned) {
         return incomingChannel.prune(maxMessages);
     }
 
     /// @notice Manually evicts up to `maxMessages` oldest entries from the outgoing channel.
     function pruneOutgoing(
         uint256 maxMessages
-    ) external override onlyRegistryOrOwner returns (uint256 pruned) {
+    ) external override onlyRegistryOwnerOrAgentAdmin returns (uint256 pruned) {
         return outgoingChannel.prune(maxMessages);
     }
 
@@ -108,5 +151,28 @@ contract SmartClawsAgent is Ownable2Step, ISmartClawsAgent {
 
     function getOutgoingMessagesChannel() external view override returns (address) {
         return address(outgoingChannel);
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(AccessControl) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+
+    function _transferOwnership(address newOwner) internal override {
+        address previousOwner = owner();
+        super._transferOwnership(newOwner);
+
+        if (previousOwner != address(0)) {
+            _revokeRole(DEFAULT_ADMIN_ROLE, previousOwner);
+            _revokeRole(AGENT_ADMIN_ROLE, previousOwner);
+            _revokeRole(PUBLISHER_ROLE, previousOwner);
+        }
+
+        if (newOwner != address(0)) {
+            _grantRole(DEFAULT_ADMIN_ROLE, newOwner);
+            _grantRole(AGENT_ADMIN_ROLE, newOwner);
+            _grantRole(PUBLISHER_ROLE, newOwner);
+        }
     }
 }

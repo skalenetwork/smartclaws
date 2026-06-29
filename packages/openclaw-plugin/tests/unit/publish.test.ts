@@ -19,9 +19,12 @@ const WALLET = {
   privateKey: "0x01",
 };
 
-const publishMessage = mock(async (params) => ({ kind: "channel", ...params }));
+const publishChannelMessage = mock(async (params) => ({ kind: "channel", ...params }));
 const publishDeviceTelemetry = mock(async (params) => ({ kind: "device", ...params }));
+const publishAgentOutbound = mock(async (params) => ({ kind: "agent", ...params }));
+const publishAgentInbound = mock(async (params) => ({ kind: "inbound", ...params }));
 const resolveChannel = mock();
+const resolveAgent = mock();
 const loadConfig = mock(() => CONFIG);
 const loadWallet = mock(() => WALLET);
 
@@ -40,8 +43,11 @@ mock.module("@smartclaws/sdk", () => ({
   createDefaultConfig: mock(() => CONFIG),
   loadConfig,
   loadWallet,
+  publishChannelMessage,
   publishDeviceTelemetry,
-  publishMessage,
+  publishAgentOutbound,
+  publishAgentInbound,
+  resolveAgent,
   resolveChannel,
 }));
 
@@ -62,9 +68,11 @@ async function loadPublishSpec() {
 
 describe("smartclaws_publish", () => {
   beforeEach(() => {
-    publishMessage.mockClear();
+    publishChannelMessage.mockClear();
     publishDeviceTelemetry.mockClear();
+    publishAgentOutbound.mockClear();
     resolveChannel.mockClear();
+    resolveAgent.mockClear();
     loadConfig.mockClear();
     loadWallet.mockClear();
   });
@@ -97,11 +105,11 @@ describe("smartclaws_publish", () => {
       CONFIG,
       WALLET,
     );
-    expect(publishMessage).not.toHaveBeenCalled();
+    expect(publishChannelMessage).not.toHaveBeenCalled();
     expect(result).toMatchObject({ kind: "device" });
   });
 
-  test("keeps direct channel targets on channel.publishMessage", async () => {
+  test("keeps direct channel targets on channel publishing", async () => {
     resolveChannel.mockReturnValue({
       channelAddress: "0x00000000000000000000000000000000000000c1",
     });
@@ -118,7 +126,7 @@ describe("smartclaws_publish", () => {
       {},
     );
 
-    expect(publishMessage).toHaveBeenCalledWith(
+    expect(publishChannelMessage).toHaveBeenCalledWith(
       {
         channelAddress: "0x00000000000000000000000000000000000000c1",
         topic: "command.switch.set",
@@ -129,5 +137,73 @@ describe("smartclaws_publish", () => {
       WALLET,
     );
     expect(publishDeviceTelemetry).not.toHaveBeenCalled();
+  });
+
+  test("routes agent targets through publishAgentOutbound", async () => {
+    resolveAgent.mockResolvedValue({
+      name: "controller-1",
+      agentContract: "0x00000000000000000000000000000000000000a1",
+    });
+    const spec = await loadPublishSpec();
+
+    const result = await spec.execute(
+      { agent: "controller-1", topic: "decision.log", payload: { decision: "hold" } },
+      { smartclawsHome: "/tmp/smartclaws-test" },
+      {},
+    );
+
+    expect(resolveAgent).toHaveBeenCalledWith(
+      "controller-1",
+      CONFIG,
+      WALLET,
+      "/tmp/smartclaws-test",
+    );
+    expect(publishAgentOutbound).toHaveBeenCalledWith(
+      {
+        agentAddress: "0x00000000000000000000000000000000000000a1",
+        topic: "decision.log",
+        payload: { decision: "hold" },
+        from: "controller-1",
+      },
+      CONFIG,
+      WALLET,
+    );
+    expect(resolveChannel).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ kind: "agent" });
+  });
+
+  test("resolves raw agent addresses before outbound publishing", async () => {
+    resolveAgent.mockResolvedValue({
+      name: "controller-1",
+      agentContract: "0x00000000000000000000000000000000000000a1",
+    });
+    const spec = await loadPublishSpec();
+
+    await spec.execute(
+      {
+        agent: "0x00000000000000000000000000000000000000a1",
+        topic: "decision.log",
+        payload: { decision: "hold" },
+      },
+      { smartclawsHome: "/tmp/smartclaws-test" },
+      {},
+    );
+
+    expect(resolveAgent).toHaveBeenCalledWith(
+      "0x00000000000000000000000000000000000000a1",
+      CONFIG,
+      WALLET,
+      "/tmp/smartclaws-test",
+    );
+    expect(publishAgentOutbound).toHaveBeenCalledWith(
+      {
+        agentAddress: "0x00000000000000000000000000000000000000a1",
+        topic: "decision.log",
+        payload: { decision: "hold" },
+        from: "controller-1",
+      },
+      CONFIG,
+      WALLET,
+    );
   });
 });

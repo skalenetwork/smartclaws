@@ -5,7 +5,12 @@ import { decode, encode } from "@smartclaws/core/envelope";
 import type { Config, WalletFile } from "@smartclaws/core/types";
 import { type Address, getContract, toBytes, toHex } from "viem";
 import { createClient } from "../client.js";
-import { getChannelContract, getClients, getDeviceWriteContract } from "../contracts.js";
+import {
+  getAgentWriteContract,
+  getChannelContract,
+  getClients,
+  getDeviceWriteContract,
+} from "../contracts.js";
 import { loadDevice } from "../device.js";
 import { SmartClawsError } from "../errors.js";
 
@@ -190,7 +195,7 @@ export interface PublishResult {
  * Encode and publish an envelope to a channel. Requires a wallet (signs the
  * transaction). Returns the transaction hash and receipt status.
  */
-export async function publishMessage(
+export async function publishChannelMessage(
   params: PublishParams,
   config: Config,
   wallet: WalletFile,
@@ -245,4 +250,58 @@ export async function publishDeviceTelemetry(
     txHash: hash,
     status: receipt.status,
   };
+}
+
+export interface AgentPublishParams {
+  agentAddress: Address;
+  topic: string;
+  payload: Record<string, unknown>;
+  /** Envelope `dev` field — usually the agent id/name (or the sender's id). */
+  from: string;
+}
+
+/**
+ * Publish an agent-authored message through SmartClawsAgent.publishOutbound so
+ * the agent contract enforces PUBLISHER_ROLE and channel ownership. This is the
+ * correct path for an agent's own outgoing channel (e.g. a decision log) — the
+ * channel is owned by the agent contract, not the wallet, so a raw channel
+ * write would be rejected.
+ */
+export async function publishAgentOutbound(
+  params: AgentPublishParams,
+  config: Config,
+  wallet: WalletFile,
+): Promise<PublishResult> {
+  const { agentAddress, topic, payload, from } = params;
+  const encoded = encode(topic, payload, from);
+  const agent = getAgentWriteContract(agentAddress, config, wallet);
+  const { publicClient } = getClients(config, wallet);
+
+  const hash = await agent.write.publishOutbound([toHex(encoded)]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  const outgoingChannel = (await agent.read.getOutgoingMessagesChannel()) as Address;
+
+  return { channel: outgoingChannel, topic, dev: from, txHash: hash, status: receipt.status };
+}
+
+/**
+ * Publish a message to an agent's incoming channel through
+ * SmartClawsAgent.publishInbound (requires SENDER_ROLE on the target agent).
+ * This is the "notify" path: addressing another agent's inbox.
+ */
+export async function publishAgentInbound(
+  params: AgentPublishParams,
+  config: Config,
+  wallet: WalletFile,
+): Promise<PublishResult> {
+  const { agentAddress, topic, payload, from } = params;
+  const encoded = encode(topic, payload, from);
+  const agent = getAgentWriteContract(agentAddress, config, wallet);
+  const { publicClient } = getClients(config, wallet);
+
+  const hash = await agent.write.publishInbound([toHex(encoded)]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  const incomingChannel = (await agent.read.getIncomingMessagesChannel()) as Address;
+
+  return { channel: incomingChannel, topic, dev: from, txHash: hash, status: receipt.status };
 }

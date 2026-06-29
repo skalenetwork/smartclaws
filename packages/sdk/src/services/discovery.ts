@@ -19,6 +19,7 @@ import {
 import { listAgents, saveAgent } from "../agent.js";
 import {
   getAgentContract,
+  getAgentWriteContract,
   getClients,
   getDeviceContract,
   getDeviceGroupContract,
@@ -35,9 +36,12 @@ const DISCOVERY_PAGE_SIZE = 100n;
 const DEVICE_ADMIN_ROLE = keccak256(toHex("DEVICE_ADMIN_ROLE"));
 const PUBLISHER_ROLE = keccak256(toHex("PUBLISHER_ROLE"));
 const MASTER_ROLE = keccak256(toHex("MASTER_ROLE"));
+const AGENT_ADMIN_ROLE = keccak256(toHex("AGENT_ADMIN_ROLE"));
+const SENDER_ROLE = keccak256(toHex("SENDER_ROLE"));
 
 type NamedRecord = { address: string; name: string };
 export type DevicePermissionRole = "publisher" | "master";
+export type AgentPermissionRole = "publisher" | "sender" | "agent-admin";
 
 function normalizeAddress(address: string): Address {
   return getAddress(address) as Address;
@@ -181,7 +185,18 @@ export async function hydrateAgent(
   );
 
   const capabilities: EntityCapabilities = {};
-  if (wallet) capabilities.isAgentOwner = sameAddress(owner, wallet.address);
+  if (wallet) {
+    capabilities.isAgentOwner = sameAddress(owner, wallet.address);
+    const account = normalizeAddress(wallet.address);
+    const [isAgentAdmin, isPublisher, isSender] = await Promise.all([
+      agent.read.hasRole([AGENT_ADMIN_ROLE, account]) as Promise<boolean>,
+      agent.read.hasRole([PUBLISHER_ROLE, account]) as Promise<boolean>,
+      agent.read.hasRole([SENDER_ROLE, account]) as Promise<boolean>,
+    ]);
+    capabilities.isAgentAdmin = isAgentAdmin;
+    capabilities.isPublisher = isPublisher;
+    capabilities.isSender = isSender;
+  }
 
   const record: AgentFile = {
     name: agentId,
@@ -548,4 +563,65 @@ export const deviceRoleIds = {
   deviceAdmin: DEVICE_ADMIN_ROLE,
   publisher: PUBLISHER_ROLE,
   master: MASTER_ROLE,
+} as const;
+
+function agentPermissionRoleId(role: AgentPermissionRole): `0x${string}` {
+  if (role === "publisher") return PUBLISHER_ROLE;
+  if (role === "sender") return SENDER_ROLE;
+  return AGENT_ADMIN_ROLE;
+}
+
+export async function grantAgentPermission(
+  config: Config,
+  wallet: WalletFile,
+  agentQuery: string,
+  role: AgentPermissionRole,
+  accountAddress: string,
+  homeDir?: string,
+): Promise<{
+  agent: AgentFile;
+  role: AgentPermissionRole;
+  account: Address;
+  txHash: `0x${string}`;
+  status: "success" | "reverted";
+}> {
+  const agent = await resolveAgent(agentQuery, config, wallet, homeDir);
+  const account = normalizeAddress(accountAddress);
+  const contract = getAgentWriteContract(normalizeAddress(agent.agentContract), config, wallet);
+  const { publicClient } = getClients(config, wallet);
+
+  const hash = await contract.write.grantRole([agentPermissionRoleId(role), account]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return { agent, role, account, txHash: hash, status: receipt.status };
+}
+
+export async function revokeAgentPermission(
+  config: Config,
+  wallet: WalletFile,
+  agentQuery: string,
+  role: AgentPermissionRole,
+  accountAddress: string,
+  homeDir?: string,
+): Promise<{
+  agent: AgentFile;
+  role: AgentPermissionRole;
+  account: Address;
+  txHash: `0x${string}`;
+  status: "success" | "reverted";
+}> {
+  const agent = await resolveAgent(agentQuery, config, wallet, homeDir);
+  const account = normalizeAddress(accountAddress);
+  const contract = getAgentWriteContract(normalizeAddress(agent.agentContract), config, wallet);
+  const { publicClient } = getClients(config, wallet);
+
+  const hash = await contract.write.revokeRole([agentPermissionRoleId(role), account]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return { agent, role, account, txHash: hash, status: receipt.status };
+}
+
+export const agentRoleIds = {
+  defaultAdmin: zeroHash,
+  agentAdmin: AGENT_ADMIN_ROLE,
+  publisher: PUBLISHER_ROLE,
+  sender: SENDER_ROLE,
 } as const;
