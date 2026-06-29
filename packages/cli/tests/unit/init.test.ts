@@ -1,8 +1,23 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generatePrivateKey } from "viem/accounts";
+
+const BASE_INIT = [
+  "init",
+  "--yes",
+  "--mode",
+  "controller",
+  "--network",
+  "base-testnet",
+  "--rpc-url",
+  "http://127.0.0.1:0",
+  "--chain-id",
+  "31337",
+  "--contract",
+  "0x0000000000000000000000000000000000000001",
+];
 
 async function runCli(args: string[], homeDir: string) {
   const proc = Bun.spawn(["bun", "src/index.ts", ...args], {
@@ -130,5 +145,35 @@ describe("init command", () => {
 
     expect(second.exitCode).toBe(1);
     expect(second.stderr).toContain("This HOME belongs to");
+  });
+
+  test("re-running init on an existing HOME writes a backup", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-cli-test-"));
+
+    const first = await runCli([...BASE_INIT, "--generate-wallet"], tempDir);
+    expect(first.exitCode).toBe(0);
+    expect(existsSync(join(tempDir, "backups"))).toBe(false);
+
+    const second = await runCli(BASE_INIT, tempDir);
+    expect(second.exitCode).toBe(0);
+    expect(second.stdout).toContain("Existing SmartClaws HOME found");
+    expect(second.stdout).toContain("Backup saved");
+
+    const backups = readdirSync(join(tempDir, "backups"));
+    expect(backups.length).toBe(1);
+    expect(existsSync(join(tempDir, "backups", backups[0], "config.json"))).toBe(true);
+    expect(existsSync(join(tempDir, "backups", backups[0], "wallets", "default.json"))).toBe(true);
+  });
+
+  test("init --no-backup skips the backup on re-init", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-cli-test-"));
+
+    const first = await runCli([...BASE_INIT, "--generate-wallet"], tempDir);
+    expect(first.exitCode).toBe(0);
+
+    const second = await runCli([...BASE_INIT, "--no-backup"], tempDir);
+    expect(second.exitCode).toBe(0);
+    expect(second.stdout).toContain("Skipping backup");
+    expect(existsSync(join(tempDir, "backups"))).toBe(false);
   });
 });

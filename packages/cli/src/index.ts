@@ -1,6 +1,7 @@
 import { program } from "commander";
 import pkg from "../../../package.json" with { type: "json" };
 import { agentCommand } from "./commands/agent.ts";
+import { backupCommand } from "./commands/backup.ts";
 import { deviceCommand } from "./commands/device.ts";
 import { discoverCommand } from "./commands/discover.ts";
 import { initCommand } from "./commands/init.ts";
@@ -26,5 +27,6 @@ program.addCommand(discoverCommand);
 program.addCommand(syncCommand);
 program.addCommand(whoamiCommand);
 program.addCommand(walletCommand);
+program.addCommand(backupCommand);
 
 program.parse();

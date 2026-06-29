@@ -103,6 +103,11 @@ Examples:
 - `readMessages(...)` reads and decodes channel messages without a wallet.
 - `publishMessage(...)` signs a transaction and returns transaction metadata.
 - `getWalletInfo(...)` returns wallet address and balance, never private keys.
+- `summarizeHome(...)` returns a read-only, secret-free snapshot of an existing
+  HOME (wallet address, network, mode, attached entities, record counts, and
+  whether the on-disk config is a legacy v1).
+- `createBackup / listBackups / cleanBackups / deleteBackup / restoreBackup`
+  snapshot and manage copies of the HOME under `backups/` (see HOME Policy).
 
 SDK functions should avoid console output and process exits. Return structured
 objects and throw typed `SmartClawsError` values.
@@ -342,6 +347,26 @@ Future work may add a friendly home manager:
 - `smartclaws home current`
 
 That home manager is intentionally not part of this implementation.
+
+### Backups
+
+A HOME can be snapshotted. Backups live at `~/.smartclaws/backups/<name>/`
+(`name = backup-YYYYMMDD-HHMMSSZ`, UTC, sortable) and contain a full copy of the
+HOME *excluding* `backups/` (never nest) and `cache/` (regenerable) — so
+`config.json`, `wallets/default.json`, and the `groups/ devices/ agents/`
+records. The copied wallet keeps `0600` perms.
+
+- `smartclaws init` on an existing HOME prints a `summarizeHome` summary,
+  confirms in interactive mode, and calls `createBackup` before any write
+  (skippable with `--no-backup`).
+- The `smartclaws backup` command group exposes `backup` (create), `backup list`,
+  `backup clean` (`--all` / `--keep <n>` / `--older-than <days>`), and
+  `backup restore <name>` (which takes a safety backup of the current HOME first).
+
+Retention is **manual** — nothing is auto-pruned; `backup clean` does all
+deletion. A backup contains the wallet's private key in plaintext, so backups are
+local-only and no command ever prints the key. The `backup` namespace is kept
+intentionally separate from the deferred `home` manager above.
 
 ## Troubleshooting
 

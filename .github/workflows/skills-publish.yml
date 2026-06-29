@@ -1,0 +1,117 @@
+name: Publish SmartClaws Skills to ClawHub
+
+# Publishes changed skills on every push to main. Manual dispatch republishes
+# all skills. Never runs on pull requests — publishing is push-to-main only.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - ".github/workflows/skills-publish.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-smartclaws-skills-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish skills
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Determine which skills to publish
+        id: select
+        run: |
+          # A "skill" is any directory under skills/ that contains a SKILL.md.
+          all_skill_dirs() {
+            find skills -type f -name SKILL.md -exec dirname {} \; | sort -u
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch: publishing all skills."
+            all_skill_dirs > skills_to_publish.txt
+          else
+            before="${{ github.event.before }}"
+            if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              before="$(git rev-parse HEAD^)"
+            fi
+            changed="$(git diff --name-only "$before" "${{ github.sha }}" -- 'skills/**')"
+            echo "Changed files under skills/:"
+            printf '%s\n' "$changed"
+
+            : > skills_to_publish.txt
+            while IFS= read -r dir; do
+              [ -z "$dir" ] && continue
+              # Publish a skill if any file inside its directory changed.
+              if printf '%s\n' "$changed" | grep -q "^$dir/"; then
+                echo "$dir" >> skills_to_publish.txt
+              fi
+            done < <(all_skill_dirs)
+          fi
+
+          count="$(wc -l < skills_to_publish.txt | tr -d ' ')"
+          echo "Skills to publish: $count"
+          cat skills_to_publish.txt || true
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Install ClawHub CLI
+        if: steps.select.outputs.count != '0'
+        run: npm install --global clawhub@latest
+
+      - name: Authenticate ClawHub CLI
+        if: steps.select.outputs.count != '0'
+        env:
+          CLAWHUB_API_TOKEN: ${{ secrets.CLAWHUB_API_TOKEN }}
+        run: |
+          if [ -z "$CLAWHUB_API_TOKEN" ]; then
+            echo "::error::Missing required secret CLAWHUB_API_TOKEN"
+            exit 1
+          fi
+          clawhub login --token "$CLAWHUB_API_TOKEN" --no-browser
+          clawhub whoami
+
+      - name: Publish skills
+        if: steps.select.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          # Read the slug from a skill's SKILL.md frontmatter `name:` field.
+          read_slug() {
+            awk '
+              NR==1 && $0=="---" { infm=1; next }
+              infm && $0=="---" { exit }
+              infm && /^name:[[:space:]]/ { sub(/^name:[[:space:]]*/, ""); gsub(/["\x27]/, ""); print; exit }
+            ' "$1/SKILL.md"
+          }
+
+          while IFS= read -r dir; do
+            [ -z "$dir" ] && continue
+            slug="$(read_slug "$dir")"
+            if [ -z "$slug" ]; then
+              echo "::error::Could not read slug (frontmatter name:) from $dir/SKILL.md"
+              exit 1
+            fi
+            echo "::group::Publishing $slug ($dir)"
+            # clawhub publish requires an absolute folder path; --source-path
+            # stays the repo-relative subpath for provenance.
+            clawhub --no-input publish "$GITHUB_WORKSPACE/$dir" \
+              --slug "$slug" \
+              --source-repo "${{ github.repository }}" \
+              --source-commit "${{ github.sha }}" \
+              --source-ref "${{ github.ref_name }}" \
+              --source-path "$dir"
+            echo "::endgroup::"
+          done < skills_to_publish.txt

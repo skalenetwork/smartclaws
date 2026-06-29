@@ -6,7 +6,7 @@ Publish and read IoT sensor data on the [SKALE](https://skale.space) blockchain.
 
 | Package | Path | Description |
 |---------|------|-------------|
-| `@smartclaws/cli` | `packages/cli` | CLI tool for init, publish, read, device management |
+| `@smartclaws/cli` | `packages/cli` | CLI tool for init, publish, read, device management, and HOME backups |
 | `@smartclaws/core` | `packages/core` | Shared types, envelope encoding, network config |
 | `@smartclaws/dashboard` | `packages/dashboard` | Web dashboard for monitoring sensors |
 | `@skalenetwork/smartclaws-contracts` | `smart-contracts` | Solidity contracts (channel, device group, agent) |
@@ -55,6 +55,20 @@ smartclaws publish --device temp-sensor --topic temperature --data '{"temp": 22.
 # Read
 smartclaws read --device temp-sensor --limit 5
 ```
+
+Re-running `smartclaws init` on a HOME that already exists prints a summary of
+what's there and saves a backup before making any changes (pass `--no-backup` to
+skip). You can also manage backups directly:
+
+```bash
+smartclaws backup                 # snapshot the HOME (config, wallet, records)
+smartclaws backup list
+smartclaws backup clean --keep 3  # or --all / --older-than <days>
+smartclaws backup restore <name>  # rolls the HOME back (safety backup taken first)
+```
+
+> Backups include the wallet file (a private key). Keep them local — do not sync
+> `~/.smartclaws/backups/` to the cloud.
 
 ## Skills
 

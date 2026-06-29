@@ -10,12 +10,14 @@ import type {
 } from "@smartclaws/core/types";
 import {
   assertHomeWallet,
+  createBackup,
   createDefaultConfig,
   discoverDevices,
   discoverGroups,
   discoverOwnedAgents,
   enforceModeConstraints,
   generateWallet,
+  homeExists,
   loadConfig,
   loadWallet,
   registerAgent,
@@ -26,6 +28,7 @@ import {
   resolveGroup,
   saveConfig,
   saveWallet,
+  summarizeHome,
   walletFromPrivateKey,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
@@ -53,6 +56,7 @@ interface InitOptions {
   capacity?: string;
   yes?: boolean;
   verbose?: boolean;
+  backup?: boolean;
 }
 
 interface WalletState {
@@ -398,6 +402,52 @@ async function chooseAgent(
   );
 }
 
+/**
+ * When a HOME already exists, show what's there, confirm in interactive mode,
+ * and snapshot a backup before anything is mutated. Returns false when the user
+ * declined (caller should exit without changes).
+ */
+async function handleExistingHome(
+  homeDir: string | undefined,
+  opts: InitOptions,
+  interactive: boolean,
+): Promise<boolean> {
+  if (!homeExists(homeDir)) return true;
+
+  const s = summarizeHome(homeDir);
+  console.log("Existing SmartClaws HOME found:");
+  if (s.walletAddress) console.log(`  Wallet:    ${s.walletAddress}`);
+  if (s.network) console.log(`  Network:   ${s.network}`);
+  if (s.mode) console.log(`  Mode:      ${s.mode}`);
+  if (s.attachedGroupAddress) console.log(`  Group:     ${s.attachedGroupAddress}`);
+  if (s.attachedAgentAddress) console.log(`  Agent:     ${s.attachedAgentAddress}`);
+  console.log(
+    `  Records:   ${s.groupCount} group(s), ${s.deviceCount} device(s), ${s.agentCount} agent(s)`,
+  );
+  if (s.migratedFromV1) console.log("  Note:      legacy v1 config will be upgraded to v2.");
+
+  if (interactive) {
+    const proceed = await confirm({
+      message: "Re-run init on this HOME? A backup will be saved first.",
+      default: true,
+    });
+    if (!proceed) {
+      console.log("Left HOME unchanged.");
+      return false;
+    }
+  }
+
+  // Backup runs before any mutation. A run that fails later leaves a harmless
+  // extra backup; that is acceptable and keeps the prior state recoverable.
+  if (opts.backup === false) {
+    console.log("Skipping backup (--no-backup).");
+  } else {
+    const result = createBackup(homeDir);
+    console.log(`Backup saved: ${result.path} (${result.fileCount} files)`);
+  }
+  return true;
+}
+
 function printSummary(
   config: Config,
   group: GroupFile | null,
@@ -450,11 +500,14 @@ export const initCommand = new Command("init")
   )
   .option("--yes", "Run non-interactively using provided flags/defaults")
   .option("--verbose", "Show addresses, owners, createdAt, and role data in interactive choices")
+  .option("--no-backup", "Skip the automatic backup when re-initializing an existing HOME")
   .action(async (opts: InitOptions) => {
     try {
       const homeDir = opts.home as string | undefined;
       const interactive = Boolean(process.stdin.isTTY && !opts.yes);
       const verbose = Boolean(opts.verbose || process.argv.includes("+info"));
+
+      if (!(await handleExistingHome(homeDir, opts, interactive))) return;
 
       let mode: SmartClawsMode;
       if (opts.mode) {

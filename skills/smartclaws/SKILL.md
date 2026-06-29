@@ -59,11 +59,12 @@ allowlisted in the agent config before you can call it.
 **What the plugin does NOT do (today):** it cannot create a wallet, register a
 group/device/agent, or grant roles. Those on-chain *setup* actions use the
 SmartClaws **CLI** (`smartclaws`). Rule of thumb: **run read-only CLI commands
-yourself if the binary is available** (`whoami`, `wallet info`, `read`); **leave
-anything that creates a wallet, touches a private key, funds the wallet, or
-registers/signs/spends to the owner** (or a session your `AGENTS.md` explicitly
-authorizes). Never claim you registered something on-chain unless a CLI command
-or a `smartclaws_publish` call actually returned success.
+yourself if the binary is available** (`whoami`, `wallet info`, `read`,
+`backup list`); **leave anything that creates a wallet, touches a private key,
+funds the wallet, registers/signs/spends, or writes/restores a backup to the
+owner** (or a session your `AGENTS.md` explicitly authorizes). Never claim you
+registered something on-chain unless a CLI command or a `smartclaws_publish` call
+actually returned success.
 
 ## Setup — run it as a guided flow
 
@@ -102,6 +103,11 @@ smartclaws wallet info     # prints the wallet address + balance
 
 `init` also points the HOME at a network and writes the config the plugin reads.
 If the owner prefers to import an existing key: `smartclaws init --private-key 0x…`.
+
+Re-running `init` on a HOME that already exists is safe: it prints a summary of
+what's there and saves a backup before changing anything (the owner can skip with
+`--no-backup`). Owners can also snapshot/restore a HOME with `smartclaws backup`,
+`backup list`, `backup clean`, and `backup restore <name>`.
 
 ### 3. Fund the wallet (sFUEL)
 
@@ -187,8 +193,11 @@ operate. Re-run any step here whenever the setup changes.
 
 ## Safety during setup
 
-- Never read, print, or copy wallet files, private keys, or `config.json`
+- Never read, print, or hand-copy wallet files, private keys, or `config.json`
   secrets. `smartclaws_wallet_info` gives you the address — that's all you need.
+  To snapshot a HOME, use `smartclaws backup` (the CLI copies the wallet file
+  itself; you never read it) — don't copy wallet files manually. Backups contain
+  the private key, so they are owner-managed and stay local.
 - Never fabricate transaction hashes, balances, or "registered" confirmations.
   Report only what a tool/CLI actually returned; fail loud otherwise.
 - Don't run destructive commands or wander outside your workspace to "help".

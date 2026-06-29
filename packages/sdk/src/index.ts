@@ -12,6 +12,7 @@ export type {
   WalletFile,
 } from "@smartclaws/core/types";
 export * from "./agent.js";
+export * from "./backup.js";
 export * from "./client.js";
 // Config / wallet / local records / contract clients
 export * from "./config.js";
