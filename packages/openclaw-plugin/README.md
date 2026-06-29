@@ -14,7 +14,8 @@ package only needs `typebox` at runtime and `openclaw` as a peer.
 | --- | --- | --- |
 | `smartclaws_wallet_info` | read | Wallet address + on-chain balance (never the private key). |
 | `smartclaws_read` | read | Decoded messages from a device's outgoing channel or a direct channel. No wallet required. |
-| `smartclaws_publish` | write (`optional`) | Publish an envelope to a channel; returns the transaction hash and status. |
+| `smartclaws_publish` | write (`optional`) | Publish device telemetry, agent outbound logs, or direct channel envelopes. |
+| `smartclaws_notify` | write (`optional`) | Publish to another agent's incoming channel. Requires `SENDER_ROLE` on that agent. |
 
 ## Configuration
 
@@ -31,6 +32,24 @@ Plugin config (in the OpenClaw Gateway config entry):
 
 The wallet and config files are managed by the SmartClaws CLI (`smartclaws init`).
 Private keys stay in the wallet file and are never returned by any tool.
+
+## Install
+
+Published package:
+
+```bash
+openclaw plugins install clawhub:smartclaws-openclaw-plugin
+openclaw plugins inspect smartclaws --runtime
+```
+
+Local checkout:
+
+```bash
+openclaw plugins install ./packages/openclaw-plugin
+openclaw plugins inspect smartclaws --runtime
+```
+
+Restart or reload the OpenClaw Gateway after installing or updating the plugin.
 
 ## Build & validate
 
