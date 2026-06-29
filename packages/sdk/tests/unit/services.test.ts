@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { GroupFile } from "@smartclaws/core/types";
 import { saveAgent } from "../../src/agent.js";
 import { createDefaultConfig, ensureConfigDir } from "../../src/config.js";
 import { saveDevice } from "../../src/device.js";
 import { SmartClawsError } from "../../src/errors.js";
+import { loadGroup, saveGroup } from "../../src/group.js";
 import { readMessages, resolveChannel } from "../../src/services/channels.js";
 import { getWalletInfo } from "../../src/services/wallet.js";
 
@@ -104,6 +106,18 @@ describe("local cache filenames", () => {
 
   let tempDir: string;
 
+  function groupFile(groupAddress: string, name: string): GroupFile {
+    return {
+      name,
+      groupAddress,
+      skills: "temperature",
+      createdAt: 1711324800,
+      owner: "0x0000000000000000000000000000000000000001",
+      deviceCount: 0,
+      devices: [],
+    };
+  }
+
   test("stores devices by contract address, not untrusted device id", () => {
     tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
     ensureConfigDir(tempDir);
@@ -142,6 +156,37 @@ describe("local cache filenames", () => {
     expect(readdirSync(join(tempDir, "agents"))).toEqual([
       "0x00000000000000000000000000000000000000A1.json",
     ]);
+  });
+
+  test("stores groups by contract address, not untrusted group name", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    ensureConfigDir(tempDir);
+    saveGroup(groupFile("0x0000000000000000000000000000000000000091", "../evil-group"), tempDir);
+
+    expect(existsSync(join(tempDir, "evil-group.json"))).toBe(false);
+    expect(readdirSync(join(tempDir, "groups"))).toEqual([
+      "0x0000000000000000000000000000000000000091.json",
+    ]);
+  });
+
+  test("encodes non-address group cache filenames", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    ensureConfigDir(tempDir);
+    saveGroup(groupFile("../evil-group", "evil-group"), tempDir);
+
+    expect(existsSync(join(tempDir, "evil-group.json"))).toBe(false);
+    expect(readdirSync(join(tempDir, "groups"))).toEqual(["..%2Fevil-group.json"]);
+  });
+
+  test("does not load groups through traversal-shaped identifiers", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+    ensureConfigDir(tempDir);
+    writeFileSync(
+      join(tempDir, "evil-group.json"),
+      JSON.stringify({ name: "evil", groupAddress: "0xeeee" }),
+    );
+
+    expect(loadGroup("../evil-group", tempDir)).toBeNull();
   });
 });
 
