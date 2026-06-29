@@ -37,18 +37,17 @@ export const backupCommand = new Command("backup").description(
   "Back up the SmartClaws HOME (no subcommand creates a backup; see list/clean/restore)",
 );
 
-backupCommand
-  .action(() => {
-    try {
-      const result = createBackup();
-      console.log(`Backup saved: ${result.path}`);
-      console.log(`  Name:  ${result.name}`);
-      console.log(`  Files: ${result.fileCount}`);
-      console.log(WALLET_CAVEAT);
-    } catch (e) {
-      fail(e);
-    }
-  });
+backupCommand.action(() => {
+  try {
+    const result = createBackup();
+    console.log(`Backup saved: ${result.path}`);
+    console.log(`  Name:  ${result.name}`);
+    console.log(`  Files: ${result.fileCount}`);
+    console.log(WALLET_CAVEAT);
+  } catch (e) {
+    fail(e);
+  }
+});
 
 backupCommand
   .command("list")

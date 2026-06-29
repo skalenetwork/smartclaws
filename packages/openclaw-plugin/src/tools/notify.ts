@@ -17,7 +17,9 @@ export function notifyTool(tool: SmartClawsToolFactory) {
         description: "JSON payload object.",
       }),
       from: Type.Optional(
-        Type.String({ description: "Envelope `dev` identity of the sender (default: controller)." }),
+        Type.String({
+          description: "Envelope `dev` identity of the sender (default: controller).",
+        }),
       ),
     }),
     execute: async (params, config, context) => {

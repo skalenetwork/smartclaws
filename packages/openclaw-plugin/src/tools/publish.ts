@@ -2,8 +2,8 @@ import {
   publishAgentOutbound,
   publishChannelMessage,
   publishDeviceTelemetry,
-  resolveChannel,
   resolveAgent,
+  resolveChannel,
   SmartClawsError,
 } from "@smartclaws/sdk";
 import { Type } from "typebox";
