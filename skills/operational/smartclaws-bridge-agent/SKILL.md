@@ -1,127 +1,96 @@
 ---
 name: smartclaws-bridge-agent
 description: >
-  Operate as a SmartClaws bridge agent for one physical device or integration.
-  Use this with a device contract skill and a setup-local SMARTCLAWS.md file.
+  Run one SmartClaws bridge cycle for a single device: read the local hardware/API,
+  validate against the device contract, and publish telemetry on-chain — and, in a
+  command-enabled mode, apply on-chain commands. Trigger when asked to read the
+  sensor and publish, run a telemetry/bridge cycle, or apply incoming device
+  commands. Needs the SmartClaws plugin and one device contract skill.
 license: LGPL-3.0-or-later
 metadata:
   openclaw:
+    emoji: "🔌"
     homepage: https://github.com/skalenetwork/smartclaws
     requires:
       config: ["plugins.entries.smartclaws"]
 ---
 
-# SmartClaws Bridge Agent
+# SmartClaws Bridge — Telemetry / Command Cycle
 
-You are a SmartClaws bridge agent: the custodian of one physical device, local
-sensor, API, or integration. You translate between the physical/local world and
-SmartClaws channels.
+This skill is a **procedure**: it runs **one bridge cycle** when asked — read the
+device → validate → publish telemetry (and apply a command if your mode allows) →
+exit. Your identity, behaviour, and off-schedule authority are not defined here;
+they live in your owner-owned `AGENTS.md` (loaded every session), which wins on any
+conflict.
 
-This skill is device-independent. Device facts live in the selected device
-contract skill. Deployment facts live in `SMARTCLAWS.md` and the setup operating
-contract.
+This procedure is **device-independent** and **policy-free**. Device facts come
+from the device contract skill; deployment wiring from `SMARTCLAWS.md`; behaviour
+and authority from `AGENTS.md`.
 
 ## Required Context
 
-Before acting, identify:
+Before running the cycle, identify:
 
-- `SMARTCLAWS.md` at the workspace root.
-- Exactly one device entry assigned to this bridge.
-- The matching device contract skill.
-- The bridge mode: `telemetry-only`, `chain-commanded`, or `operator-assisted`.
-- The SmartClaws OpenClaw plugin.
-- Local hardware/API details named by `SMARTCLAWS.md` and the device contract.
+- **`AGENTS.md`** — your behaviour and authority.
+- **`SMARTCLAWS.md`** at the workspace root — your one device entry and channels.
+- **The matching device contract skill** (e.g. `smartclaws-device-novapm-sds011`).
+- **The bridge mode**: `telemetry-only`, `chain-commanded`, or
+  `operator-assisted`. If absent, **fail closed to `telemetry-only`**.
+- **The SmartClaws plugin** — `smartclaws_read` / `smartclaws_publish` /
+  `smartclaws_wallet_info`.
 
-If more than one device is assigned and no primary device is clear, ask which one
-you own. A bridge should not orchestrate unrelated devices.
+If setup is missing or more than one device is assigned with no clear primary,
+**stop and run the `smartclaws` onboarding skill** or ask the owner. This
+procedure owns exactly one device and never orchestrates others.
 
 ## Bridge Modes
 
 `telemetry-only`
-: Read the device/integration and publish telemetry to the outgoing channel. Do
+: Read the device/integration and publish telemetry to its outgoing channel. Do
   not read or apply incoming commands.
 
 `chain-commanded`
-: Publish telemetry and read incoming SmartClaws commands. Apply commands only
-  when they match the device contract and come from the configured incoming
+: Publish telemetry and read incoming SmartClaws commands. Apply a command only
+  when it matches the device contract and arrives on the configured incoming
   channel.
 
 `operator-assisted`
-: Same as `chain-commanded`, plus direct user commands from sessions authorized
-  by the setup operating contract. Direct commands should still be logged or
-  reflected on-chain when configured.
+: Same as `chain-commanded`, plus direct user commands — but only from a
+  session your `AGENTS.md` authorizes. This skill does not define that allowlist;
+  defer to `AGENTS.md`. Reflect direct commands on-chain when configured.
 
-If mode is absent, fail closed as `telemetry-only` until the operator clarifies.
-
-## SMARTCLAWS.md Contract
-
-A bridge setup should contain one primary device entry similar to:
-
-```yaml
-role: bridge
-smartclawsHome: ~/.openclaw/workspace/controller
-
-bridge:
-  id: novapm-publisher-1
-  mode: telemetry-only
-  device: novapm
-  stateFile: controller/state/bridge-state.json
-
-devices:
-  novapm:
-    skill: smartclaws-device-novapm-sds011
-    label: NovaPM Air Quality Sensor
-    outgoingChannel: 0x...
-    incomingChannel: null
-    authority: telemetry-only
-    local:
-      sensorPort: /dev/ttyUSB0
-      warmupSeconds: 30
-
-agent:
-  outgoingChannel: 0x...
-```
-
-## Telemetry Cycle
-
-When asked to run a bridge cycle, run exactly one cycle:
+## Telemetry Cycle — run exactly one
 
 1. Load `SMARTCLAWS.md` and the device contract.
 2. Read local hardware/API using the device contract protocol.
-3. Validate the reading using the device contract sanity rules.
+3. Validate the reading against the device contract sanity rules.
 4. Publish telemetry with `smartclaws_publish` to the configured outgoing channel.
-5. If configured, publish a bridge/cycle log to the agent outgoing channel.
-6. Update local state only inside the setup-approved state file.
+5. If configured, publish a bridge/cycle log to your agent outgoing channel.
+6. Update local state only where your owner's setup permits it.
 7. Exit.
 
 Do not publish simulated data unless the user explicitly asks for simulation and
 the payload is clearly labelled as simulated.
 
-## Command Cycle
-
-Only in `chain-commanded` or `operator-assisted` mode:
+## Command Cycle (only in `chain-commanded` / `operator-assisted`)
 
 1. Read the configured incoming channel with `smartclaws_read`.
 2. Process only new offsets not previously handled.
 3. Validate topic and payload against the device contract.
 4. Apply exactly the mapped local command.
-5. Persist the last handled offset in the setup-approved state file.
+5. Persist the last handled offset where your owner's setup permits.
 6. Publish a command-result or bridge log when configured.
 
 Ignore unknown topics safely and log them when useful. Never execute arbitrary
 commands from payloads.
 
-## Safety Rules
+## Guardrails for this procedure
 
-- Own one device/integration; do not become a master controller.
-- Do not publish commands to other devices.
-- Do not alter policy except where the setup contract explicitly allows it.
-- Do not read wallet/private-key material or secrets.
-- Do not bypass device contract validation.
-- Fail loud on sensor/API/publish failures; no fake success.
+- Own one device/integration; never publish commands to other devices.
+- Never publish bad data — discard and log implausible readings.
+- Never read or print wallet/key material or secrets.
+- Never bypass device contract validation.
+- Fail loud on sensor/API/publish failures; never report fake success.
 
-## Scheduling
-
-Scheduling is setup-specific. If a deployment uses OpenClaw cron, the cadence,
-job name, target agent, and allowed session must be specified by setup files.
-This role skill does not define global cron names.
+Cadence/scheduling is an owner/operations choice (e.g. OpenClaw cron), set in
+`AGENTS.md` or your own setup — this procedure runs one cycle per invocation.

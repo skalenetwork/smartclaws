@@ -6,7 +6,10 @@ description: >
 license: LGPL-3.0-or-later
 metadata:
   openclaw:
+    emoji: "📡"
     homepage: https://github.com/skalenetwork/smartclaws
+    requires:
+      config: ["plugins.entries.smartclaws"]
 ---
 
 # NovaPM SDS011 Device Contract
@@ -45,7 +48,7 @@ Payload:
   "pm10_ug_m3": 28.1,
   "sensor": "sds011",
   "port": "/dev/ttyUSB0",
-  "ts": "2026-06-22T12:00:00Z"
+  "ts": "<current ISO 8601 UTC>"
 }
 ```
 
@@ -105,10 +108,14 @@ Do not repair, smooth, or invent readings. Bad data is worse than no data.
 ## Human Interpretation
 
 When reporting readings to a person, include raw values and a plain label.
-Existing setup thresholds used:
 
-- PM2.5 high alert: `35` micrograms per cubic meter.
-- PM10 high alert: `50` micrograms per cubic meter.
+The bands and thresholds below are **non-authoritative display reference** (drawn
+from common EU/EPA/WHO levels) — they help you label a reading, not decide policy.
+**Actual alert thresholds and what to do about them are the owner's call** and
+belong in `AGENTS.md`, not this device contract. Reference only:
+
+- PM2.5 high (EU/EPA alert ≈ `35` µg/m³; WHO 24h guideline is `15`).
+- PM10 high (EU/EPA alert ≈ `50` µg/m³; WHO 24h guideline is `45`).
 
 Useful context labels:
 

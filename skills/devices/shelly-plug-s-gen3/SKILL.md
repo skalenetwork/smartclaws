@@ -6,7 +6,10 @@ description: >
 license: LGPL-3.0-or-later
 metadata:
   openclaw:
+    emoji: "🔌"
     homepage: https://github.com/skalenetwork/smartclaws
+    requires:
+      config: ["plugins.entries.smartclaws"]
 ---
 
 # Shelly Plug S Gen3 Device Contract
