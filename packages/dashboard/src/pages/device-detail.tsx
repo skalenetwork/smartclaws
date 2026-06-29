@@ -1,11 +1,4 @@
-import {
-  ArrowDownLeft,
-  ArrowLeft,
-  ArrowUpRight,
-  Check,
-  Copy,
-  ExternalLink,
-} from "lucide-react";
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Check, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import type { Address } from "viem";
@@ -60,26 +53,23 @@ function ChannelAddressBar({ address }: { address: string }) {
 
 export function DeviceDetailPage() {
   const { address } = useParams<{ address: string }>();
+  if (!address) return null;
 
   // Key forces full remount when navigating between devices
-  return <DeviceDetailContent key={address} address={address!} />;
+  return <DeviceDetailContent key={address} address={address} />;
 }
 
 function DeviceDetailContent({ address }: { address: string }) {
-  const { incomingChannel, outgoingChannel, publisher, group, isLoading } = useDeviceDetail(
+  const { incomingChannel, outgoingChannel, deviceId, group, isLoading } = useDeviceDetail(
     address as Address,
   );
   const [activeTab, setActiveTab] = useState("outgoing");
 
-  const activeChannel =
-    activeTab === "outgoing" ? outgoingChannel : incomingChannel;
+  const activeChannel = activeTab === "outgoing" ? outgoingChannel : incomingChannel;
 
   // Fetch 1 message from outgoing to get device name
-  const { messages: nameMessages } = useChannelMessages(
-    outgoingChannel ?? ("0x" as Address),
-    1,
-  );
-  const devName = nameMessages[0]?.envelope?.dev;
+  const { messages: nameMessages } = useChannelMessages(outgoingChannel, 1);
+  const devName = deviceId ?? nameMessages[0]?.envelope?.dev;
 
   if (isLoading) {
     return (
@@ -90,8 +80,6 @@ function DeviceDetailContent({ address }: { address: string }) {
       </div>
     );
   }
-
-  const publisherExplorerUrl = publisher ? getExplorerAddressUrl(publisher) : null;
 
   return (
     <div className="space-y-4">
@@ -105,26 +93,15 @@ function DeviceDetailContent({ address }: { address: string }) {
             <ArrowLeft className="h-3.5 w-3.5" />
           </Link>
         )}
-        <AddressAvatar address={address!} size={36} kind="device" />
+        <AddressAvatar address={address} size={36} kind="device" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold">{devName || "Device"}</h1>
-            <Badge variant="secondary" className="text-[10px] px-2 py-0.5">Device</Badge>
+            <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+              Device
+            </Badge>
           </div>
           <p className="text-muted-foreground/80 text-xs truncate">{address}</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {publisherExplorerUrl && (
-            <a
-              href={publisherExplorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 bg-muted/50 hover:bg-muted rounded-full px-3.5 py-2 text-xs text-muted-foreground transition-colors"
-            >
-              View in Explorer
-              <ExternalLink className="h-3 w-3 opacity-50" />
-            </a>
-          )}
         </div>
       </div>
 
@@ -140,17 +117,13 @@ function DeviceDetailContent({ address }: { address: string }) {
               Incoming Channel
             </TabsTrigger>
           </TabsList>
-
-
         </div>
 
         {activeChannel && <ChannelAddressBar address={activeChannel} />}
 
         <TabsContent value="outgoing">
           {outgoingChannel ? (
-            <ChannelView
-              address={outgoingChannel}
-            />
+            <ChannelView address={outgoingChannel} />
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -162,9 +135,7 @@ function DeviceDetailContent({ address }: { address: string }) {
 
         <TabsContent value="incoming">
           {incomingChannel ? (
-            <ChannelView
-              address={incomingChannel}
-            />
+            <ChannelView address={incomingChannel} />
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">

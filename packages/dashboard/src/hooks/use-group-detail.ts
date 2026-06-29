@@ -1,17 +1,17 @@
-import { keepPreviousData } from "@tanstack/react-query";
 import { decode } from "@smartclaws/core/envelope";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { type Address, type Hex, hexToBytes } from "viem";
+import { type Address, type Hex, hexToBytes, zeroAddress } from "viem";
 import { useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
 
 export interface DeviceInfo {
   address: Address;
-  registered: boolean;
-  publisher: Address;
+  deviceId?: string;
   incomingChannel: Address;
   outgoingChannel: Address;
+  createdAt?: bigint;
   lastMessageTs?: number;
   devName?: string;
 }
@@ -37,13 +37,22 @@ export function useGroupDetail(groupAddress: Address) {
   const deviceAddresses = (meta?.[4]?.result as Address[] | undefined) ?? [];
 
   const { data: deviceDetails, isLoading: isLoadingDevices } = useReadContracts({
-    contracts: deviceAddresses.map((addr) => ({
-      address: groupAddress,
-      abi: abis.deviceGroup,
-      functionName: "getDeviceInfo",
-      args: [addr],
-      chainId: chain.id,
-    })),
+    contracts: deviceAddresses.flatMap((addr) => [
+      { address: addr, abi: abis.device, functionName: "deviceId", chainId: chain.id },
+      {
+        address: addr,
+        abi: abis.device,
+        functionName: "getIncomingMessagesChannel",
+        chainId: chain.id,
+      },
+      {
+        address: addr,
+        abi: abis.device,
+        functionName: "getOutgoingMessagesChannel",
+        chainId: chain.id,
+      },
+      { address: addr, abi: abis.device, functionName: "createdAt", chainId: chain.id },
+    ]),
     query: {
       enabled: deviceAddresses.length > 0,
       refetchInterval: 15_000,
@@ -53,23 +62,20 @@ export function useGroupDetail(groupAddress: Address) {
 
   const outgoingChannels = useMemo(() => {
     return deviceAddresses.map((_addr, i) => {
-      const info = deviceDetails?.[i]?.result as
-        | { outgoingChannel: Address }
-        | undefined;
-      return info?.outgoingChannel;
+      return deviceDetails?.[i * 4 + 2]?.result as Address | undefined;
     });
   }, [deviceAddresses, deviceDetails]);
 
   // Get latest message offset for each outgoing channel
   const { data: latestOffsets } = useReadContracts({
     contracts: outgoingChannels.map((ch) => ({
-      address: ch ?? ("0x" as Address),
+      address: ch ?? zeroAddress,
       abi: abis.channel,
       functionName: "getLatestMessageOffset",
       chainId: chain.id,
     })),
     query: {
-      enabled: outgoingChannels.some((ch) => !!ch),
+      enabled: outgoingChannels.length > 0 && outgoingChannels.every((ch) => !!ch),
       refetchInterval: 15_000,
       placeholderData: keepPreviousData,
     },
@@ -80,7 +86,7 @@ export function useGroupDetail(groupAddress: Address) {
     contracts: outgoingChannels.map((ch, i) => {
       const offset = latestOffsets?.[i]?.result as bigint | undefined;
       return {
-        address: ch ?? ("0x" as Address),
+        address: ch ?? zeroAddress,
         abi: abis.channel,
         functionName: "readMessages",
         args: [offset ?? 0n, 1n],
@@ -95,14 +101,10 @@ export function useGroupDetail(groupAddress: Address) {
   });
 
   const devices: DeviceInfo[] = deviceAddresses.map((addr, i) => {
-    const info = deviceDetails?.[i]?.result as
-      | {
-          registered: boolean;
-          publisher: Address;
-          incomingChannel: Address;
-          outgoingChannel: Address;
-        }
-      | undefined;
+    const deviceId = deviceDetails?.[i * 4]?.result as string | undefined;
+    const incomingChannel = deviceDetails?.[i * 4 + 1]?.result as Address | undefined;
+    const outgoingChannel = deviceDetails?.[i * 4 + 2]?.result as Address | undefined;
+    const createdAt = deviceDetails?.[i * 4 + 3]?.result as bigint | undefined;
 
     let lastMessageTs: number | undefined;
     let devName: string | undefined;
@@ -119,12 +121,12 @@ export function useGroupDetail(groupAddress: Address) {
 
     return {
       address: addr,
-      registered: info?.registered ?? false,
-      publisher: info?.publisher ?? ("0x" as Address),
-      incomingChannel: info?.incomingChannel ?? ("0x" as Address),
-      outgoingChannel: info?.outgoingChannel ?? ("0x" as Address),
+      deviceId,
+      incomingChannel: incomingChannel ?? zeroAddress,
+      outgoingChannel: outgoingChannel ?? zeroAddress,
+      createdAt,
       lastMessageTs,
-      devName,
+      devName: devName ?? deviceId,
     };
   });
 

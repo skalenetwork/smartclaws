@@ -10,8 +10,9 @@ export function useDeviceDetail(deviceAddress: Address) {
     contracts: [
       { ...contract, functionName: "getIncomingMessagesChannel" },
       { ...contract, functionName: "getOutgoingMessagesChannel" },
-      { ...contract, functionName: "publisher" },
+      { ...contract, functionName: "deviceId" },
       { ...contract, functionName: "group" },
+      { ...contract, functionName: "createdAt" },
     ],
     query: { refetchInterval: 15_000 },
   });
@@ -19,8 +20,9 @@ export function useDeviceDetail(deviceAddress: Address) {
   return {
     incomingChannel: data?.[0]?.result as Address | undefined,
     outgoingChannel: data?.[1]?.result as Address | undefined,
-    publisher: data?.[2]?.result as Address | undefined,
+    deviceId: data?.[2]?.result as string | undefined,
     group: data?.[3]?.result as Address | undefined,
+    createdAt: data?.[4]?.result as bigint | undefined,
     isLoading,
   };
 }

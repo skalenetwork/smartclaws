@@ -1,19 +1,11 @@
-import { useEffect, useState } from "react";
 import { Sparkles, Terminal } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useHeaderActions } from "@/components/layout/header-context";
+import { SetupDialog } from "@/components/setup-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyBlock } from "@/components/ui/copy-block";
 import { MessageBubble } from "@/components/ui/message-bubble";
-import { SetupDialog } from "@/components/setup-dialog";
-import { useHeaderActions } from "@/components/layout/header-context";
 import { cn } from "@/lib/utils";
-
-function InlineCode({ children }: { children: React.ReactNode }) {
-  return (
-    <code className="font-mono text-sm bg-muted px-1.5 py-0.5 rounded-md text-foreground">
-      {children}
-    </code>
-  );
-}
 
 function TabSwitch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -64,7 +56,11 @@ export function InstallationPage() {
         <div className="max-w-2xl mx-auto py-4">
           <p className="text-center text-xl font-medium pt-6 pb-8 flex items-center justify-center gap-2 flex-wrap">
             Copy
-            <MessageBubble variant="primary" clickable className="inline-flex max-w-none self-auto text-xl font-medium">
+            <MessageBubble
+              variant="primary"
+              clickable
+              className="inline-flex max-w-none self-auto text-xl font-medium"
+            >
               messages
             </MessageBubble>
             to your agent to setup:
@@ -78,20 +74,22 @@ export function InstallationPage() {
           <CardHeader>
             <CardTitle>Manual Setup</CardTitle>
             <CardDescription>
-              Clone the repository and install skills from source.
+              Install the OpenClaw plugin and SmartClaws skills from ClawHub.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <CopyBlock code={`git clone https://github.com/skalenetwork/smartclaws.git
-cd smartclaws
+            <CopyBlock
+              code={`openclaw plugins install clawhub:smartclaws-openclaw-plugin
+openclaw plugins inspect smartclaws --runtime
 
-# Copy skills into your OpenClaw workspace
-cp -r skills/smartclaws-producer ~/.openclaw/skills/
-cp -r skills/smartclaws-reader ~/.openclaw/skills/`} />
+clawhub install smartclaws
+clawhub install smartclaws-master-agent      # or smartclaws-bridge-agent
+clawhub install smartclaws-device-shelly-plug-s-gen3
+clawhub install smartclaws-device-novapm-sds011`}
+            />
             <p className="text-sm text-muted-foreground">
-              Skills are plain directories containing a <InlineCode>SKILL.md</InlineCode> file.
-              Place them in your OpenClaw workspace's <InlineCode>skills/</InlineCode> directory
-              and they'll be automatically discovered on the next agent session.
+              The plugin provides runtime tools. Skills are installed by slug and contain the
+              onboarding, role, and device-contract instructions your OpenClaw agent follows.
             </p>
           </CardContent>
         </Card>

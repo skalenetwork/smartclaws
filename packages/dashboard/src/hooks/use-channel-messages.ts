@@ -1,7 +1,7 @@
-import { keepPreviousData } from "@tanstack/react-query";
 import { decode, type Envelope } from "@smartclaws/core/envelope";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type Address, type Hex, hexToBytes } from "viem";
+import { type Address, type Hex, hexToBytes, zeroAddress } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
@@ -13,9 +13,14 @@ export interface DecodedMessage {
   error?: string;
 }
 
-export function useChannelMessages(channelAddress: Address, initialCount = 20) {
+export function useChannelMessages(channelAddress: Address | undefined, initialCount = 20) {
   const [count, setCount] = useState(initialCount);
-  const contract = { address: channelAddress, abi: abis.channel, chainId: chain.id } as const;
+  const enabled = Boolean(channelAddress);
+  const contract = {
+    address: channelAddress ?? zeroAddress,
+    abi: abis.channel,
+    chainId: chain.id,
+  } as const;
 
   // Track previous address so we can keep data on refetch but clear on channel switch
   const prevAddressRef = useRef(channelAddress);
@@ -31,10 +36,10 @@ export function useChannelMessages(channelAddress: Address, initialCount = 20) {
       { ...contract, functionName: "getMessageCount" },
       { ...contract, functionName: "getLatestMessageOffset" },
       { ...contract, functionName: "getOldestMessageOffset" },
-      { ...contract, functionName: "getMaxCapacityBytes" },
+      { ...contract, functionName: "maxCapacityBytes" },
       { ...contract, functionName: "totalBytes" },
     ],
-    query: { refetchInterval: 5_000, placeholderData: keepDataOnRefetch },
+    query: { enabled, refetchInterval: 5_000, placeholderData: keepDataOnRefetch },
   });
 
   const messageCount = stats?.[0]?.result as bigint | undefined;
@@ -55,12 +60,16 @@ export function useChannelMessages(channelAddress: Address, initialCount = 20) {
     return Number(latestOffset - fromOffset) + 1;
   }, [fromOffset, latestOffset]);
 
-  const { data: rawMessages, isLoading: isLoadingMessages, isFetching: isFetchingMessages } = useReadContract({
+  const {
+    data: rawMessages,
+    isLoading: isLoadingMessages,
+    isFetching: isFetchingMessages,
+  } = useReadContract({
     ...contract,
     functionName: "readMessages",
     args: fromOffset !== undefined ? [fromOffset, BigInt(readCount)] : undefined,
     query: {
-      enabled: fromOffset !== undefined && readCount > 0,
+      enabled: enabled && fromOffset !== undefined && readCount > 0,
       refetchInterval: 5_000,
       placeholderData: keepPreviousData,
     },
