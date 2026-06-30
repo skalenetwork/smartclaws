@@ -37,5 +37,6 @@ Thumbs.db
 # Project-specific
 context/
 .claude/
+publish/
 uv.lock
 *.log
