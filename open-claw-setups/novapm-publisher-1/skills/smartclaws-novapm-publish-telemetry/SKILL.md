@@ -126,20 +126,13 @@ attempt to "fix" the value — bad data is worse than no data.
 
 ---
 
-## Step 3 — Publish on-chain
+## Step 3 — Sign, then publish on-chain
 
-Write to `NOVAPM_OUTGOING_CHANNEL`. Use `--from controller`.
+Write to `NOVAPM_OUTGOING_CHANNEL`. Use `--from controller`. **Every publish is
+signed first** — follow `smartclaws-pairpoint-signing`. Build the reading
+payload, sign it into an envelope, then publish the *envelope*.
 
-```bash
-SMARTCLAWS_HOME=~/.openclaw/workspace/controller \
-  ~/.openclaw/workspace/bin/smartclaws publish \
-  --channel 0x336F128b054cA0137e2842abe2302099493BFf80 \
-  --from controller \
-  --topic telemetry.air_quality \
-  --data '{"pm25_ug_m3": 12.3, "pm10_ug_m3": 28.1, "sensor": "sds011", "port": "/dev/ttyUSB0", "ts": "2026-06-17T10:00:00Z"}'
-```
-
-Build the `--data` JSON from the reading:
+Build the reading JSON from the sensor read:
 
 ```json
 {
@@ -150,6 +143,30 @@ Build the `--data` JSON from the reading:
   "ts": "<ISO 8601 UTC timestamp of the reading>"
 }
 ```
+
+Sign it, capturing the signed envelope, then publish that:
+
+```bash
+SIGNED=$(printf '%s' '{"pm25_ug_m3": 12.3, "pm10_ug_m3": 28.1, "sensor": "sds011", "port": "/dev/ttyUSB0", "ts": "2026-06-17T10:00:00Z"}' \
+  | python3 ~/.openclaw/workspace/skills/smartclaws-pairpoint-signing/pp-sig.py sign)
+
+# If $SIGNED is {"ok":false,...} the signer failed — DO NOT publish. Fail loud.
+
+SMARTCLAWS_HOME=~/.openclaw/workspace/controller \
+  ~/.openclaw/workspace/bin/smartclaws publish \
+  --channel 0x336F128b054cA0137e2842abe2302099493BFf80 \
+  --from controller \
+  --topic telemetry.air_quality \
+  --data "$SIGNED"
+```
+
+The published payload is the signed envelope `{"sig":{...,"body":"..."}}` — the
+raw reading rides inside `sig.body`. See `smartclaws-pairpoint-signing` for the
+envelope shape and why the reading is transported as a signed string (it makes
+verification independent of how the CLI serializes numbers).
+
+**If signing fails, treat it exactly like a failed publish:** do not write
+anything on-chain, return the error to the master cycle so it logs the failure.
 
 ### Successful publish output
 

@@ -62,14 +62,36 @@ channel has no data yet; do not guess values.
   "total": 42,
   "latest": 41,
   "messages": [
-    { "offset": 41, "ts": 1780000000, "dev": "...", "topic": "...", "p": {} }
+    { "offset": 41, "ts": 1780000000, "dev": "...", "topic": "...", "p": { "sig": { "…": "…" } } }
   ]
 }
 ```
 
 - `messages` is sorted **oldest-first** → the newest is `messages[-1]`.
-- The payload you care about is always in the `p` field.
+- Each message's `p` field is a **signed envelope** `{"sig":{...}}` — the actual
+  reading is inside `sig.body`. Do not read fields off `p` directly.
 - Filter by `topic` (`telemetry.air_quality`) to pick the right message.
+
+### Verify every message before you trust it
+
+This deployment signs every message. **Verify each one** (per
+`smartclaws-pairpoint-signing`) before reporting its values. Pipe the message's
+`p` object into the helper:
+
+```bash
+printf '%s' '<the message .p object, e.g. {"sig":{...}}>' \
+  | python3 ~/.openclaw/workspace/skills/smartclaws-pairpoint-signing/pp-sig.py verify
+```
+
+- `valid: true` → authentic. Use the returned `body` (already parsed) as the
+  reading.
+- `valid: false`, `reason: "no sig envelope..."` → an **unsigned/legacy** message
+  from before this integration. You may report it, but label it **UNVERIFIED**.
+- `valid: false` otherwise → signature did not check out. Say the reading is
+  **untrusted / failed verification**; do not present it as a real measurement.
+- `ok: false` → the verifier itself failed (e.g. tool path). Fail loud.
+
+Always state the verification status when reporting a reading to a person.
 
 ---
 

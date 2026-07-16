@@ -86,14 +86,24 @@ you have the values — use `null` rather than guessing.
 
 ## How to publish
 
+Cycle logs are signed like every other on-chain message — sign the log payload
+into an envelope (`smartclaws-pairpoint-signing`), then publish the envelope:
+
 ```bash
+SIGNED=$(printf '%s' '{"event":"published","source":"cron","reason":"...","pm25_ug_m3":12.3,"pm10_ug_m3":28.1,"pm25_alert":false,"pm10_alert":false,"telemetry_tx":"0xabc...","ts":"2026-06-17T10:00:00Z"}' \
+  | python3 ~/.openclaw/workspace/skills/smartclaws-pairpoint-signing/pp-sig.py sign)
+
 SMARTCLAWS_HOME=~/.openclaw/workspace/controller \
   ~/.openclaw/workspace/bin/smartclaws publish \
   --channel 0x85E7c901bBd725c9F1224e0cbB6CDE89D1359011 \
   --from novapm-publisher \
   --topic cycle.log \
-  --data '{"event":"published","source":"cron","reason":"...","pm25_ug_m3":12.3,"pm10_ug_m3":28.1,"pm25_alert":false,"pm10_alert":false,"telemetry_tx":"0xabc...","ts":"2026-06-17T10:00:00Z"}'
+  --data "$SIGNED"
 ```
+
+The log fields ride inside `sig.body`. If signing the log itself fails, say so
+plainly in your reply to the user (the on-chain log couldn't be written) — do not
+claim the cycle was logged.
 
 ### Successful publish output
 

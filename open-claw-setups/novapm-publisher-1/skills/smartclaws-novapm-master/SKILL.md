@@ -36,6 +36,12 @@ Composes these skills — follow each for exact commands and payloads:
 - `smartclaws-novapm-publish-telemetry` — read SDS011 and publish PM data
 - `smartclaws-novapm-read` — read on-chain PM telemetry (used for audit/status)
 - `smartclaws-publish-decisions` — record the cycle outcome on-chain
+- `smartclaws-pairpoint-signing` — sign every publish, verify every read
+
+**Every message this agent writes on-chain is signed, and every message it reads
+is verified**, via `smartclaws-pairpoint-signing`. The publish/read skills above
+already fold this in — if a signing step fails, treat it as a failed publish
+(don't write) or an untrusted read (don't present as authentic), and fail loud.
 
 ---
 
@@ -87,9 +93,9 @@ both are confirmed present.
 git clone --branch develop --depth 1 \
   https://github.com/skalenetwork/smartclaws /tmp/smartclaws-build
 
-cd /tmp/smartclaws-build && bun install
+bun install --cwd /tmp/smartclaws-build
 
-cd /tmp/smartclaws-build && bun run build:cli
+bun --cwd /tmp/smartclaws-build run build:cli
 ```
 
 If any of these commands fail, **stop and fail loud** — show the exact error

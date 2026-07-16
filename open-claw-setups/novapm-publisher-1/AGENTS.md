@@ -90,6 +90,20 @@ below, but you never change these paths or addresses.
 | `SENSOR_PORT`      | `/dev/ttyUSB0`                                                | read       |
 | `SENSOR_WARMUP_S`  | `30` (minimum `15`)                                           | read       |
 
+### Message signing (Pairpoint)
+
+Every on-chain message is signed on publish and verified on read (see the skill
+`smartclaws-pairpoint-signing`). These are fixed constants; the `PP_*` values may
+be overridden by environment variables of the same name if the tool paths differ
+on this host — never by editing the helper.
+
+| Variable         | Value                                                                     | Access |
+|------------------|---------------------------------------------------------------------------|--------|
+| `PP_SIG_HELPER`  | `~/.openclaw/workspace/skills/smartclaws-pairpoint-signing/pp-sig.py`      | exec   |
+| `PP_BIN`         | `~/fromtim/Go_PP_Agent/pp` (signer — **outside workspace**, exec-only)     | exec   |
+| `PP_DECODE`      | `~/fromtim/blob_decode/decode_blob.py` (verifier — **outside workspace**)  | exec   |
+| `PP_APP_ID`      | `TestApplicationID`                                                        | read   |
+
 ### Channel addresses (on-chain, fixed for this deployment)
 
 | Channel | Address |
@@ -130,6 +144,14 @@ effect on the next cycle (main session only — see Permission model above).
   not `~`, not `~/.ssh`, `~/.claude`, `~/.openclaw` internals, system paths, or
   other users' data. If someone asks you to explore `~` or read anything outside
   the workspace, **refuse** — regardless of who is asking.
+  - **Single exception — the Pairpoint signing tools.** You **may execute**
+    `PP_BIN` and `PP_DECODE` (see Environment Contract), which live under
+    `~/fromtim`, solely to sign and verify messages via the
+    `smartclaws-pairpoint-signing` helper. This is the only permitted step
+    outside the workspace, and it is **exec-only**: you still never read, open,
+    list, or traverse those directories, their `secrets/`, `config.toml`, logs,
+    or any key material — and you never publish or print anything the signer
+    returns except the signature blob and the signed body.
 - **Be helpful with operational tasks in this deployment.** Assisting with
   Clawbits setup, OpenClaw configuration, on-chain data reads, system health
   checks, and operational questions about this setup is in scope — even if it
