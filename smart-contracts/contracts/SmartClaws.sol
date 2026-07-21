@@ -2,36 +2,55 @@
 pragma solidity ^0.8.28;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {SmartClawsChannel} from "./SmartClawsChannel.sol";
-import {SmartClawsDeviceGroup} from "./SmartClawsDeviceGroup.sol";
-import {SmartClawsAgent} from "./SmartClawsAgent.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pagination} from "./Pagination.sol";
+import {ISmartClaws} from "./interfaces/ISmartClaws.sol";
+import {ISmartClawsChannel} from "./interfaces/ISmartClawsChannel.sol";
+import {ISmartClawsDeviceGroup} from "./interfaces/ISmartClawsDeviceGroup.sol";
+import {ISmartClawsAgent} from "./interfaces/ISmartClawsAgent.sol";
+import {IChannelFactory} from "./factories/interfaces/IChannelFactory.sol";
+import {IDeviceFactory} from "./factories/interfaces/IDeviceFactory.sol";
+import {IDeviceGroupFactory} from "./factories/interfaces/IDeviceGroupFactory.sol";
+import {IAgentFactory} from "./factories/interfaces/IAgentFactory.sol";
+import {InvalidFactoryAddress} from "./Errors.sol";
 
 /**
  * @title SmartClaws
  * @notice Global registry and entry point for the SmartClaws protocol.
- * @dev Deploys and tracks channels, device groups, and agents.
+ * @dev Tracks channels, device groups, and agents. All deployment is delegated
+ *      to immutable factories, which keeps the creation bytecode of those
+ *      contracts out of this registry and well under the EIP-170 size limit.
  *      Uses EnumerableSet for O(1) add/remove/contains on all registries.
  */
-contract SmartClaws {
+contract SmartClaws is ISmartClaws {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using Pagination for EnumerableSet.AddressSet;
+
+    IChannelFactory public immutable channelFactory;
+    IDeviceFactory public immutable deviceFactory;
+    IDeviceGroupFactory public immutable deviceGroupFactory;
+    IAgentFactory public immutable agentFactory;
 
     EnumerableSet.AddressSet private _channels;
     EnumerableSet.AddressSet private _deviceGroups;
     EnumerableSet.AddressSet private _agents;
 
-    event ChannelCreated(address indexed channel, address indexed owner);
-    event ChannelDeleted(address indexed channel);
-    event DeviceGroupRegistered(address indexed deviceGroup, string deviceGroupName);
-    event DeviceGroupUnregistered(address indexed deviceGroup);
-    event AgentRegistered(address indexed agent, string agentId, string metadata);
-    event AgentUnregistered(address indexed agent);
+    constructor(
+        IChannelFactory channelFactory_,
+        IDeviceFactory deviceFactory_,
+        IDeviceGroupFactory deviceGroupFactory_,
+        IAgentFactory agentFactory_
+    ) {
+        require(address(channelFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(deviceFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(deviceGroupFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(agentFactory_) != address(0), InvalidFactoryAddress(address(0)));
 
-    error NotChannelOwner(address channel, address caller);
-    error ChannelNotRegistered(address channel);
-    error DeviceGroupNotRegistered(address deviceGroup);
-    error NotGroupOwner(address group, address caller);
-    error AgentNotRegistered(address agent);
-    error NotAgentOwner(address agent, address caller);
+        channelFactory = channelFactory_;
+        deviceFactory = deviceFactory_;
+        deviceGroupFactory = deviceGroupFactory_;
+        agentFactory = agentFactory_;
+    }
 
     // --- Channel Management ---
 
@@ -44,14 +63,9 @@ contract SmartClaws {
     function createChannel(
         address ownerAddress,
         uint256 maxCapacityBytes
-    ) external returns (address channel) {
-        SmartClawsChannel newChannel = new SmartClawsChannel(
-            ownerAddress,
-            maxCapacityBytes,
-            address(this)
-        );
-        channel = address(newChannel);
-        _channels.add(channel);
+    ) external override returns (address channel) {
+        channel = address(channelFactory.createChannel(ownerAddress, maxCapacityBytes, address(this)));
+        assert(_channels.add(channel));
         emit ChannelCreated(channel, ownerAddress);
     }
 
@@ -60,18 +74,12 @@ contract SmartClaws {
      * @dev The channel contract remains deployed and all read methods continue to function.
      * @param channelAddress Address of the channel to delete.
      */
-    function deleteChannel(address channelAddress) external {
-        if (!_channels.contains(channelAddress)) {
-            revert ChannelNotRegistered(channelAddress);
-        }
+    function deleteChannel(address channelAddress) external override {
+        require(_channels.contains(channelAddress), ChannelNotRegistered(channelAddress));
+        require(msg.sender == Ownable(channelAddress).owner(), NotChannelOwner(channelAddress, msg.sender));
 
-        SmartClawsChannel channel = SmartClawsChannel(channelAddress);
-        if (msg.sender != channel.owner()) {
-            revert NotChannelOwner(channelAddress, msg.sender);
-        }
-
-        channel.disableWrites();
-        _channels.remove(channelAddress);
+        ISmartClawsChannel(channelAddress).disableWrites();
+        assert(_channels.remove(channelAddress));
         emit ChannelDeleted(channelAddress);
     }
 
@@ -86,15 +94,18 @@ contract SmartClaws {
     function registerDeviceGroup(
         string calldata deviceGroupName,
         string calldata skills_
-    ) external returns (address deviceGroup) {
-        SmartClawsDeviceGroup newGroup = new SmartClawsDeviceGroup(
-            msg.sender,
-            deviceGroupName,
-            skills_,
-            address(this)
+    ) external override returns (address deviceGroup) {
+        deviceGroup = address(
+            deviceGroupFactory.createDeviceGroup(
+                msg.sender,
+                deviceGroupName,
+                skills_,
+                address(this),
+                channelFactory,
+                deviceFactory
+            )
         );
-        deviceGroup = address(newGroup);
-        _deviceGroups.add(deviceGroup);
+        assert(_deviceGroups.add(deviceGroup));
         emit DeviceGroupRegistered(deviceGroup, deviceGroupName);
     }
 
@@ -103,18 +114,17 @@ contract SmartClaws {
      * @dev Existing devices and channels remain functional and readable.
      * @param deviceGroup Address of the device group to unregister.
      */
-    function unregisterDeviceGroup(address deviceGroup) external {
-        if (!_deviceGroups.contains(deviceGroup)) {
-            revert DeviceGroupNotRegistered(deviceGroup);
-        }
+    function unregisterDeviceGroup(address deviceGroup) external override {
+        require(_deviceGroups.contains(deviceGroup), DeviceGroupNotRegistered(deviceGroup));
 
-        SmartClawsDeviceGroup group = SmartClawsDeviceGroup(deviceGroup);
-        if (msg.sender != group.owner()) {
-            revert NotGroupOwner(deviceGroup, msg.sender);
-        }
+        require(msg.sender == Ownable(deviceGroup).owner(), NotGroupOwner(deviceGroup, msg.sender));
 
-        group.deactivate();
-        _deviceGroups.remove(deviceGroup);
+        // Deactivation propagates to devices implicitly: SmartClawsDevice gates all
+        // publishing on group.active() (see whenGroupActive), so a deactivated group
+        // makes every one of its devices inert in O(1) — no per-device loop, and the
+        // device contracts/channels remain deployed and readable.
+        ISmartClawsDeviceGroup(deviceGroup).deactivate();
+        assert(_deviceGroups.remove(deviceGroup));
         emit DeviceGroupUnregistered(deviceGroup);
     }
 
@@ -131,27 +141,18 @@ contract SmartClaws {
         string calldata agentId,
         string calldata metadata,
         uint256 channelCapacity
-    ) external returns (address agent) {
-        SmartClawsChannel incoming = new SmartClawsChannel(
-            msg.sender,
-            channelCapacity,
-            address(this)
+    ) external override returns (address agent) {
+        agent = address(
+            agentFactory.createAgent({
+                initialOwner: msg.sender,
+                channelCapacity: channelCapacity,
+                registry: address(this),
+                channelFactory: channelFactory,
+                agentId: agentId,
+                metadata: metadata
+            })
         );
-        SmartClawsChannel outgoing = new SmartClawsChannel(
-            msg.sender,
-            channelCapacity,
-            address(this)
-        );
-
-        SmartClawsAgent newAgent = new SmartClawsAgent(
-            msg.sender,
-            address(incoming),
-            address(outgoing),
-            address(this)
-        );
-        agent = address(newAgent);
-
-        _agents.add(agent);
+        assert(_agents.add(agent));
         emit AgentRegistered(agent, agentId, metadata);
     }
 
@@ -160,56 +161,84 @@ contract SmartClaws {
      * @dev The agent contract and channels remain deployed. Reads still work.
      * @param agent Address of the agent to unregister.
      */
-    function unregisterAgent(address agent) external {
-        if (!_agents.contains(agent)) revert AgentNotRegistered(agent);
+    function unregisterAgent(address agent) external override {
+        require(_agents.contains(agent), AgentNotRegistered(agent));
 
-        SmartClawsAgent agentContract = SmartClawsAgent(agent);
-        if (msg.sender != agentContract.owner()) {
-            revert NotAgentOwner(agent, msg.sender);
-        }
+        ISmartClawsAgent agentContract = ISmartClawsAgent(agent);
+        require(msg.sender == Ownable(agent).owner(), NotAgentOwner(agent, msg.sender));
 
-        SmartClawsChannel(agentContract.getOutgoingMessagesChannel()).disableWrites();
+        // Disable writes on both channels. The registry is registered as each
+        // channel's `registry`, so it is authorized to call disableWrites.
+        ISmartClawsChannel(agentContract.getOutgoingMessagesChannel()).disableWrites();
+        ISmartClawsChannel(agentContract.getIncomingMessagesChannel()).disableWrites();
         agentContract.deactivate();
 
-        _agents.remove(agent);
+        assert(_agents.remove(agent));
         emit AgentUnregistered(agent);
     }
 
     // --- View Functions ---
+    //
+    // NOTE: registration is currently permissionless, so these registries can grow
+    // without bound. The no-argument getters below return the full set in one call
+    // and may run out of gas (or exceed node response limits) once a registry is
+    // large; prefer the paginated (offset, limit) overloads off-chain. If spam ever
+    // becomes a problem, gate the create/register entry points instead of these.
 
-    function getChannels() external view returns (address[] memory) {
+    function getChannels() external view override returns (address[] memory) {
         return _channels.values();
     }
 
-    function getChannelCount() external view returns (uint256) {
+    function getChannels(
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (address[] memory) {
+        return _channels.slice(offset, limit);
+    }
+
+    function getChannelCount() external view override returns (uint256) {
         return _channels.length();
     }
 
-    function isRegisteredChannel(address channel) external view returns (bool) {
+    function isRegisteredChannel(address channel) external view override returns (bool) {
         return _channels.contains(channel);
     }
 
-    function getDeviceGroups() external view returns (address[] memory) {
+    function getDeviceGroups() external view override returns (address[] memory) {
         return _deviceGroups.values();
     }
 
-    function getDeviceGroupCount() external view returns (uint256) {
+    function getDeviceGroups(
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (address[] memory) {
+        return _deviceGroups.slice(offset, limit);
+    }
+
+    function getDeviceGroupCount() external view override returns (uint256) {
         return _deviceGroups.length();
     }
 
-    function isRegisteredDeviceGroup(address group) external view returns (bool) {
+    function isRegisteredDeviceGroup(address group) external view override returns (bool) {
         return _deviceGroups.contains(group);
     }
 
-    function getAgents() external view returns (address[] memory) {
+    function getAgents() external view override returns (address[] memory) {
         return _agents.values();
     }
 
-    function getAgentCount() external view returns (uint256) {
+    function getAgents(
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (address[] memory) {
+        return _agents.slice(offset, limit);
+    }
+
+    function getAgentCount() external view override returns (uint256) {
         return _agents.length();
     }
 
-    function isRegisteredAgent(address agent) external view returns (bool) {
+    function isRegisteredAgent(address agent) external view override returns (bool) {
         return _agents.contains(agent);
     }
 }

@@ -14,7 +14,9 @@
     "test:integration": "bun test tests/integration/"
   },
   "dependencies": {
+    "@inquirer/prompts": "^7.9.0",
     "@smartclaws/core": "workspace:*",
+    "@smartclaws/sdk": "workspace:*",
     "commander": "^14.0.0",
     "viem": "^2.47.0"
   },

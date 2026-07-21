@@ -2,7 +2,7 @@ import { getNetwork, NETWORKS } from "@smartclaws/core/networks";
 import { type Address, defineChain } from "viem";
 import { createConfig, http } from "wagmi";
 
-const networkKey = import.meta.env.VITE_NETWORK || "testnet";
+const networkKey = import.meta.env.VITE_NETWORK || "base-testnet";
 const network = getNetwork(networkKey);
 
 const rpcUrl = (import.meta.env.VITE_RPC_URL as string) || network.rpcUrl;

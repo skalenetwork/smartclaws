@@ -1,55 +1,168 @@
-import { encode } from "@smartclaws/core/envelope";
+import {
+  hydrateDevice,
+  listDevices,
+  loadDevice,
+  publishChannelMessage,
+  publishDeviceCommand,
+  publishDeviceTelemetry,
+  resolveChannel,
+  SmartClawsError,
+} from "@smartclaws/sdk";
 import { Command } from "commander";
-import { toHex } from "viem";
-import { loadConfig } from "../config.ts";
-import { getChannelContract, getClients } from "../contracts.ts";
-import { listDevices, loadDevice } from "../device.ts";
-import { loadWallet } from "../wallet.ts";
+import { loadConfigOrExit, loadWalletOrExit } from "../runtime.ts";
+
+function printPublisherGuidance(deviceName: string, account: string, canGrant: boolean): void {
+  console.error(`Wallet ${account} does not have publisher permission for device '${deviceName}'.`);
+  if (canGrant) {
+    console.error("Grant it with:");
+    console.error(
+      `  smartclaws device grant --device ${deviceName} --role publisher --account ${account}`,
+    );
+  } else {
+    console.error("Ask a device admin to grant publisher permission:");
+    console.error(
+      `  smartclaws device grant --device ${deviceName} --role publisher --account ${account}`,
+    );
+  }
+}
+
+function printMasterGuidance(deviceName: string, account: string, canGrant: boolean): void {
+  console.error(`Wallet ${account} does not have master permission for device '${deviceName}'.`);
+  if (canGrant) {
+    console.error("Grant it with:");
+    console.error(
+      `  smartclaws device grant --device ${deviceName} --role master --account ${account}`,
+    );
+  } else {
+    console.error("Ask a device admin to grant master permission:");
+    console.error(
+      `  smartclaws device grant --device ${deviceName} --role master --account ${account}`,
+    );
+  }
+}
 
 export const publishCommand = new Command("publish")
-  .description("Publish a reading to a device's outgoing channel")
-  .requiredOption("--device <name>", "Device name")
-  .requiredOption("--topic <topic>", "Message topic (e.g. temperature, humidity)")
-  .requiredOption("--data <json>", "Payload as JSON (e.g. '{\"temp\":22.5}')")
+  .description("Publish a message through a device contract or directly to an authorized channel")
+  .option("--device <name>", "Device name (publishes through SmartClawsDevice.publishTelemetry)")
+  .option(
+    "--device-channel <channel>",
+    "When using --device: telemetry for outgoing telemetry, command for incoming commands",
+    "telemetry",
+  )
+  .option("--channel <address>", "Direct channel address (publish to any authorized channel)")
+  .option(
+    "--from <name>",
+    "Envelope 'dev' field when using --channel (default: controller)",
+    "controller",
+  )
+  .requiredOption(
+    "--topic <topic>",
+    "Message topic (e.g. telemetry.switch_status, command.switch.set)",
+  )
+  .requiredOption("--data <json>", `Payload as JSON (e.g. '{"on":true}')`)
   .action(async (opts) => {
-    const config = loadConfig();
-    if (!config) {
-      console.error("Not initialized. Run 'smartclaws init' first.");
-      process.exit(1);
-    }
-
-    const wallet = loadWallet();
-    if (!wallet) {
-      console.error("No wallet found. Run 'smartclaws init' first.");
-      process.exit(1);
-    }
-
-    const device = loadDevice(opts.device);
-    if (!device) {
-      const devices = listDevices();
-      console.error(`Device '${opts.device}' not found.`);
-      if (devices.length > 0) {
-        console.error(`Available: ${devices.map((d) => d.name).join(", ")}`);
-      }
-      process.exit(1);
-    }
+    const config = loadConfigOrExit();
+    const wallet = loadWalletOrExit(config);
 
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(opts.data);
     } catch {
-      console.error("Invalid JSON payload. Example: '{\"temp\":22.5}'");
+      console.error(`Invalid JSON payload. Example: '{"on":true}'`);
       process.exit(1);
     }
 
-    const encoded = encode(opts.topic, payload, device.name);
-    const channel = getChannelContract(device.outgoingChannel as `0x${string}`, config, wallet);
-    const { publicClient } = getClients(config, wallet);
+    try {
+      if (Boolean(opts.device) === Boolean(opts.channel)) {
+        throw new SmartClawsError(
+          "INVALID_TARGET",
+          "Provide exactly one of --device or --channel.",
+        );
+      }
 
-    const hash = await channel.write.publishMessage([toHex(encoded)]);
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (opts.device) {
+        if (!["telemetry", "command"].includes(opts.deviceChannel)) {
+          throw new SmartClawsError(
+            "INVALID_TARGET",
+            "--device-channel must be one of: telemetry, command.",
+          );
+        }
+        const device = loadDevice(opts.device);
+        if (!device) {
+          console.error(`Device '${opts.device}' not found.`);
+          const devices = listDevices();
+          if (devices.length > 0)
+            console.error(`Available: ${devices.map((d) => d.name).join(", ")}`);
+          process.exit(1);
+        }
 
-    console.log(`Published to ${device.name}/${opts.topic}`);
-    console.log(`  Tx:     ${hash}`);
-    console.log(`  Status: ${receipt.status}`);
+        const hydrated = await hydrateDevice(device.deviceContract, config, wallet);
+        if (opts.deviceChannel === "command") {
+          if (!hydrated.capabilities?.isMaster) {
+            printMasterGuidance(
+              hydrated.name,
+              wallet.address,
+              Boolean(hydrated.capabilities?.isDeviceAdmin),
+            );
+            process.exit(1);
+          }
+
+          const result = await publishDeviceCommand(
+            {
+              deviceAddress: hydrated.deviceContract as `0x${string}`,
+              topic: opts.topic,
+              payload,
+              from: opts.from,
+            },
+            config,
+            wallet,
+          );
+          console.log(`Published command to ${hydrated.name}/${result.topic}`);
+          console.log(`  Device:  ${hydrated.deviceContract}`);
+          console.log(`  Channel: ${result.channel}`);
+          console.log(`  Tx:      ${result.txHash}`);
+          console.log(`  Status:  ${result.status}`);
+          return;
+        }
+
+        if (!hydrated.capabilities?.isPublisher) {
+          printPublisherGuidance(
+            hydrated.name,
+            wallet.address,
+            Boolean(hydrated.capabilities?.isDeviceAdmin),
+          );
+          process.exit(1);
+        }
+
+        const result = await publishDeviceTelemetry(
+          {
+            deviceAddress: hydrated.deviceContract as `0x${string}`,
+            topic: opts.topic,
+            payload,
+            from: hydrated.name,
+          },
+          config,
+          wallet,
+        );
+        console.log(`Published to ${hydrated.name}/${result.topic}`);
+        console.log(`  Device:  ${hydrated.deviceContract}`);
+        console.log(`  Channel: ${result.channel}`);
+        console.log(`  Tx:      ${result.txHash}`);
+        console.log(`  Status:  ${result.status}`);
+        return;
+      }
+
+      const resolved = resolveChannel({ channel: opts.channel });
+      const result = await publishChannelMessage(
+        { channelAddress: resolved.channelAddress, topic: opts.topic, payload, from: opts.from },
+        config,
+        wallet,
+      );
+      console.log(`Published ${opts.from}/${result.topic} to channel ${resolved.channelAddress}`);
+      console.log(`  Tx:     ${result.txHash}`);
+      console.log(`  Status: ${result.status}`);
+    } catch (e: unknown) {
+      console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
+      process.exit(1);
+    }
   });

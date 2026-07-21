@@ -3,9 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEther, type Address } from "viem";
-import { createClient } from "../../src/client.ts";
-import { createDefaultConfig, saveConfig } from "../../src/config.ts";
-import { generateWallet } from "../../src/wallet.ts";
+import { createClient, createDefaultConfig, generateWallet, saveConfig } from "@smartclaws/sdk";
 import { publicClient, walletClient } from "../setup.ts";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";

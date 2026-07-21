@@ -43,25 +43,51 @@ jobs:
       - name: Install workspace deps
         run: bun install
 
+      # Lint cli + sdk + plugin (dashboard is intentionally excluded). Run from
+      # packages/cli so biome resolves from its devDependency.
       - name: Lint
         working-directory: packages/cli
-        run: bun run lint
+        run: bunx biome check src ../sdk/src ../openclaw-plugin/src
+
+      - name: Build packages
+        run: bun run build:packages
 
       - name: Type check core
         working-directory: packages/core
         run: bunx tsc --noEmit
 
+      - name: Type check SDK
+        working-directory: packages/sdk
+        run: bun run check
+
       - name: Type check CLI
         working-directory: packages/cli
         run: bun run check
 
-      - name: Unit tests
+      - name: Type check plugin
+        working-directory: packages/openclaw-plugin
+        run: bun run check
+
+      - name: SDK tests
+        run: bun run test:sdk
+
+      - name: Plugin tests
+        working-directory: packages/openclaw-plugin
+        run: bun test
+
+      - name: Verify plugin manifest is current
+        run: bun run plugin:manifest:check
+
+      - name: Validate OpenClaw plugin
+        run: bun run plugin:validate
+
+      - name: CLI unit tests
         working-directory: packages/cli
         run: bun run test:unit
 
       - name: Start anvil
         run: bash scripts/anvil.sh
 
-      - name: Integration tests
+      - name: CLI integration tests
         working-directory: packages/cli
         run: bun run test:integration

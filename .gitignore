@@ -23,6 +23,12 @@ coverage.json
 # Environment & secrets
 .env
 .env.*
+wallets/
+**/wallets/
+**/controller/wallets/
+**/controller/config.json
+**/controller/devices/
+.smartclaws-demo/
 
 # OS
 .DS_Store
@@ -37,5 +43,6 @@ Thumbs.db
 # Project-specific
 context/
 .claude/
+publish/
 uv.lock
 *.log

@@ -2,12 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Address, decodeEventLog } from "viem";
-import { createDefaultConfig, saveConfig } from "../../src/config.ts";
-import { loadDevice } from "../../src/device.ts";
+import { type Address, decodeEventLog, keccak256, toHex } from "viem";
+import { createDefaultConfig, loadDevice, saveConfig } from "@smartclaws/sdk";
 import {
   account,
-  createChannel,
   deployRegistry,
   getChannelContract,
   publicClient,
@@ -20,6 +18,7 @@ import { getContract } from "viem";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";
 const ANVIL_CHAIN_ID = 31337;
+const PUBLISHER_ROLE = keccak256(toHex("PUBLISHER_ROLE"));
 
 describe("register & device (anvil)", () => {
   let tempDir: string;
@@ -109,28 +108,31 @@ describe("register & device (anvil)", () => {
       client: publicClient,
     });
 
-    const incoming = await device.read.incomingChannel();
-    const outgoing = await device.read.outgoingChannel();
-    const publisher = await device.read.publisher();
+    const incoming = await device.read.getIncomingMessagesChannel();
+    const outgoing = await device.read.getOutgoingMessagesChannel();
+    const deviceId = await device.read.deviceId();
 
     expect(incoming).toMatch(/^0x[0-9a-fA-F]{40}$/);
     expect(outgoing).toMatch(/^0x[0-9a-fA-F]{40}$/);
-    expect((publisher as string).toLowerCase()).toBe(account.address.toLowerCase());
+    expect(deviceId).toBe("temp-sensor-01");
   });
 
   test("can publish to device outgoing channel", async () => {
     const device = getContract({
       address: deviceAddress,
       abi: SmartClawsDeviceABI.abi,
-      client: publicClient,
+      client: { public: publicClient, wallet: walletClient },
     });
 
-    const outgoingAddress = (await device.read.outgoingChannel()) as Address;
+    const grantHash = await device.write.grantRole([PUBLISHER_ROLE, account.address]);
+    await publicClient.waitForTransactionReceipt({ hash: grantHash });
+
+    const outgoingAddress = (await device.read.getOutgoingMessagesChannel()) as Address;
     const channel = getChannelContract(outgoingAddress);
 
     const payload = `0x${Buffer.from('{"v":1,"ts":1711324800,"dev":"temp-01","topic":"temperature","p":{"temp":24.5}}').toString("hex")}` as `0x${string}`;
 
-    const hash = await channel.write.publishMessage([payload]);
+    const hash = await device.write.publishTelemetry([payload]);
     await publicClient.waitForTransactionReceipt({ hash });
 
     const count = await channel.read.getMessageCount();

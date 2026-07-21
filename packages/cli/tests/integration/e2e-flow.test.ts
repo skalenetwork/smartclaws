@@ -6,6 +6,7 @@ import {
   formatEther,
   getContract,
   http,
+  keccak256,
   parseEther,
   toBytes,
   toHex,
@@ -20,6 +21,7 @@ import { decode, encode } from "@smartclaws/core/envelope";
 import { deployRegistry, publicClient, walletClient } from "../setup.ts";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";
+const PUBLISHER_ROLE = keccak256(toHex("PUBLISHER_ROLE"));
 
 function userWalletClient(privateKey: `0x${string}`) {
   return createWalletClient({
@@ -120,15 +122,24 @@ describe("e2e: wallet → register → publish → read", () => {
       abi: SmartClawsDeviceABI.abi,
       client: publicClient,
     });
-    outgoingChannel = (await device.read.outgoingChannel()) as Address;
+    outgoingChannel = (await device.read.getOutgoingMessagesChannel()) as Address;
     expect(outgoingChannel).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 
   test("5. publish sensor readings", async () => {
+    const userWallet = userWalletClient(userPrivateKey);
+    const device = getContract({
+      address: deviceAddress,
+      abi: SmartClawsDeviceABI.abi,
+      client: { public: publicClient, wallet: userWallet },
+    });
+    const grantHash = await device.write.grantRole([PUBLISHER_ROLE, userWallet.account.address]);
+    await publicClient.waitForTransactionReceipt({ hash: grantHash });
+
     const channel = getContract({
       address: outgoingChannel,
       abi: SmartClawsChannelABI.abi,
-      client: { public: publicClient, wallet: userWalletClient(userPrivateKey) },
+      client: publicClient,
     });
 
     const readings = [
@@ -139,7 +150,7 @@ describe("e2e: wallet → register → publish → read", () => {
 
     for (const r of readings) {
       const encoded = encode(r.topic, r.p, "temp-sensor-01", r.ts);
-      const hash = await channel.write.publishMessage([toHex(encoded)]);
+      const hash = await device.write.publishTelemetry([toHex(encoded)]);
       await publicClient.waitForTransactionReceipt({ hash });
     }
 
