@@ -1,8 +1,8 @@
 import { NETWORKS } from "@smartclaws/core/networks";
 import type { Config } from "@smartclaws/core/types";
-import { createPublicClient, defineChain, http } from "viem";
+import { createPublicClient, defineChain, http, type PublicClient } from "viem";
 
-export function createClient(config: Config) {
+export function createClient(config: Config): PublicClient {
   const network = NETWORKS[config.network];
   const nativeCurrency = network?.nativeCurrency ?? {
     name: "sFUEL",
