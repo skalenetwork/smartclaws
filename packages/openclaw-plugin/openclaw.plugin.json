@@ -2,7 +2,7 @@
   "id": "smartclaws",
   "name": "SmartClaws",
   "description": "Publish and read IoT telemetry on SKALE through SmartClaws.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "configSchema": {
     "type": "object",
     "properties": {
