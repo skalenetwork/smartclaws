@@ -23,7 +23,9 @@ const publishAgentInbound = mock(async (params) => ({ kind: "inbound", ...params
 const publishAgentOutbound = mock(async (params) => ({ kind: "agent", ...params }));
 const publishChannelMessage = mock(async (params) => ({ kind: "channel", ...params }));
 const publishDeviceTelemetry = mock(async (params) => ({ kind: "device", ...params }));
+const publishDeviceCommand = mock(async (params) => ({ kind: "command", ...params }));
 const resolveChannel = mock();
+const resolveAgent = mock();
 const loadAgent = mock();
 const loadConfig = mock(() => CONFIG);
 const loadWallet = mock(() => WALLET);
@@ -50,6 +52,8 @@ mock.module("@smartclaws/sdk", () => ({
   publishAgentOutbound,
   publishChannelMessage,
   publishDeviceTelemetry,
+  publishDeviceCommand,
+  resolveAgent,
   resolveChannel,
 }));
 
