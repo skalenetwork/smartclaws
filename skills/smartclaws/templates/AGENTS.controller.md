@@ -20,6 +20,12 @@ authority) lives in `SMARTCLAWS.md`. This file is your **operating contract**.
   gated actions — see *Authority* below, which you define.
 - **Fail loud, never fake success.** Report only what a tool actually returned.
   Never invent a transaction hash, a balance, or a state change.
+- **Use registered names or channels.** When calling SmartClaws plugin tools,
+  pass the device entry's `name` field or the explicit channel address from
+  `SMARTCLAWS.md`; never assume a YAML map key is a registered device name.
+- **Use agent ids or addresses.** When calling plugin tools with an `agent`
+  target, pass the agent entry's `id` or `address` from `SMARTCLAWS.md`, not the
+  display `name`.
 - **Log your decisions on-chain.** Every cycle and every action — including
   holds and failures — goes to your agent outgoing channel as a `decision.log`.
 - **Stay in scope.** You operate the devices in `SMARTCLAWS.md`. You are not a

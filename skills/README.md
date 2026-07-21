@@ -12,12 +12,16 @@ is published to ClawHub on its own and installed with `clawhub install <slug>`.
 | `smartclaws-master-agent` | `operational/smartclaws-master-agent/` | yes | Role skill for controller/orchestrator agents. |
 | `smartclaws-bridge-agent` | `operational/smartclaws-bridge-agent/` | yes | Role skill for hardware/API bridge agents. |
 | `smartclaws-device-shelly-plug-s-gen3` | `devices/shelly-plug-s-gen3/` | yes | Device contract: Shelly Plug S Gen3. |
+| `smartclaws-device-thermal-room-sensor` | `devices/thermal-room-sensor/` | yes | Device contract: telemetry-only room thermal sensor. |
 | `smartclaws-device-novapm-sds011` | `devices/novapm-sds011/` | yes | Device contract: NovaPM / SDS011 air-quality sensor. |
+| `smartclaws-tariff-file-source` | `sources/tariff-file-source/` | no | Local tariff snapshot contract for master agents. |
 
-Every skill except `smartclaws` declares
+Every plugin-backed skill except `smartclaws` declares
 `metadata.openclaw.requires.config: ["plugins.entries.smartclaws"]`, so it loads
 only when the SmartClaws plugin is configured. The `smartclaws` onboarding skill
 is the exception — it runs *before* the plugin exists in order to help install it.
+`smartclaws-tariff-file-source` is also an exception because it describes a
+local/off-chain file source, not a SmartClaws plugin tool.
 
 ## How an agent uses these
 

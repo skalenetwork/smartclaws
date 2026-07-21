@@ -74,6 +74,20 @@ describe("init command", () => {
     expect(config.walletAddress).toBe(wallet.address);
   });
 
+  test("uses the network registry address when --contract is omitted", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "smartclaws-cli-test-"));
+
+    const result = await runCli(
+      ["init", "--yes", "--mode", "controller", "--network", "base-testnet", "--generate-wallet"],
+      tempDir,
+    );
+
+    expect(result.exitCode).toBe(0);
+
+    const config = JSON.parse(readFileSync(join(tempDir, "config.json"), "utf-8"));
+    expect(config.contractAddress).toBe("0x2A49ADe245fE42E6C3eBC7972bB0Fe324fc923b5");
+  });
+
   test("rejects bridge-agent init without an agent and one device", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "smartclaws-cli-test-"));
 

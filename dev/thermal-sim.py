@@ -18,6 +18,24 @@ Each tick:
 The publish path mirrors smartclaws-shelly-publisher: telemetry is published
 via `smartclaws publish --device <DEVICE_NAME>`, never `--channel`.
 
+Run from this repo after registering/funding the thermal bridge HOME:
+
+  SMARTCLAWS_HOME="$HOME/.smartclaws-demo/thermal-bridge" \
+  DEVICE_NAME="thermal-sensor-1" \
+  SHELLY_OUTGOING_CHANNEL="0x..." \
+  AGENT_NAME="thermal-bridge-1" \
+  AGENT_LOG_ENABLED=1 \
+  AGENT_LOG_CYCLES=0 \
+  python3 dev/thermal-sim.py
+
+Dependencies:
+  - Python 3.10+
+  - `smartclaws` CLI on PATH, or SMARTCLAWS_BIN set
+  - SMARTCLAWS_HOME initialized as bridge-agent and attached to DEVICE_NAME
+  - bridge wallet funded with sFUEL/CREDITS
+  - bridge wallet granted publisher on DEVICE_NAME
+  - optional agent logs require AGENT_NAME and publisher permission on that agent
+
 Required env vars:
   SMARTCLAWS_HOME             path to thermal agent config dir (e.g. ~/.sc-thermal)
   DEVICE_NAME                 smartclaws device name (e.g. thermal-sensor-1)
@@ -37,6 +55,9 @@ Optional env vars:
   STATE_FILE                  thermal sim state file
                               (default: $SMARTCLAWS_HOME/thermal-sim.state.json)
   PRINT_STATUS                "1" to print one status line per tick (default: 1)
+  AGENT_NAME                  local agent name/address for bridge audit logs
+  AGENT_LOG_ENABLED           "1" to publish bridge failure/command logs (default: 0)
+  AGENT_LOG_CYCLES            "1" to publish bridge.cycle every tick (default: 0)
 """
 
 import json
@@ -58,7 +79,7 @@ SHELLY_OUT = os.environ.get("SHELLY_OUTGOING_CHANNEL", "")
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "120"))
 # Slow, demo-friendly curve: stays within 20-29C, surfs ~22-24C over ~40-60 min.
 # Asymptotes bracket the desired range so it never overshoots the hard bounds;
-# large time constants keep the trend gentle (~0.05-0.15 C/min near the band).
+# large time constants keep changes gentle near the band.
 AMBIENT_C = float(os.environ.get("AMBIENT_C", "21.0"))      # cooling floor (relay OFF target)
 T_ASYMP_ON = float(os.environ.get("T_ASYMP_ON", "27.0"))    # heating ceiling (relay ON target)
 TAU_HEAT_S = float(os.environ.get("TAU_HEAT_S", "2400"))    # ~40 min heating time constant
@@ -71,6 +92,9 @@ STATE_FILE = os.environ.get(
     "STATE_FILE", os.path.join(SC_HOME, "thermal-sim.state.json")
 )
 PRINT_STATUS = os.environ.get("PRINT_STATUS", "1") == "1"
+AGENT_NAME = os.environ.get("AGENT_NAME", "")
+AGENT_LOG_ENABLED = os.environ.get("AGENT_LOG_ENABLED", "0") == "1"
+AGENT_LOG_CYCLES = os.environ.get("AGENT_LOG_CYCLES", "0") == "1"
 
 # ---------------------------------------------------------------------------
 # State
@@ -127,6 +151,46 @@ def read_latest_relay_state() -> tuple[bool | None, float | None]:
             if isinstance(out, bool):
                 return out, float(m.get("ts") or 0) or None
     return None, None
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def publish_agent_log(topic: str, payload: dict) -> bool:
+    """Publish an optional bridge/audit log to this bridge agent's outgoing channel."""
+    if not AGENT_LOG_ENABLED or not AGENT_NAME:
+        return False
+    env = {**os.environ, "SMARTCLAWS_HOME": SC_HOME}
+    body = {
+        "device": DEVICE_NAME,
+        "script": "thermal-sim.py",
+        **payload,
+        "ts": payload.get("ts") or now_iso(),
+    }
+    result = subprocess.run(
+        [
+            SMARTCLAWS,
+            "agent",
+            "publish",
+            "--agent",
+            AGENT_NAME,
+            "--topic",
+            topic,
+            "--data",
+            json.dumps(body),
+            "--from",
+            AGENT_NAME,
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if result.returncode != 0:
+        print(f"  [WARN] publish agent log failed: {result.stderr.strip()[:200]}",
+              file=sys.stderr)
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +253,10 @@ def banner(state: dict) -> None:
     print(f"  tau cool:      {TAU_COOL_S:.0f} s")
     print(f"  Interval:      {POLL_SECONDS} s")
     print(f"  Start temp:    {state['temp_c']:.2f} C")
+    print(f"  Agent logs:    {'on' if AGENT_LOG_ENABLED and AGENT_NAME else 'off'}")
+    if AGENT_LOG_ENABLED and AGENT_NAME:
+        print(f"  Agent name:    {AGENT_NAME}")
+        print(f"  Cycle logs:    {'on' if AGENT_LOG_CYCLES else 'off'}")
     print("=" * 60)
     print()
 
@@ -219,8 +287,6 @@ def main() -> None:
 
         prev_temp = state["temp_c"]
         new_temp = step_temperature(prev_temp, used_relay, dt)
-        # Per-minute trend computed from this step
-        trend_per_min = (new_temp - prev_temp) * (60.0 / dt)
         # Reading exposed to consumers includes sensor noise; internal model
         # state stays clean.
         reading = new_temp + random.gauss(0.0, NOISE_C)
@@ -231,25 +297,46 @@ def main() -> None:
 
         payload = {
             "temperature_c": round(reading, 2),
-            "trend_c_per_min": round(trend_per_min, 3),
             "ambient_c": round(AMBIENT_C, 1),
             "relay_state": used_relay,
             "stale_relay_seconds": round(stale_for, 1) if stale_for is not None else None,
             "stale_relay": (
                 stale_for is None or stale_for > STALE_RELAY_MAX_S
             ),
-            "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "ts": now_iso(),
         }
 
         ok = publish_thermal(payload)
+        if ok and AGENT_LOG_CYCLES:
+            publish_agent_log(
+                "bridge.cycle",
+                {
+                    "event": "telemetry_published",
+                    "telemetry_ok": True,
+                    "topic": "telemetry.thermal_status",
+                    "temperature_c": payload["temperature_c"],
+                    "relay_state": payload["relay_state"],
+                    "stale_relay": payload["stale_relay"],
+                },
+            )
+        elif not ok:
+            publish_agent_log(
+                "bridge.telemetry_failed",
+                {
+                    "event": "telemetry_publish_failed",
+                    "telemetry_ok": False,
+                    "topic": "telemetry.thermal_status",
+                    "temperature_c": payload["temperature_c"],
+                    "relay_state": payload["relay_state"],
+                },
+            )
 
         if PRINT_STATUS:
             ts = time.strftime("%H:%M:%S")
             relay_str = "ON " if used_relay else ("OFF" if used_relay is False else "??? ")
             print(
                 f"[{ts}] #{tick:05d} | relay {relay_str} | "
-                f"T={reading:5.2f} C | trend={trend_per_min:+.3f} C/min | "
-                f"{'ok' if ok else 'PUBLISH FAILED'}"
+                f"T={reading:5.2f} C | {'ok' if ok else 'PUBLISH FAILED'}"
             )
 
         time.sleep(POLL_SECONDS)

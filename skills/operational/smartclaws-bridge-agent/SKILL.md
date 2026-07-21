@@ -44,6 +44,10 @@ If setup is missing or more than one device is assigned with no clear primary,
 **stop and run the `smartclaws` onboarding skill** or ask the owner. This
 procedure owns exactly one device and never orchestrates others.
 
+When calling SmartClaws plugin tools, use the device entry's `name` field or the
+explicit channel address from `SMARTCLAWS.md`. For plugin `agent` targets, use
+the agent entry's `id` or `address`; display names are not reliable lookup keys.
+
 ## Bridge Modes
 
 `telemetry-only`

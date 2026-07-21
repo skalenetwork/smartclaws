@@ -77,11 +77,19 @@ owner whenever a step needs a secret, money (sFUEL), or a decision you can't mak
 ### 1. Is the plugin installed?
 
 Try `smartclaws_wallet_info`. If the tool exists and returns an address, the
-plugin is installed and a wallet is configured — skip to step 4.
+plugin is installed, reachable by this agent, and a wallet is configured — skip
+to step 4.
 
-If the tool is missing, the plugin isn't installed. Ask the owner to install it
-(it ships from this repo / ClawHub as `smartclaws-openclaw-plugin`) and to set,
-at minimum, the network in the plugin config:
+If the tool is missing, first check whether the plugin is installed. Ask the
+owner to install it if needed and to set, at minimum, the network in the plugin
+config:
+
+```bash
+openclaw plugins install clawhub:smartclaws-openclaw-plugin
+openclaw plugins inspect smartclaws --runtime
+```
+
+Restart or reload the OpenClaw Gateway after installing or updating the plugin.
 
 ```jsonc
 // plugin config
@@ -89,6 +97,24 @@ at minimum, the network in the plugin config:
 // or an explicit endpoint:
 { "rpcUrl": "https://…", "chainId": 324705682, "registryAddress": "0x…" }
 ```
+
+If `openclaw plugins inspect smartclaws --runtime` shows the plugin is loaded
+and exposes the SmartClaws tools, but this agent still cannot call
+`smartclaws_wallet_info`, the usual cause is OpenClaw tool policy. The `coding`
+profile does not automatically expose third-party plugin tools. Ask the owner to
+allow the `smartclaws` plugin for this agent (preferred) or globally, then
+restart the Gateway. Typical global fallback:
+
+```bash
+openclaw config set tools.alsoAllow '["smartclaws"]' --strict-json
+openclaw gateway restart
+```
+
+> Note that this only sets the smartclaws as allowed, you may have other plugins in the allowlist.
+
+For a single isolated agent, set `tools.alsoAllow: ["smartclaws"]` on that
+agent's entry in `openclaw.json` (or the equivalent OpenClaw UI/tool-policy
+setting), then restart. After restart, test again with `smartclaws_wallet_info`.
 
 You cannot install a plugin into your own host from a skill — guide the owner,
 then continue once the tool appears.
@@ -98,6 +124,22 @@ then continue once the tool appears.
 Call `smartclaws_wallet_info`. If it errors with "no wallet", the SmartClaws
 HOME has no wallet yet. The plugin can't create one. Ask the owner to run the
 CLI once:
+
+If `smartclaws` is not on PATH, ask the owner to install the CLI first. Prefer a
+matching release binary from GitHub Releases when available. Otherwise build it
+from source and place it somewhere on PATH:
+
+```bash
+git clone https://github.com/skalenetwork/smartclaws /tmp/smartclaws
+cd /tmp/smartclaws
+bun install
+bun run build:packages
+bun run build:cli
+mkdir -p ~/.local/bin
+cp packages/cli/dist/smartclaws ~/.local/bin/smartclaws
+chmod +x ~/.local/bin/smartclaws
+smartclaws --version
+```
 
 ```bash
 smartclaws init            # interactive: creates wallet + config, picks a mode

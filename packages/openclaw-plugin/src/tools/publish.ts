@@ -1,6 +1,7 @@
 import {
   publishAgentOutbound,
   publishChannelMessage,
+  publishDeviceCommand,
   publishDeviceTelemetry,
   resolveAgent,
   resolveChannel,
@@ -19,6 +20,12 @@ export function publishTool(tool: SmartClawsToolFactory) {
     optional: true,
     parameters: Type.Object({
       device: Type.Optional(Type.String({ description: "Local device name to publish as." })),
+      deviceChannel: Type.Optional(
+        Type.Union([Type.Literal("telemetry"), Type.Literal("command")], {
+          description:
+            "When `device` is used: `telemetry` publishes to outgoing telemetry (default); `command` publishes to incoming commands.",
+        }),
+      ),
       agent: Type.Optional(
         Type.String({
           description: "Local agent name/address; publishes to the agent's outgoing channel.",
@@ -64,12 +71,31 @@ export function publishTool(tool: SmartClawsToolFactory) {
         { device: params.device, channel: params.channel },
         config.smartclawsHome,
       );
+      if (params.deviceChannel && !device) {
+        throw new SmartClawsError(
+          "INVALID_TARGET",
+          "`deviceChannel` is only valid with `device` targets.",
+          { deviceChannel: params.deviceChannel },
+        );
+      }
       if (device) {
         if (!deviceAddress) {
           throw new SmartClawsError(
             "DEVICE_NOT_FOUND",
             `Device '${params.device}' is missing its contract address.`,
             { device: params.device },
+          );
+        }
+        if (params.deviceChannel === "command") {
+          return await publishDeviceCommand(
+            {
+              deviceAddress,
+              topic: params.topic,
+              payload: params.payload,
+              from: params.from ?? device,
+            },
+            cfg,
+            wallet,
           );
         }
         return await publishDeviceTelemetry(

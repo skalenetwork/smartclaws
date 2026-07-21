@@ -125,7 +125,10 @@ A master may:
 
 - Read `telemetry.switch_status` from the outgoing channel.
 - Decide whether a command is needed.
-- Publish `command.switch.set` to the incoming channel only when setup authority allows it.
+- Publish `command.switch.set` only when setup authority allows it. With the
+  SmartClaws plugin, use `smartclaws_publish` with the registered device `name`
+  and `deviceChannel: "command"` so the write goes through
+  `SmartClawsDevice.publishCommand`.
 
 A master must not:
 

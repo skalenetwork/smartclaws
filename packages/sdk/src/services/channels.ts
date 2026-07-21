@@ -252,6 +252,33 @@ export async function publishDeviceTelemetry(
   };
 }
 
+/**
+ * Publish a command through SmartClawsDevice.publishCommand so the device
+ * contract enforces MASTER_ROLE and channel ownership correctly.
+ */
+export async function publishDeviceCommand(
+  params: DevicePublishParams,
+  config: Config,
+  wallet: WalletFile,
+): Promise<PublishResult> {
+  const { deviceAddress, topic, payload, from } = params;
+  const encoded = encode(topic, payload, from);
+  const device = getDeviceWriteContract(deviceAddress, config, wallet);
+  const { publicClient } = getClients(config, wallet);
+
+  const hash = await device.write.publishCommand([toHex(encoded)]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  const incomingChannel = (await device.read.getIncomingMessagesChannel()) as Address;
+
+  return {
+    channel: incomingChannel,
+    topic,
+    dev: from,
+    txHash: hash,
+    status: receipt.status,
+  };
+}
+
 export interface AgentPublishParams {
   agentAddress: Address;
   topic: string;

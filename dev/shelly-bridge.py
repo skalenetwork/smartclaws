@@ -10,6 +10,27 @@ Plug S Gen3 over HTTP RPC on the local network:
   2. Polls the device incoming channel for command.switch.set envelopes and
      applies them to the real relay via /rpc/Switch.Set.
 
+Run from this repo after registering/funding the Shelly bridge HOME:
+
+  SMARTCLAWS_HOME="$HOME/.smartclaws-demo/shelly-bridge" \
+  DEVICE_NAME="shelly-plug-s" \
+  SHELLY_HOST="192.168.1.125" \
+  INCOMING_CHANNEL="0x..." \
+  AGENT_NAME="shelly-bridge-1" \
+  AGENT_LOG_ENABLED=1 \
+  AGENT_LOG_CYCLES=0 \
+  python3 dev/shelly-bridge.py
+
+Dependencies:
+  - Python 3.10+
+  - network access to the Shelly Plug S Gen3 HTTP RPC endpoint
+  - `smartclaws` CLI on PATH, or SMARTCLAWS_BIN set
+  - SMARTCLAWS_HOME initialized as bridge-agent and attached to DEVICE_NAME
+  - bridge wallet funded with sFUEL/CREDITS
+  - bridge wallet granted publisher on DEVICE_NAME
+  - optional Shelly auth uses `requests`
+  - optional agent logs require AGENT_NAME and publisher permission on that agent
+
 Required env vars:
   SMARTCLAWS_HOME     publisher/controller config dir (e.g. ~/.sc-controller)
   DEVICE_NAME         smartclaws device name (e.g. shelly-plug-s)
@@ -23,6 +44,9 @@ Optional env vars:
   SHELLY_USER         digest-auth user (only if the plug has auth enabled)
   SHELLY_PASSWORD     digest-auth password
   HTTP_TIMEOUT        per-request timeout seconds (default: 5)
+  AGENT_NAME          local agent name/address for bridge audit logs
+  AGENT_LOG_ENABLED   "1" to publish bridge failure/command logs (default: 0)
+  AGENT_LOG_CYCLES    "1" to publish bridge.cycle every tick (default: 0)
 """
 
 import json
@@ -33,6 +57,7 @@ import time
 import urllib.request
 import urllib.parse
 import urllib.error
+from datetime import datetime, timezone
 
 try:
     # Only needed if the plug has auth enabled.
@@ -58,6 +83,9 @@ STATE_FILE = os.environ.get(
 SHELLY_USER = os.environ.get("SHELLY_USER", "")
 SHELLY_PASSWORD = os.environ.get("SHELLY_PASSWORD", "")
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "5"))
+AGENT_NAME = os.environ.get("AGENT_NAME", "")
+AGENT_LOG_ENABLED = os.environ.get("AGENT_LOG_ENABLED", "0") == "1"
+AGENT_LOG_CYCLES = os.environ.get("AGENT_LOG_CYCLES", "0") == "1"
 
 if not SHELLY_HOST:
     print("FATAL: SHELLY_HOST not set.", file=sys.stderr)
@@ -141,6 +169,46 @@ def publish_telemetry(topic: str, payload: dict) -> bool:
     return True
 
 
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def publish_agent_log(topic: str, payload: dict) -> bool:
+    """Publish an optional bridge/audit log to this bridge agent's outgoing channel."""
+    if not AGENT_LOG_ENABLED or not AGENT_NAME:
+        return False
+    env = {**os.environ, "SMARTCLAWS_HOME": SC_HOME}
+    body = {
+        "device": DEVICE_NAME,
+        "script": "shelly-bridge.py",
+        **payload,
+        "ts": payload.get("ts") or now_iso(),
+    }
+    result = subprocess.run(
+        [
+            SMARTCLAWS,
+            "agent",
+            "publish",
+            "--agent",
+            AGENT_NAME,
+            "--topic",
+            topic,
+            "--data",
+            json.dumps(body),
+            "--from",
+            AGENT_NAME,
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if result.returncode != 0:
+        print(f"  [WARN] publish agent log failed: {result.stderr.strip()[:200]}",
+              file=sys.stderr)
+        return False
+    return True
+
+
 def read_incoming() -> dict | None:
     if not INCOMING_CHANNEL:
         return None
@@ -157,7 +225,7 @@ def read_incoming() -> dict | None:
         return None
 
 
-def handle_command(envelope: dict, state: dict) -> dict:
+def handle_command(envelope: dict, state: dict) -> str:
     topic = envelope.get("topic", "")
     payload = envelope.get("p", {})
     sender = envelope.get("dev", "unknown")
@@ -166,19 +234,64 @@ def handle_command(envelope: dict, state: dict) -> dict:
     print(f"  ┌─ COMMAND [offset {offset}] from '{sender}': {topic} {json.dumps(payload)}")
     if topic != "command.switch.set":
         print(f"  └─ [SKIP] unknown topic")
-        return state
+        publish_agent_log(
+            "bridge.command_skipped",
+            {
+                "event": "command_skipped",
+                "offset": offset,
+                "sender": sender,
+                "topic": topic,
+                "reason": "unknown_topic",
+            },
+        )
+        return "skipped"
 
     desired_on = payload.get("on")
     if not isinstance(desired_on, bool):
         print(f"  └─ [SKIP] invalid 'on': {desired_on!r}")
-        return state
+        publish_agent_log(
+            "bridge.command_skipped",
+            {
+                "event": "command_skipped",
+                "offset": offset,
+                "sender": sender,
+                "topic": topic,
+                "reason": "invalid_on",
+                "value": desired_on,
+            },
+        )
+        return "skipped"
 
     try:
         set_switch(desired_on, payload.get("toggle_after"))
         print(f"  └─ [REAL] relay set {'ON 🟢' if desired_on else 'OFF 🔴'} on {SHELLY_HOST}")
+        publish_agent_log(
+            "bridge.command_applied",
+            {
+                "event": "command_applied",
+                "offset": offset,
+                "sender": sender,
+                "topic": topic,
+                "on": desired_on,
+                "toggle_after": payload.get("toggle_after"),
+            },
+        )
+        return "applied"
     except Exception as e:
         print(f"  └─ [ERR] Switch.Set failed: {e}", file=sys.stderr)
-    return state
+        publish_agent_log(
+            "bridge.command_failed",
+            {
+                "event": "command_failed",
+                "offset": offset,
+                "sender": sender,
+                "topic": topic,
+                "on": desired_on,
+                "toggle_after": payload.get("toggle_after"),
+                "error": str(e),
+            },
+        )
+        return "failed"
 
 
 # ---------------------------------------------------------------------------
@@ -193,12 +306,17 @@ def main() -> None:
     print(f"  Device:   {DEVICE_NAME}")
     print(f"  Incoming: {INCOMING_CHANNEL or '(command polling disabled)'}")
     print(f"  Interval: {POLL_SECONDS}s")
+    print(f"  Agent logs: {'on' if AGENT_LOG_ENABLED and AGENT_NAME else 'off'}")
+    if AGENT_LOG_ENABLED and AGENT_NAME:
+        print(f"  Agent:    {AGENT_NAME}")
+        print(f"  Cycles:   {'on' if AGENT_LOG_CYCLES else 'off'}")
     print("=" * 60)
 
     tick = 0
     while True:
         tick += 1
         ts = time.strftime("%H:%M:%S")
+        command_counts = {"applied": 0, "failed": 0, "skipped": 0}
 
         if INCOMING_CHANNEL:
             data = read_incoming()
@@ -207,18 +325,53 @@ def main() -> None:
                 new = sorted([m for m in data["messages"] if m.get("offset", -1) > last],
                              key=lambda m: m.get("offset", -1))
                 for msg in new:
-                    state = handle_command(msg, state)
+                    outcome = handle_command(msg, state)
+                    if outcome in command_counts:
+                        command_counts[outcome] += 1
                     state["last_command_offset"] = int(msg.get("offset", -1))
                     save_state(state)
 
         try:
             telem = read_switch_status()
             ok = publish_telemetry("telemetry.switch_status", telem)
+            if ok and AGENT_LOG_CYCLES:
+                publish_agent_log(
+                    "bridge.cycle",
+                    {
+                        "event": "telemetry_published",
+                        "telemetry_ok": True,
+                        "topic": "telemetry.switch_status",
+                        "command_counts": command_counts,
+                        "output": telem["output"],
+                        "apower_w": telem["apower_w"],
+                        "voltage_v": telem["voltage_v"],
+                    },
+                )
+            elif not ok:
+                publish_agent_log(
+                    "bridge.telemetry_failed",
+                    {
+                        "event": "telemetry_publish_failed",
+                        "telemetry_ok": False,
+                        "topic": "telemetry.switch_status",
+                        "command_counts": command_counts,
+                    },
+                )
             print(f"[{ts}] #{tick:04d} | {'ON ' if telem['output'] else 'OFF'} | "
                   f"{telem['apower_w']:7.2f} W | {telem['voltage_v']:.1f} V | "
                   f"{'ok' if ok else 'PUBLISH-FAILED'}")
         except Exception as e:
             print(f"[{ts}] #{tick:04d} | [ERR] read telemetry: {e}", file=sys.stderr)
+            publish_agent_log(
+                "bridge.telemetry_failed",
+                {
+                    "event": "telemetry_read_failed",
+                    "telemetry_ok": False,
+                    "topic": "telemetry.switch_status",
+                    "command_counts": command_counts,
+                    "error": str(e),
+                },
+            )
 
         time.sleep(POLL_SECONDS)
 

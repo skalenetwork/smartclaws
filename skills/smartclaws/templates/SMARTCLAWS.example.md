@@ -16,8 +16,11 @@ smartclawsHome: ~/.smartclaws
 # This agent's own on-chain identity (master/bridge agents). Omit for a plain
 # controller with no agent contract.
 agent:
+  # For SmartClaws plugin `agent` targets, use `id` or `address`; `name` is
+  # display-only and may not match the registered local agent id.
   id: main
   name: Home Controller
+  address: 0x...
   outgoingChannel: 0x...   # your decision/audit log (you write here, via publishOutbound)
   incomingChannel: 0x...   # your inbox: others notify you here if granted SENDER_ROLE
 
@@ -28,10 +31,22 @@ notifiable:
     name: Air-Quality Worker
     incomingChannel: 0x...   # you write here via smartclaws_notify / `agent notify`
 
+# Optional local/off-chain tariff source. Install `smartclaws-tariff-file-source`
+# when using this block. A 120s freshness window fits human-in-the-loop demos.
+tariff:
+  skill: smartclaws-tariff-file-source
+  source: local-file
+  snapshotFile: ./state/tariff.json
+  staleAfterSeconds: 120
+
 # Every device you read or command. Install the named device skill for each.
+# Device map keys are human labels. For SmartClaws plugin calls, use `name`
+# when present, or use the explicit channel address. Do not assume the map key is
+# a registered SmartClaws device name unless it exactly matches `name`.
 devices:
   shelly-plug:
     skill: smartclaws-device-shelly-plug-s-gen3
+    name: shelly-plug-s
     label: Living Room Plug
     outgoingChannel: 0x...   # telemetry it publishes (you read)
     incomingChannel: 0x...   # commands to it (you write, if commandable)
@@ -39,9 +54,18 @@ devices:
 
   novapm:
     skill: smartclaws-device-novapm-sds011
+    name: novapm-sds011-1
     label: Air Quality Sensor
     outgoingChannel: 0x...
     incomingChannel: null    # telemetry-only hardware
+    authority: telemetry-only
+
+  thermal-sensor-1:
+    skill: smartclaws-device-thermal-room-sensor
+    name: thermal-sensor-1
+    label: Room Temperature
+    outgoingChannel: 0x...
+    incomingChannel: null
     authority: telemetry-only
 ```
 
@@ -63,11 +87,17 @@ bridge:
   stateFile: state.json    # where you persist last-handled command offset, etc.
 
 agent:
+  # For SmartClaws plugin `agent` targets, use `id` or `address`; `name` is
+  # display-only and may not match the registered local agent id.
+  id: bridge-1
+  name: Sensor Bridge
+  address: 0x...
   outgoingChannel: 0x...   # optional bridge/cycle log
 
 devices:
   novapm:
     skill: smartclaws-device-novapm-sds011
+    name: novapm-sds011-1
     label: Air Quality Sensor
     outgoingChannel: 0x...   # telemetry you publish
     incomingChannel: null    # commands you read (only in command-enabled modes)

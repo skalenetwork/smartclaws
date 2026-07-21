@@ -154,16 +154,19 @@ def write_tariff_file(payload: dict) -> None:
 
 
 def banner(day_length_s: float, cheap_max: float, expensive_min: float) -> None:
-    print("=" * 60)
-    print("  SmartClaws Tariff Simulator")
-    print("=" * 60)
-    print(f"  Day length:     {day_length_s:.0f} s  (1 day = {day_length_s:.0f}s real time)")
-    print(f"  Tick interval:  {TICK_SECONDS} s")
-    print(f"  Output file:    {TARIFF_FILE}")
-    print(f"  Tier (cheap):   <= {cheap_max:.1f} EUR/MWh")
-    print(f"  Tier (expens.): >= {expensive_min:.1f} EUR/MWh")
-    print("=" * 60)
-    print()
+    print("=" * 60, flush=True)
+    print("  SmartClaws Tariff Simulator", flush=True)
+    print("=" * 60, flush=True)
+    print(
+        f"  Day length:     {day_length_s:.0f} s  (1 day = {day_length_s:.0f}s real time)",
+        flush=True,
+    )
+    print(f"  Tick interval:  {TICK_SECONDS} s", flush=True)
+    print(f"  Output file:    {TARIFF_FILE}", flush=True)
+    print(f"  Tier (cheap):   <= {cheap_max:.1f} EUR/MWh", flush=True)
+    print(f"  Tier (expens.): >= {expensive_min:.1f} EUR/MWh", flush=True)
+    print("=" * 60, flush=True)
+    print(flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +246,8 @@ def main() -> None:
             print(
                 f"[{ts}] #{tick:05d} | sim {sim_seconds_into_day:6.1f}s | "
                 f"{spot_noisy:6.2f} EUR/MWh | tier={tier:9s} | "
-                f"ends in {ends_in if ends_in else '?'}s"
+                f"ends in {ends_in if ends_in else '?'}s",
+                flush=True,
             )
 
         time.sleep(TICK_SECONDS)

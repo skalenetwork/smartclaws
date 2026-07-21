@@ -34,12 +34,22 @@ Before running the cycle, identify:
 - **`SMARTCLAWS.md`** at the workspace root — devices, channels, which devices are
   `commandable`.
 - **Device contract skills** for every device you read or command.
+- **Optional source skills** for non-chain context such as
+  `smartclaws-tariff-file-source`, when listed in `SMARTCLAWS.md`.
 - **The SmartClaws plugin** — `smartclaws_read` / `smartclaws_publish` /
   `smartclaws_notify` / `smartclaws_wallet_info`.
 
 If `SMARTCLAWS.md` is missing or lacks a device/channel you need, **stop and run
 the `smartclaws` onboarding skill** (or ask the owner). Never invent addresses,
 device names, or authority.
+
+When calling SmartClaws plugin tools, use the device entry's `name` field or the
+explicit channel address from `SMARTCLAWS.md`. Device map keys are labels; they
+are not necessarily registered SmartClaws device names.
+
+For SmartClaws plugin `agent` targets, use the agent entry's `id` field or
+`address` from `SMARTCLAWS.md`. The `name` field is display text and may not
+resolve as a local registered agent.
 
 ## Scope of this procedure
 
@@ -68,14 +78,21 @@ reads or prints wallet/key material.
 1. Load `AGENTS.md` guidelines and `SMARTCLAWS.md` wiring.
 2. Select the device contract skills needed for the request.
 3. Read telemetry from each relevant outgoing channel with `smartclaws_read`.
-4. Validate freshness and payload shape using each device contract.
-5. Decide: act, hold, ask, or fail loud. Where the owner's guidelines are blank,
+   Prefer the explicit `outgoingChannel`; if using `device`, pass the device
+   entry's `name`, not the YAML map key.
+4. Read optional local sources, such as tariff snapshots, only when configured
+   in `SMARTCLAWS.md`; validate them against their source skill and freshness
+   window.
+5. Validate freshness and payload shape using each device contract.
+6. Decide: act, hold, ask, or fail loud. Where the owner's guidelines are blank,
    decide sensibly from conditions — don't invent constraints the owner didn't set.
-6. If acting, confirm the action is authorized by `AGENTS.md`, then publish
-   **exactly one** command with `smartclaws_publish` to the allowed incoming
-   channel. Capture the transaction hash.
-7. Publish a `decision.log` event to your agent outgoing channel (always — below).
-8. Report what happened, including transaction hashes when a publish succeeded.
+7. If acting, confirm the action is authorized by `AGENTS.md`, then publish
+   **exactly one** command with `smartclaws_publish` using the device entry's
+   `name` plus `deviceChannel: "command"`; do not write directly to the raw
+   incoming channel unless the setup explicitly tells you to. Capture the
+   transaction hash.
+8. Publish a `decision.log` event to your agent outgoing channel (always — below).
+9. Report what happened, including transaction hashes when a publish succeeded.
 
 Do not loop inside one invocation. Cadence/scheduling is an owner/operations
 choice, set in `AGENTS.md` or your own setup — not here.
@@ -85,9 +102,10 @@ choice, set in `AGENTS.md` or your own setup — not here.
 Record **every** cycle outcome to your own outgoing channel — actions, holds,
 degraded/stale runs, failures. On-chain logs are cheap and filterable; don't
 self-censor. Publish with `smartclaws_publish` using your **`agent`** target
-(this writes through the agent contract's `publishOutbound`, which your owner role
-holds — a raw channel write to the agent's own channel is rejected), topic
-`decision.log` (unless `SMARTCLAWS.md` overrides it).
+(pass `agent.id` or `agent.address`, not display `agent.name`; this writes
+through the agent contract's `publishOutbound`, which your owner role holds — a
+raw channel write to the agent's own channel is rejected), topic `decision.log`
+(unless `SMARTCLAWS.md` overrides it).
 
 Payload — a human-readable `reason` plus structured fields:
 

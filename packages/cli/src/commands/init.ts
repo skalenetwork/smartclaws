@@ -207,7 +207,7 @@ function buildConfig(
   const network = getNetwork(opts.network ?? existing?.network ?? DEFAULT_NETWORK);
   const rpcUrl = opts.rpcUrl ?? existing?.rpcUrl ?? network.rpcUrl;
   const chainId = opts.chainId ? Number(opts.chainId) : existing?.chainId || network.chainId;
-  const contractAddress = opts.contract ?? existing?.contractAddress ?? network.registryAddress;
+  const contractAddress = opts.contract || existing?.contractAddress || network.registryAddress;
   const config =
     existing ??
     createDefaultConfig(network.name, rpcUrl, chainId, contractAddress, mode, walletAddress);

@@ -21,7 +21,7 @@
     }
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:openclaw --external:openclaw/* --external:typebox --outfile=dist/index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:openclaw --external:openclaw/* --outfile=dist/index.js",
     "test": "bun test",
     "manifest": "openclaw plugins build --root . --entry ./dist/index.js",
     "manifest:check": "openclaw plugins build --root . --entry ./dist/index.js --check",

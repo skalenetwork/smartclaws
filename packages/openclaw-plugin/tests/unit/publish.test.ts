@@ -21,6 +21,7 @@ const WALLET = {
 
 const publishChannelMessage = mock(async (params) => ({ kind: "channel", ...params }));
 const publishDeviceTelemetry = mock(async (params) => ({ kind: "device", ...params }));
+const publishDeviceCommand = mock(async (params) => ({ kind: "command", ...params }));
 const publishAgentOutbound = mock(async (params) => ({ kind: "agent", ...params }));
 const publishAgentInbound = mock(async (params) => ({ kind: "inbound", ...params }));
 const resolveChannel = mock();
@@ -44,6 +45,7 @@ mock.module("@smartclaws/sdk", () => ({
   loadConfig,
   loadWallet,
   publishChannelMessage,
+  publishDeviceCommand,
   publishDeviceTelemetry,
   publishAgentOutbound,
   publishAgentInbound,
@@ -69,6 +71,7 @@ async function loadPublishSpec() {
 describe("smartclaws_publish", () => {
   beforeEach(() => {
     publishChannelMessage.mockClear();
+    publishDeviceCommand.mockClear();
     publishDeviceTelemetry.mockClear();
     publishAgentOutbound.mockClear();
     resolveChannel.mockClear();
@@ -107,6 +110,40 @@ describe("smartclaws_publish", () => {
     );
     expect(publishChannelMessage).not.toHaveBeenCalled();
     expect(result).toMatchObject({ kind: "device" });
+  });
+
+  test("publishes device commands through SmartClawsDevice.publishCommand", async () => {
+    resolveChannel.mockReturnValue({
+      channelAddress: "0x00000000000000000000000000000000000000c2",
+      device: "shelly-plug-s",
+      deviceAddress: "0x00000000000000000000000000000000000000d2",
+    });
+    const spec = await loadPublishSpec();
+
+    const result = await spec.execute(
+      {
+        device: "shelly-plug-s",
+        deviceChannel: "command",
+        topic: "command.switch.set",
+        payload: { on: true },
+        from: "master-1",
+      },
+      { smartclawsHome: "/tmp/smartclaws-test" },
+      {},
+    );
+
+    expect(publishDeviceCommand).toHaveBeenCalledWith(
+      {
+        deviceAddress: "0x00000000000000000000000000000000000000d2",
+        topic: "command.switch.set",
+        payload: { on: true },
+        from: "master-1",
+      },
+      CONFIG,
+      WALLET,
+    );
+    expect(publishDeviceTelemetry).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ kind: "command" });
   });
 
   test("keeps direct channel targets on channel publishing", async () => {
