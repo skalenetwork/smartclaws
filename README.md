@@ -8,6 +8,11 @@ agent decisions.
 The project includes Solidity contracts, a TypeScript CLI and SDK, an OpenClaw
 plugin, operational skills, and a small set of hardware/simulation scripts.
 
+For a visual walkthrough — the control loop, the on-chain objects, permissions,
+and the optional Pairpoint signing and private-inference layers — open
+[`ARCHITECTURE.html`](ARCHITECTURE.html) in a browser. GitHub shows that file as
+source rather than rendering it, so view it locally or through GitHub Pages.
+
 ## How It Fits
 
 SmartClaws models an IoT deployment as a few durable on-chain objects:

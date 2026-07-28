@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SmartClaws &#8212; How It Works</title>
+<meta name="description" content="How the SmartClaws on-chain IoT stack works: the control loop, the on-chain objects, permissions, and the optional Pairpoint and private-inference layers." />
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body, h1, h2, h3, h4, p, figure, figcaption, pre, ol, ul { margin: 0; }
+  svg { max-width: 100%; }
+</style>
+<style>
+  :root {
+    --paper:   #F1F4F3;
+    --card:    #FFFFFF;
+    --card-2:  #F7F9F8;
+    --ink:     #0F1618;
+    --ink-2:   #4C5C60;
+    --ink-3:   #77878A;
+    --line:    #D3DCDA;
+    --line-2:  #E4EAE8;
+    --teal:    #0C6A6F;
+    --ochre:   #A15C15;
+    --indigo:  #464BA0;
+    --deny:    #B0453B;
+    --shadow:  0 1px 2px rgba(15, 22, 24, .05), 0 10px 28px -20px rgba(15, 22, 24, .4);
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Charter, Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "IBM Plex Mono", Menlo, "DejaVu Sans Mono", Consolas, monospace;
+
+    --w: 1080px;
+    --prose: 64ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:  #0C1214;
+      --card:   #141A1C;
+      --card-2: #182022;
+      --ink:    #E2EAE8;
+      --ink-2:  #9AACAF;
+      --ink-3:  #71858A;
+      --line:   #27322F;
+      --line-2: #1E2829;
+      --teal:   #58BCC1;
+      --ochre:  #E09E56;
+      --indigo: #9498EE;
+      --deny:   #E0796D;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -20px rgba(0, 0, 0, .9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:  #0C1214;
+    --card:   #141A1C;
+    --card-2: #182022;
+    --ink:    #E2EAE8;
+    --ink-2:  #9AACAF;
+    --ink-3:  #71858A;
+    --line:   #27322F;
+    --line-2: #1E2829;
+    --teal:   #58BCC1;
+    --ochre:  #E09E56;
+    --indigo: #9498EE;
+    --deny:   #E0796D;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -20px rgba(0, 0, 0, .9);
+  }
+
+  :root[data-theme="light"] {
+    --paper:   #F1F4F3;
+    --card:    #FFFFFF;
+    --card-2:  #F7F9F8;
+    --ink:     #0F1618;
+    --ink-2:   #4C5C60;
+    --ink-3:   #77878A;
+    --line:    #D3DCDA;
+    --line-2:  #E4EAE8;
+    --teal:    #0C6A6F;
+    --ochre:   #A15C15;
+    --indigo:  #464BA0;
+    --deny:    #B0453B;
+    --shadow:  0 1px 2px rgba(15, 22, 24, .05), 0 10px 28px -20px rgba(15, 22, 24, .4);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: var(--w);
+    margin: 0 auto;
+    padding: clamp(26px, 5vw, 64px) clamp(16px, 4vw, 40px) 88px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(34px, 5vw, 54px);
+  }
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: clamp(22px, 3vw, 30px);
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0;
+  }
+
+  .masthead h1 {
+    font-size: clamp(31px, 5.4vw, 50px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0;
+    max-width: 20ch;
+  }
+
+  .masthead p.standfirst {
+    max-width: var(--prose);
+    font-size: clamp(17px, 2vw, 20px);
+    color: var(--ink-2);
+    margin: 0;
+  }
+
+  section.chapter { display: flex; flex-direction: column; gap: 16px; }
+
+  .chapter > h2 {
+    font-size: clamp(22px, 3vw, 29px);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+    display: flex;
+    align-items: baseline;
+    gap: 13px;
+    flex-wrap: wrap;
+  }
+
+  .chapter > h2 .num {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .12em;
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+
+  .chapter > p { max-width: var(--prose); margin: 0; color: var(--ink-2); }
+  .chapter > p strong { color: var(--ink); font-weight: 600; }
+
+  a { color: var(--teal); text-underline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .84em;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    border-radius: 2px;
+    padding: 1px 5px;
+  }
+
+  /* ---------- figure plate ---------- */
+
+  .figure {
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .figure__head {
+    display: flex;
+    align-items: baseline;
+    gap: 11px;
+    flex-wrap: wrap;
+    padding: 11px 15px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .figure__head b { color: var(--ink); font-weight: 600; }
+
+  .scroller { overflow-x: auto; padding: clamp(12px, 2vw, 20px); }
+  .scroller svg { display: block; width: 100%; height: auto; }
+
+  .scroller--wide svg { min-width: 780px; }
+  .scroller--mid svg  { min-width: 640px; }
+
+  .figure__foot {
+    border-top: 1px solid var(--line-2);
+    background: var(--card-2);
+    padding: 13px 15px;
+  }
+
+  /* ---------- svg shared styling ---------- */
+
+  .s-panel  { fill: var(--card-2); stroke: var(--line); stroke-width: 1; }
+  .s-card   { fill: var(--card); stroke: var(--line); stroke-width: 1; }
+  .s-chain  { fill: color-mix(in srgb, var(--indigo) 7%, var(--card)); stroke: color-mix(in srgb, var(--indigo) 32%, var(--line)); stroke-width: 1; }
+  .s-dash   { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 4 4; }
+
+  .s-cap-teal   { fill: var(--teal); }
+  .s-cap-ochre  { fill: var(--ochre); }
+  .s-cap-indigo { fill: var(--indigo); }
+
+  text { font-family: var(--mono); fill: var(--ink); }
+  .t-title { font-size: 13.5px; font-weight: 600; }
+  .t-big   { font-size: 16px; font-weight: 600; }
+  .t-body  { font-size: 11.5px; fill: var(--ink-2); }
+  .t-small { font-size: 10.5px; fill: var(--ink-3); }
+  .t-cap   { font-size: 10px; letter-spacing: .14em; fill: var(--ink-3); }
+  .t-num   { font-size: 11px; font-weight: 600; fill: var(--ink-2); }
+  .t-teal  { fill: var(--teal); }
+  .t-ochre { fill: var(--ochre); }
+  .t-deny  { fill: var(--deny); }
+
+  .wire       { fill: none; stroke-width: 1.8; stroke-linecap: round; }
+  .wire--teal { stroke: var(--teal); }
+  .wire--ochre{ stroke: var(--ochre); }
+  .wire--deny { stroke: var(--deny); }
+  .wire--read { stroke-dasharray: 5 4.5; }
+  .wire--thin { stroke: var(--ink-3); stroke-width: 1.2; stroke-dasharray: 3 4; }
+
+  .ah-teal   { fill: var(--teal); }
+  .ah-ochre  { fill: var(--ochre); }
+  .ah-grey   { fill: var(--ink-3); }
+  .ah-deny   { fill: var(--deny); }
+
+  .ico { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .ico--teal   { color: var(--teal); }
+  .ico--ochre  { color: var(--ochre); }
+  .ico--indigo { color: var(--indigo); }
+  .ico--grey   { color: var(--ink-3); }
+  .ico--deny   { color: var(--deny); }
+
+  .badge { fill: var(--card); stroke: var(--line); stroke-width: 1; }
+  .tick  { opacity: .5; }
+
+  /* ---------- step key under fig 1 ---------- */
+
+  .key {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 9px 22px;
+  }
+
+  .key li {
+    display: flex;
+    gap: 9px;
+    align-items: baseline;
+    font-size: 14px;
+    color: var(--ink-2);
+    line-height: 1.4;
+  }
+
+  .key li b {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    width: 19px;
+    height: 19px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: var(--card);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin: 14px 0 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--line-2);
+    list-style: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: .03em;
+  }
+
+  .legend li { display: flex; align-items: center; gap: 7px; }
+  .legend svg { display: block; }
+
+  .caption { margin: 0; font-size: 14.5px; color: var(--ink-2); line-height: 1.5; }
+  .caption strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- package slabs ---------- */
+
+  .slabs { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+
+  .slab {
+    flex: 1 1 190px;
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--accent, var(--ink-3));
+    background: var(--card);
+    border-radius: 3px;
+    padding: 12px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: var(--shadow);
+  }
+
+  .slab--teal   { --accent: var(--teal); }
+  .slab--ochre  { --accent: var(--ochre); }
+  .slab--indigo { --accent: var(--indigo); }
+
+  .slab b { font-family: var(--mono); font-size: 12px; letter-spacing: -.01em; }
+  .slab span { font-size: 13.5px; color: var(--ink-2); line-height: 1.4; }
+
+  .colophon {
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    line-height: 1.8;
+    letter-spacing: .03em;
+  }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">SmartClaws · architecture at a glance</p>
+    <h1>Sensors, agents, and a record neither can rewrite.</h1>
+    <p class="standfirst">
+      An IoT stack where the SKALE blockchain replaces the cloud broker. Devices publish
+      what they measured, controllers publish what they decided, and the permissions live
+      in the contracts.
+    </p>
+  </header>
+
+  <!-- ============================ FIG 1 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">01</span>The whole system, one loop</h2>
+    <p>
+      Every message between hardware and controller crosses the chain. Nothing is exchanged
+      off the record, and no component talks to another directly.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 1</b> <span>One control loop, end to end</span></figcaption>
+      <div class="scroller scroller--wide">
+        <svg viewBox="0 0 1000 540" role="img" aria-label="Diagram: hardware and its bridge agent on the left, the SKALE chain in the centre holding four append-only channels, the master agent and people on the right. Telemetry flows left to right across the chain; commands flow right to left back across it.">
+          <defs>
+            <marker id="f1-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-teal" />
+            </marker>
+            <marker id="f1-ochre" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-ochre" />
+            </marker>
+
+            <g id="ico-plug">
+              <rect x="2.5" y="5.5" width="13" height="10" rx="2.5" class="ico" />
+              <path d="M6 5.5 V2 M12 5.5 V2" class="ico" />
+            </g>
+            <g id="ico-therm">
+              <path d="M9 3.5 V11" class="ico" />
+              <circle cx="9" cy="13.5" r="3.2" class="ico" />
+            </g>
+            <g id="ico-air">
+              <path d="M3 6.5 H11.5 M3 10 H14 M3 13.5 H9" class="ico" />
+            </g>
+            <g id="ico-chip">
+              <rect x="3.5" y="3.5" width="11" height="11" rx="2" class="ico" />
+              <path d="M7 1.5 V3.5 M11 1.5 V3.5 M7 14.5 V16.5 M11 14.5 V16.5 M1.5 7 H3.5 M1.5 11 H3.5 M14.5 7 H16.5 M14.5 11 H16.5" class="ico" />
+            </g>
+            <g id="ico-brain">
+              <circle cx="9" cy="9" r="6" class="ico" />
+              <path d="M9 3.2 V14.8 M4 6.4 H14 M4 11.6 H14" class="ico" />
+            </g>
+            <g id="ico-key">
+              <circle cx="5" cy="9" r="3.2" class="ico" />
+              <path d="M8.2 9 H16 M13.5 9 V12 M15.8 9 V11.5" class="ico" />
+            </g>
+            <g id="ico-person">
+              <circle cx="9" cy="6" r="3" class="ico" />
+              <path d="M3.5 15.5 C3.5 11.5 14.5 11.5 14.5 15.5" class="ico" />
+            </g>
+            <g id="ico-screen">
+              <rect x="2" y="3.5" width="14" height="10" rx="1.6" class="ico" />
+              <path d="M6.5 16.5 H11.5" class="ico" />
+            </g>
+            <g id="ico-term">
+              <rect x="2" y="3.5" width="14" height="11" rx="1.6" class="ico" />
+              <path d="M5.5 7.5 L8 9.5 L5.5 11.5 M10 11.8 H12.8" class="ico" />
+            </g>
+          </defs>
+
+          <!-- column captions -->
+          <text class="t-cap" x="24" y="30">ON SITE</text>
+          <text class="t-cap" x="500" y="30" text-anchor="middle">THE SKALE CHAIN</text>
+          <text class="t-cap" x="976" y="30" text-anchor="end">ANYWHERE</text>
+
+          <!-- ---------- left: hardware ---------- -->
+          <rect x="24" y="52" width="220" height="136" rx="5" class="s-card" />
+          <rect x="24" y="52" width="220" height="3" rx="1.5" class="s-cap-teal" />
+          <text class="t-cap" x="40" y="74">HARDWARE</text>
+
+          <use href="#ico-plug" class="ico--teal" x="40" y="84" width="18" height="18" />
+          <text class="t-body" x="68" y="97" style="fill:var(--ink)">shelly-plug-s</text>
+          <use href="#ico-therm" class="ico--teal" x="40" y="112" width="18" height="18" />
+          <text class="t-body" x="68" y="125" style="fill:var(--ink)">thermal-sensor-1</text>
+          <use href="#ico-air" class="ico--teal" x="40" y="140" width="18" height="18" />
+          <text class="t-body" x="68" y="153" style="fill:var(--ink)">novapm-sds011</text>
+
+          <!-- hardware <-> bridge -->
+          <path d="M98 192 V222" class="wire wire--teal wire--read" marker-end="url(#f1-teal)" />
+          <path d="M170 222 V192" class="wire wire--ochre" marker-end="url(#f1-ochre)" />
+          <circle cx="74" cy="207" r="9" class="badge" /><text class="t-num" x="74" y="211" text-anchor="middle">1</text>
+          <circle cx="194" cy="207" r="9" class="badge" /><text class="t-num" x="194" y="211" text-anchor="middle">6</text>
+
+          <!-- ---------- left: bridge agent ---------- -->
+          <rect x="24" y="228" width="220" height="172" rx="5" class="s-card" />
+          <rect x="24" y="228" width="220" height="3" rx="1.5" class="s-cap-ochre" />
+          <use href="#ico-chip" class="ico--ochre" x="40" y="248" width="18" height="18" />
+          <text class="t-title" x="66" y="261">bridge-agent</text>
+
+          <rect x="40" y="284" width="164" height="24" rx="3" class="s-panel" />
+          <use href="#ico-key" class="ico--teal" x="46" y="287" width="18" height="18" />
+          <text class="t-small" x="68" y="300" style="fill:var(--teal)">PUBLISHER on device</text>
+
+          <text class="t-small" x="40" y="336">one per device · runs on</text>
+          <text class="t-small" x="40" y="352">site, e.g. a Raspberry Pi</text>
+          <text class="t-small" x="40" y="380">no inbound ports</text>
+
+          <!-- ---------- centre: chain ---------- -->
+          <rect x="390" y="52" width="220" height="428" rx="6" class="s-chain" />
+          <text class="t-big" x="500" y="86" text-anchor="middle" style="fill:var(--indigo)">SKALE</text>
+          <text class="t-small" x="500" y="104" text-anchor="middle">append-only · signed</text>
+
+          <text class="t-cap" x="406" y="138">DEVICE CHANNELS</text>
+          <g>
+            <rect x="406" y="148" width="188" height="34" rx="3" class="s-card" />
+            <rect x="406" y="148" width="4" height="34" rx="2" class="s-cap-teal" />
+            <text class="t-small" x="420" y="164" style="fill:var(--ink)">outgoing · telemetry</text>
+            <g class="tick" style="fill:var(--teal)">
+              <rect x="420" y="170" width="9" height="5" rx="1" /><rect x="433" y="170" width="9" height="5" rx="1" />
+              <rect x="446" y="170" width="9" height="5" rx="1" /><rect x="459" y="170" width="9" height="5" rx="1" />
+              <rect x="472" y="170" width="9" height="5" rx="1" /><rect x="485" y="170" width="9" height="5" rx="1" />
+            </g>
+          </g>
+          <g>
+            <rect x="406" y="190" width="188" height="34" rx="3" class="s-card" />
+            <rect x="406" y="190" width="4" height="34" rx="2" class="s-cap-ochre" />
+            <text class="t-small" x="420" y="206" style="fill:var(--ink)">incoming · commands</text>
+            <g class="tick" style="fill:var(--ochre)">
+              <rect x="420" y="212" width="9" height="5" rx="1" /><rect x="433" y="212" width="9" height="5" rx="1" />
+              <rect x="446" y="212" width="9" height="5" rx="1" />
+            </g>
+          </g>
+
+          <text class="t-cap" x="406" y="262">AGENT CHANNELS</text>
+          <g>
+            <rect x="406" y="272" width="188" height="34" rx="3" class="s-card" />
+            <rect x="406" y="272" width="4" height="34" rx="2" class="s-cap-teal" />
+            <text class="t-small" x="420" y="288" style="fill:var(--ink)">outgoing · decision log</text>
+            <g class="tick" style="fill:var(--teal)">
+              <rect x="420" y="294" width="9" height="5" rx="1" /><rect x="433" y="294" width="9" height="5" rx="1" />
+              <rect x="446" y="294" width="9" height="5" rx="1" /><rect x="459" y="294" width="9" height="5" rx="1" />
+            </g>
+          </g>
+          <g>
+            <rect x="406" y="314" width="188" height="34" rx="3" class="s-card" />
+            <rect x="406" y="314" width="4" height="34" rx="2" class="s-cap-ochre" />
+            <text class="t-small" x="420" y="330" style="fill:var(--ink)">incoming · inbox</text>
+            <g class="tick" style="fill:var(--ochre)">
+              <rect x="420" y="336" width="9" height="5" rx="1" /><rect x="433" y="336" width="9" height="5" rx="1" />
+            </g>
+          </g>
+
+          <rect x="406" y="392" width="188" height="60" rx="3" class="s-dash" />
+          <text class="t-small" x="500" y="416" text-anchor="middle" style="fill:var(--ink)">REGISTRY</text>
+          <text class="t-small" x="500" y="434" text-anchor="middle">indexes all of the above</text>
+
+          <!-- ---------- crossing lanes ---------- -->
+          <path d="M248 244 H384" class="wire wire--teal" marker-end="url(#f1-teal)" />
+          <text class="t-small" x="316" y="228" text-anchor="middle" style="fill:var(--teal)">publishes reading</text>
+          <circle cx="316" cy="244" r="9" class="badge" /><text class="t-num" x="316" y="248" text-anchor="middle">2</text>
+
+          <path d="M616 244 H752" class="wire wire--teal wire--read" marker-end="url(#f1-teal)" />
+          <text class="t-small" x="684" y="228" text-anchor="middle" style="fill:var(--teal)">reads it</text>
+          <circle cx="684" cy="244" r="9" class="badge" /><text class="t-num" x="684" y="248" text-anchor="middle">3</text>
+
+          <path d="M752 370 H616" class="wire wire--ochre" marker-end="url(#f1-ochre)" />
+          <text class="t-small" x="684" y="354" text-anchor="middle" style="fill:var(--ochre)">publishes command</text>
+          <circle cx="684" cy="370" r="9" class="badge" /><text class="t-num" x="684" y="374" text-anchor="middle">4</text>
+
+          <path d="M384 370 H248" class="wire wire--ochre wire--read" marker-end="url(#f1-ochre)" />
+          <text class="t-small" x="316" y="354" text-anchor="middle" style="fill:var(--ochre)">reads it</text>
+          <circle cx="316" cy="370" r="9" class="badge" /><text class="t-num" x="316" y="374" text-anchor="middle">5</text>
+
+          <!-- ---------- right: master ---------- -->
+          <rect x="756" y="228" width="220" height="172" rx="5" class="s-card" />
+          <rect x="756" y="228" width="220" height="3" rx="1.5" class="s-cap-ochre" />
+          <use href="#ico-brain" class="ico--ochre" x="772" y="248" width="18" height="18" />
+          <text class="t-title" x="798" y="261">master-agent</text>
+
+          <rect x="772" y="284" width="164" height="24" rx="3" class="s-panel" />
+          <use href="#ico-key" class="ico--ochre" x="778" y="287" width="18" height="18" />
+          <text class="t-small" x="800" y="300" style="fill:var(--ochre)">MASTER on device</text>
+
+          <text class="t-small" x="772" y="336">reads telemetry, applies the</text>
+          <text class="t-small" x="772" y="352">owner's policy, decides,</text>
+          <text class="t-small" x="772" y="368">then logs why — on-chain</text>
+
+          <!-- master <-> people -->
+          <path d="M826 404 V424" class="wire wire--teal wire--read" marker-end="url(#f1-teal)" />
+          <path d="M906 424 V404" class="wire wire--ochre" marker-end="url(#f1-ochre)" />
+
+          <!-- ---------- right: people ---------- -->
+          <rect x="756" y="430" width="220" height="86" rx="5" class="s-panel" />
+          <text class="t-cap" x="772" y="452">PEOPLE</text>
+          <use href="#ico-screen" class="ico--grey" x="772" y="466" width="18" height="18" />
+          <text class="t-small" x="794" y="479">dashboard</text>
+          <use href="#ico-term" class="ico--grey" x="872" y="466" width="18" height="18" />
+          <text class="t-small" x="894" y="479">CLI</text>
+          <use href="#ico-person" class="ico--grey" x="772" y="490" width="18" height="18" />
+          <text class="t-small" x="794" y="503">chat — ask it why</text>
+        </svg>
+      </div>
+
+      <div class="figure__foot">
+        <ol class="key">
+          <li><b>1</b><span>The bridge reads its sensor over the local network.</span></li>
+          <li><b>2</b><span>It publishes the reading to the device's channel.</span></li>
+          <li><b>3</b><span>The controller reads that channel.</span></li>
+          <li><b>4</b><span>It publishes a command — and its reasoning.</span></li>
+          <li><b>5</b><span>The bridge reads the command addressed to it.</span></li>
+          <li><b>6</b><span>It switches the relay, then publishes the new state.</span></li>
+        </ol>
+        <ul class="legend">
+          <li>
+            <svg width="34" height="10" aria-hidden="true"><path d="M1 5 H30" class="wire wire--teal" /><path d="M28 1.5 L33 5 L28 8.5 Z" class="ah-teal" /></svg>
+            writes a signed message
+          </li>
+          <li>
+            <svg width="34" height="10" aria-hidden="true"><path d="M1 5 H30" class="wire wire--teal wire--read" /><path d="M28 1.5 L33 5 L28 8.5 Z" class="ah-teal" /></svg>
+            reads
+          </li>
+          <li>
+            <svg width="12" height="10" aria-hidden="true"><rect x="0" y="2" width="12" height="6" rx="2" style="fill:var(--teal)" /></svg>
+            readings &amp; telemetry
+          </li>
+          <li>
+            <svg width="12" height="10" aria-hidden="true"><rect x="0" y="2" width="12" height="6" rx="2" style="fill:var(--ochre)" /></svg>
+            commands &amp; decisions
+          </li>
+        </ul>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============================ FIG 2 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">02</span>What sits on the chain</h2>
+    <p>
+      Four kinds of object, all created through one registry. Every device and every agent
+      owns exactly two channels — one it writes, one that is written to it.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 2</b> <span>On-chain objects</span></figcaption>
+      <div class="scroller scroller--mid">
+        <svg viewBox="0 0 900 400" role="img" aria-label="Diagram: the registry branches into a device group holding devices, and into agents. Each device has an outgoing telemetry channel written by PUBLISHER and an incoming command channel written by MASTER. Each agent has an outgoing decision log written by PUBLISHER and an incoming inbox written by SENDER.">
+          <defs>
+            <g id="f2-eye">
+              <path d="M1.5 9 C4 4.5 14 4.5 16.5 9 C14 13.5 4 13.5 1.5 9 Z" class="ico" />
+              <circle cx="9" cy="9" r="2.4" class="ico" />
+            </g>
+          </defs>
+
+          <!-- registry -->
+          <rect x="330" y="16" width="240" height="58" rx="5" class="s-chain" />
+          <text class="t-title" x="450" y="42" text-anchor="middle" style="fill:var(--indigo)">SmartClaws registry</text>
+          <text class="t-small" x="450" y="60" text-anchor="middle">one contract per network</text>
+
+          <!-- branch -->
+          <path d="M450 74 V96" fill="none" stroke="var(--line)" />
+          <path d="M215 120 V96 H685 V120" fill="none" stroke="var(--line)" />
+
+          <!-- left: group -->
+          <rect x="90" y="120" width="250" height="46" rx="4" class="s-panel" />
+          <text class="t-body" x="215" y="148" text-anchor="middle" style="fill:var(--ink)">device group &#8220;home&#8221;</text>
+          <path d="M215 166 V196" stroke="var(--line)" fill="none" />
+
+          <rect x="60" y="196" width="310" height="160" rx="5" class="s-card" />
+          <rect x="60" y="196" width="310" height="3" rx="1.5" class="s-cap-teal" />
+          <text class="t-cap" x="78" y="218">DEVICE</text>
+          <text class="t-title" x="78" y="240">shelly-plug-s</text>
+
+          <rect x="78" y="254" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="78" y="254" width="4" height="42" rx="2" class="s-cap-teal" />
+          <text class="t-small" x="94" y="271" style="fill:var(--ink)">outgoing — telemetry</text>
+          <text class="t-small" x="94" y="287">written by PUBLISHER</text>
+
+          <rect x="78" y="302" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="78" y="302" width="4" height="42" rx="2" class="s-cap-ochre" />
+          <text class="t-small" x="94" y="319" style="fill:var(--ink)">incoming — commands</text>
+          <text class="t-small" x="94" y="335">written by MASTER</text>
+
+          <!-- right: agent -->
+          <rect x="560" y="120" width="250" height="46" rx="4" class="s-panel" />
+          <text class="t-body" x="685" y="148" text-anchor="middle" style="fill:var(--ink)">agent identity</text>
+          <path d="M685 166 V196" stroke="var(--line)" fill="none" />
+
+          <rect x="530" y="196" width="310" height="160" rx="5" class="s-card" />
+          <rect x="530" y="196" width="310" height="3" rx="1.5" class="s-cap-ochre" />
+          <text class="t-cap" x="548" y="218">AGENT</text>
+          <text class="t-title" x="548" y="240">master-agent</text>
+
+          <rect x="548" y="254" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="548" y="254" width="4" height="42" rx="2" class="s-cap-teal" />
+          <text class="t-small" x="564" y="271" style="fill:var(--ink)">outgoing — decision log</text>
+          <text class="t-small" x="564" y="287">written by PUBLISHER</text>
+
+          <rect x="548" y="302" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="548" y="302" width="4" height="42" rx="2" class="s-cap-ochre" />
+          <text class="t-small" x="564" y="319" style="fill:var(--ink)">incoming — inbox</text>
+          <text class="t-small" x="564" y="335">written by SENDER — another agent</text>
+
+          <!-- read note -->
+          <use href="#f2-eye" class="ico--grey" x="376" y="374" width="18" height="18" />
+          <text class="t-small" x="402" y="387">every channel is readable by anyone, no permission needed</text>
+        </svg>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============================ FIG 3 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">03</span>What a channel is</h2>
+    <p>
+      A log that only grows. Writing is gated by role; reading is open to all. Every message
+      carries the same small envelope, whatever the device.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 3</b> <span>Anatomy of a channel</span></figcaption>
+      <div class="scroller scroller--mid">
+        <svg viewBox="0 0 900 250" role="img" aria-label="Diagram: a role gate on the left, then a row of message blocks appended left to right, with the newest message expanded to show its envelope fields — timestamp, device, topic, payload.">
+          <defs>
+            <marker id="f3-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-grey" />
+            </marker>
+            <g id="f3-lock">
+              <rect x="3" y="8" width="12" height="8.5" rx="2" class="ico" />
+              <path d="M6 8 V5.5 A3 3 0 0 1 12 5.5 V8" class="ico" />
+            </g>
+            <g id="f3-eye">
+              <path d="M1.5 9 C4 4.5 14 4.5 16.5 9 C14 13.5 4 13.5 1.5 9 Z" class="ico" />
+              <circle cx="9" cy="9" r="2.4" class="ico" />
+            </g>
+          </defs>
+
+          <!-- append direction -->
+          <path d="M132 38 H770" class="wire wire--thin" marker-end="url(#f3-grey)" />
+          <text class="t-small" x="440" y="26" text-anchor="middle">appended in order — never edited, never reordered</text>
+
+          <!-- gate -->
+          <use href="#f3-lock" class="ico--ochre" x="42" y="76" width="20" height="20" />
+          <text class="t-small" x="52" y="116" text-anchor="middle" style="fill:var(--ochre)">role</text>
+          <text class="t-small" x="52" y="130" text-anchor="middle" style="fill:var(--ochre)">gate</text>
+          <path d="M104 56 V140" stroke="var(--line)" stroke-dasharray="4 4" fill="none" />
+
+          <!-- blocks -->
+          <g>
+            <rect x="132" y="58" width="84" height="62" rx="4" class="s-panel" />
+            <rect x="144" y="80" width="46" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+            <rect x="144" y="92" width="60" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+          </g>
+          <g>
+            <rect x="226" y="58" width="84" height="62" rx="4" class="s-panel" />
+            <rect x="238" y="80" width="52" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+            <rect x="238" y="92" width="40" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+          </g>
+          <g>
+            <rect x="320" y="58" width="84" height="62" rx="4" class="s-panel" />
+            <rect x="332" y="80" width="58" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+            <rect x="332" y="92" width="46" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+          </g>
+          <g>
+            <rect x="414" y="58" width="84" height="62" rx="4" class="s-panel" />
+            <rect x="426" y="80" width="44" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+            <rect x="426" y="92" width="56" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+          </g>
+          <g>
+            <rect x="508" y="58" width="84" height="62" rx="4" class="s-panel" />
+            <rect x="520" y="80" width="56" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+            <rect x="520" y="92" width="38" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+          </g>
+          <g>
+            <rect x="602" y="58" width="84" height="62" rx="4" class="s-panel" />
+            <rect x="614" y="80" width="50" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+            <rect x="614" y="92" width="58" height="5" rx="2.5" style="fill:var(--ink-3)" opacity=".35" />
+          </g>
+
+          <!-- newest block, highlighted -->
+          <rect x="696" y="54" width="88" height="70" rx="4" class="s-card" style="stroke:var(--teal)" />
+          <rect x="696" y="54" width="88" height="3" rx="1.5" class="s-cap-teal" />
+          <text class="t-small" x="740" y="80" text-anchor="middle" style="fill:var(--teal)">newest</text>
+          <text class="t-small" x="740" y="100" text-anchor="middle" style="fill:var(--teal)">message</text>
+
+          <!-- read side -->
+          <use href="#f3-eye" class="ico--grey" x="812" y="70" width="18" height="18" />
+          <text class="t-small" x="821" y="104" text-anchor="middle">read by</text>
+          <text class="t-small" x="821" y="118" text-anchor="middle">anyone</text>
+
+          <!-- leader to envelope -->
+          <path d="M740 124 V146 H612" stroke="var(--teal)" stroke-dasharray="4 4" fill="none" />
+
+          <!-- envelope card -->
+          <rect x="288" y="146" width="324" height="88" rx="4" class="s-card" />
+          <text class="t-cap" x="304" y="166">THE ENVELOPE — always these four things</text>
+          <text class="t-small" x="304" y="188" style="fill:var(--ink)">ts &#183; dev</text>
+          <text class="t-small" x="392" y="188">when, and which device</text>
+          <text class="t-small" x="304" y="206" style="fill:var(--ink)">topic</text>
+          <text class="t-small" x="392" y="206">telemetry.thermal_status</text>
+          <text class="t-small" x="304" y="224" style="fill:var(--ink)">p</text>
+          <text class="t-small" x="392" y="224">{ &quot;temperature_c&quot;: 21.4 }</text>
+        </svg>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          The <strong>topic</strong> is the contract between hardware and automation. A Shelly plug
+          publishes <code>telemetry.switch_status</code> and accepts <code>command.switch.set</code>;
+          an air-quality sensor publishes <code>telemetry.air_quality</code> and accepts nothing.
+        </p>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============================ FIG 4 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">04</span>Who holds which key</h2>
+    <p>
+      Authority isn't a setting an agent can talk its way around — it's a role granted by the
+      owner's wallet. Without it, the transaction is rejected by the contract.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 4</b> <span>Permissions, as granted keys</span></figcaption>
+      <div class="scroller scroller--mid">
+        <svg viewBox="0 0 900 340" role="img" aria-label="Diagram: the owner grants a PUBLISHER key to the bridge agent and a MASTER key to the master agent. The bridge writes to the device's telemetry channel, the master writes to its command channel, and any wallet without a role has its transaction reverted.">
+          <defs>
+            <marker id="f4-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-teal" />
+            </marker>
+            <marker id="f4-ochre" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-ochre" />
+            </marker>
+            <marker id="f4-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-grey" />
+            </marker>
+            <marker id="f4-deny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-deny" />
+            </marker>
+            <g id="f4-key">
+              <circle cx="5" cy="9" r="3.2" class="ico" />
+              <path d="M8.2 9 H16 M13.5 9 V12 M15.8 9 V11.5" class="ico" />
+            </g>
+            <g id="f4-owner">
+              <circle cx="9" cy="6" r="3" class="ico" />
+              <path d="M3.5 15.5 C3.5 11.5 14.5 11.5 14.5 15.5" class="ico" />
+            </g>
+          </defs>
+
+          <!-- owner -->
+          <rect x="370" y="16" width="160" height="44" rx="5" class="s-card" />
+          <use href="#f4-owner" class="ico--grey" x="388" y="29" width="18" height="18" />
+          <text class="t-body" x="414" y="43" style="fill:var(--ink)">the owner</text>
+
+          <path d="M370 40 C 250 40, 210 92, 152 122" class="wire wire--thin" marker-end="url(#f4-grey)" />
+          <path d="M530 40 C 650 40, 700 150, 742 178" class="wire wire--thin" marker-end="url(#f4-grey)" />
+          <text class="t-small" x="252" y="62">grants</text>
+          <text class="t-small" x="614" y="66">grants</text>
+
+          <!-- device -->
+          <rect x="330" y="86" width="240" height="152" rx="5" class="s-chain" />
+          <text class="t-cap" x="348" y="108">DEVICE CONTRACT</text>
+          <text class="t-title" x="348" y="130">shelly-plug-s</text>
+
+          <rect x="348" y="142" width="204" height="40" rx="3" class="s-card" />
+          <rect x="348" y="142" width="4" height="40" rx="2" class="s-cap-teal" />
+          <text class="t-small" x="364" y="159" style="fill:var(--ink)">telemetry channel</text>
+          <text class="t-small" x="364" y="174">needs PUBLISHER</text>
+
+          <rect x="348" y="190" width="204" height="40" rx="3" class="s-card" />
+          <rect x="348" y="190" width="4" height="40" rx="2" class="s-cap-ochre" />
+          <text class="t-small" x="364" y="207" style="fill:var(--ink)">command channel</text>
+          <text class="t-small" x="364" y="222">needs MASTER</text>
+
+          <!-- bridge holder -->
+          <rect x="40" y="122" width="196" height="46" rx="5" class="s-card" />
+          <use href="#f4-key" class="ico--teal" x="56" y="136" width="18" height="18" />
+          <text class="t-body" x="80" y="150" style="fill:var(--ink)">bridge-agent</text>
+          <path d="M240 162 H344" class="wire wire--teal" marker-end="url(#f4-teal)" />
+          <text class="t-small" x="292" y="152" text-anchor="middle" style="fill:var(--teal)">PUBLISHER</text>
+
+          <!-- master holder -->
+          <rect x="664" y="178" width="196" height="46" rx="5" class="s-card" />
+          <use href="#f4-key" class="ico--ochre" x="680" y="192" width="18" height="18" />
+          <text class="t-body" x="704" y="206" style="fill:var(--ink)">master-agent</text>
+          <path d="M660 210 H556" class="wire wire--ochre" marker-end="url(#f4-ochre)" />
+          <text class="t-small" x="608" y="200" text-anchor="middle" style="fill:var(--ochre)">MASTER</text>
+
+          <!-- denied -->
+          <rect x="330" y="278" width="240" height="44" rx="5" class="s-panel" />
+          <text class="t-body" x="450" y="305" text-anchor="middle">any other wallet</text>
+          <path d="M450 274 V248" class="wire wire--deny" marker-end="url(#f4-deny)" />
+          <circle cx="512" cy="264" r="10" style="fill:var(--card)" stroke="var(--deny)" />
+          <path d="M508 260 L516 268 M516 260 L508 268" stroke="var(--deny)" stroke-width="1.6" stroke-linecap="round" fill="none" />
+          <text class="t-small t-deny" x="530" y="268">no role — the transaction reverts</text>
+        </svg>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          Grants are per device and per role, so a compromised bridge can publish noise on one
+          channel — it cannot command the fleet. The two tools that sign transactions stay
+          disabled until the owner enables them for that agent.
+        </p>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============================ FIG 5 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">05</span>Optional — proving <em>which device</em> spoke</h2>
+    <p>
+      A wallet proves who was <em>allowed</em> to write. It doesn't prove which physical machine
+      produced the reading. Where an agent runs on a host with a <strong>Vodafone Pairpoint</strong>
+      authenticated SIM, the network vouches for that hardware's identity and it can sign its own
+      data — so the payload can carry a signature alongside the reading.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 5</b> <span>SIM-signed messages via Pairpoint</span></figcaption>
+      <div class="scroller scroller--mid">
+        <svg viewBox="0 0 900 250" role="img" aria-label="Diagram: an agent running on a host with a Pairpoint-authenticated SIM signs its reading, producing an envelope containing the reading verbatim plus a signature blob. That envelope is published on-chain as the message payload, and any reader can verify it — a valid signature means trusted, a missing or bad one is flagged unverified.">
+          <defs>
+            <marker id="f5-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-teal" />
+            </marker>
+            <g id="f5-sim">
+              <path d="M3.5 2.5 H11 L15.5 7 V15.5 H3.5 Z" class="ico" />
+              <path d="M6.5 8.5 H12.5 V13 H6.5 Z M9.5 8.5 V13" class="ico" />
+            </g>
+            <g id="f5-lock">
+              <rect x="3.5" y="8.5" width="11" height="7.5" rx="1.8" class="ico" />
+              <path d="M6.2 8.5 V6.2 A2.8 2.8 0 0 1 11.8 6.2 V8.5" class="ico" />
+            </g>
+            <g id="f5-ok">
+              <circle cx="9" cy="9" r="6.8" class="ico" />
+              <path d="M5.8 9.2 L8 11.4 L12.2 6.8" class="ico" />
+            </g>
+            <g id="f5-no">
+              <circle cx="9" cy="9" r="6.8" class="ico" />
+              <path d="M6.4 6.4 L11.6 11.6 M11.6 6.4 L6.4 11.6" class="ico" />
+            </g>
+          </defs>
+
+          <text class="t-cap" x="20" y="44">WHERE THE AGENT RUNS</text>
+          <text class="t-cap" x="250" y="44">1 &#183; SIGN</text>
+          <text class="t-cap" x="500" y="44">2 &#183; PUBLISH</text>
+          <text class="t-cap" x="700" y="44">3 &#183; VERIFY</text>
+
+          <!-- stage A : the host -->
+          <rect x="20" y="64" width="190" height="130" rx="5" class="s-card" />
+          <use href="#f5-sim" class="ico--ochre" x="38" y="80" width="18" height="18" />
+          <text class="t-title" x="64" y="93">bridge-agent</text>
+          <rect x="38" y="110" width="154" height="24" rx="3" class="s-panel" />
+          <use href="#f5-sim" class="ico--ochre" x="44" y="113" width="18" height="18" />
+          <text class="t-small" x="66" y="126" style="fill:var(--ochre)">authenticated SIM</text>
+          <text class="t-small" x="38" y="156">identity vouched for</text>
+          <text class="t-small" x="38" y="172">by the mobile network</text>
+
+          <path d="M214 129 H246" class="wire wire--teal" marker-end="url(#f5-teal)" />
+
+          <!-- stage B : the signed envelope -->
+          <rect x="250" y="64" width="210" height="150" rx="5" class="s-card" />
+          <use href="#f5-lock" class="ico--grey" x="418" y="76" width="18" height="18" />
+          <text class="t-cap" x="266" y="88">SIGNED ENVELOPE</text>
+
+          <rect x="266" y="98" width="178" height="50" rx="3" class="s-panel" />
+          <rect x="266" y="98" width="4" height="50" rx="2" class="s-cap-teal" />
+          <text class="t-small" x="280" y="118" style="fill:var(--ink)">body</text>
+          <text class="t-small" x="280" y="134">the reading, verbatim</text>
+
+          <rect x="266" y="156" width="178" height="46" rx="3" class="s-panel" />
+          <text class="t-small" x="280" y="176" style="fill:var(--ink)">blob</text>
+          <text class="t-small" x="280" y="192">the SIM's signature</text>
+
+          <path d="M464 129 H496" class="wire wire--teal" marker-end="url(#f5-teal)" />
+
+          <!-- stage C : on chain -->
+          <rect x="500" y="64" width="160" height="130" rx="5" class="s-chain" />
+          <text class="t-cap" x="516" y="88">ON-CHAIN</text>
+          <rect x="516" y="98" width="128" height="32" rx="3" class="s-card" />
+          <rect x="516" y="98" width="4" height="32" rx="2" class="s-cap-teal" />
+          <g class="tick" style="fill:var(--teal)">
+            <rect x="530" y="110" width="9" height="5" rx="1" /><rect x="543" y="110" width="9" height="5" rx="1" />
+            <rect x="556" y="110" width="9" height="5" rx="1" /><rect x="569" y="110" width="9" height="5" rx="1" />
+          </g>
+          <text class="t-small" x="516" y="156">the envelope is</text>
+          <text class="t-small" x="516" y="172">the message payload</text>
+
+          <path d="M664 129 H696" class="wire wire--teal" marker-end="url(#f5-teal)" />
+
+          <!-- stage D : verification -->
+          <rect x="700" y="64" width="180" height="130" rx="5" class="s-card" />
+          <text class="t-title" x="718" y="93">any reader</text>
+          <use href="#f5-ok" class="ico--teal" x="716" y="106" width="18" height="18" />
+          <text class="t-small" x="740" y="119" style="fill:var(--teal)">valid — trusted</text>
+          <use href="#f5-no" class="ico--deny" x="716" y="140" width="18" height="18" />
+          <text class="t-small" x="740" y="151" style="fill:var(--deny)">missing or bad —</text>
+          <text class="t-small" x="740" y="166" style="fill:var(--deny)">flagged UNVERIFIED</text>
+        </svg>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          Two independent identities, doing different jobs: the <strong>on-chain role</strong> decides
+          who may write, the <strong>SIM signature</strong> says which device produced the data. It is
+          opt-in per deployment and lives in the agent's skills — the contracts and the CLI are
+          unchanged, and messages published before it was switched on read back as unverified rather
+          than being silently trusted.
+        </p>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============================ FIG 6 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">06</span>Optional — where the agent <em>thinks</em></h2>
+    <p>
+      The chain records what an agent did; where it reasons is a separate choice, and it's yours —
+      model, provider and harness. With a <strong>private inference</strong> provider — we recommend
+      <strong>NEAR AI Cloud</strong> — the model runs inside a hardware enclave, so prompts and
+      responses can't be read by the host or the provider, and aren't retained for training.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 6</b> <span>Private inference, and its one catch</span></figcaption>
+      <div class="scroller scroller--mid">
+        <svg viewBox="0 0 900 270" role="img" aria-label="Diagram: the agent sends prompts to a model running inside a hardware TEE enclave, where the host, GPU operator and provider cannot read them and nothing is retained for training. A dashed warning branch shows a gateway failing over to a third-party model outside the enclave, which carries no privacy guarantee.">
+          <defs>
+            <marker id="f6-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-teal" />
+            </marker>
+            <marker id="f6-deny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-deny" />
+            </marker>
+            <g id="f6-brain">
+              <circle cx="9" cy="9" r="6" class="ico" />
+              <path d="M9 3.2 V14.8 M4 6.4 H14 M4 11.6 H14" class="ico" />
+            </g>
+            <g id="f6-lock">
+              <rect x="3.5" y="8.5" width="11" height="7.5" rx="1.8" class="ico" />
+              <path d="M6.2 8.5 V6.2 A2.8 2.8 0 0 1 11.8 6.2 V8.5" class="ico" />
+            </g>
+            <g id="f6-warn">
+              <path d="M9 2.8 L16.2 15.6 H1.8 Z" class="ico" />
+              <path d="M9 7.4 V11 M9 12.9 V13.3" class="ico" />
+            </g>
+          </defs>
+
+          <text class="t-cap" x="20" y="40">THE AGENT</text>
+          <text class="t-cap" x="280" y="40">PRIVATE INFERENCE</text>
+          <text class="t-cap" x="660" y="40">IF IT FAILS OVER</text>
+
+          <!-- agent -->
+          <rect x="20" y="60" width="170" height="140" rx="5" class="s-card" />
+          <use href="#f6-brain" class="ico--ochre" x="38" y="76" width="18" height="18" />
+          <text class="t-title" x="64" y="89">master-agent</text>
+          <text class="t-small" x="38" y="122">it reasons over your</text>
+          <text class="t-small" x="38" y="138">telemetry, your policy</text>
+          <text class="t-small" x="38" y="154">and its own history</text>
+          <text class="t-small" x="38" y="180" style="fill:var(--ochre)">sensitive by nature</text>
+
+          <path d="M196 130 H272" class="wire wire--teal" marker-start="url(#f6-teal)" marker-end="url(#f6-teal)" />
+          <text class="t-small" x="234" y="118" text-anchor="middle" style="fill:var(--teal)">prompt</text>
+
+          <!-- enclave -->
+          <rect x="280" y="52" width="320" height="196" rx="6" class="s-dash" style="fill:color-mix(in srgb, var(--teal) 6%, var(--card)); stroke:color-mix(in srgb, var(--teal) 45%, var(--line))" />
+          <use href="#f6-lock" class="ico--teal" x="556" y="62" width="18" height="18" />
+          <text class="t-cap" x="298" y="76" style="fill:var(--teal)">HARDWARE ENCLAVE &#183; TEE</text>
+
+          <rect x="298" y="88" width="284" height="62" rx="4" class="s-card" />
+          <rect x="298" y="88" width="284" height="3" rx="1.5" class="s-cap-teal" />
+          <text class="t-title" x="316" y="114">the model</text>
+          <text class="t-small" x="316" y="134">NEAR AI Cloud &#183; recommended</text>
+
+          <rect x="298" y="160" width="284" height="72" rx="4" class="s-panel" />
+          <use href="#f6-lock" class="ico--grey" x="312" y="172" width="18" height="18" />
+          <text class="t-small" x="338" y="184">the host, the GPU operator and</text>
+          <text class="t-small" x="338" y="200">the provider cannot read this</text>
+          <text class="t-small" x="338" y="222">nothing is kept for training</text>
+
+          <!-- failover branch -->
+          <path d="M604 150 H654" class="wire wire--deny wire--read" marker-end="url(#f6-deny)" />
+
+          <rect x="660" y="106" width="220" height="88" rx="5" class="s-card" />
+          <use href="#f6-warn" class="ico--deny" x="678" y="120" width="18" height="18" />
+          <text class="t-small" x="704" y="133" style="fill:var(--deny)">a third-party model</text>
+          <text class="t-small" x="678" y="158">outside the enclave — no</text>
+          <text class="t-small" x="678" y="174">privacy guarantee at all</text>
+        </svg>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          The catch worth knowing: a provider's gateway can quietly fall back to an ordinary model
+          when an enclave is busy, and the prompt goes with it. SmartClaws ships a check that reports
+          which endpoints are configured <strong>and which actually served recent turns</strong> — the
+          two diverge exactly when it matters. It confirms what the configuration claims; hardware
+          attestation and per-message proof are further steps beyond that.
+        </p>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============================ FIG 7 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">07</span>What ships</h2>
+    <p>
+      One shared service layer under three ways to reach it, so what an operator does by hand
+      and what an agent does automatically stay in step.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 7</b> <span>The software</span></figcaption>
+      <div class="scroller">
+        <div class="slabs">
+          <div class="slab slab--indigo">
+            <b>contracts</b>
+            <span>Registry, groups, devices, agents, channels — on SKALE.</span>
+          </div>
+          <div class="slab slab--teal">
+            <b>sdk</b>
+            <span>Wallets, reads, publishes, role grants, backups. Everything else calls this.</span>
+          </div>
+          <div class="slab slab--ochre">
+            <b>cli</b>
+            <span>The operator's tool: set up, register, grant.</span>
+          </div>
+          <div class="slab slab--ochre">
+            <b>agent plugin</b>
+            <span>Four tools an agent can call: wallet, read, publish, notify.</span>
+          </div>
+          <div class="slab slab--ochre">
+            <b>dashboard</b>
+            <span>Browse groups, devices, channels, messages.</span>
+          </div>
+        </div>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          Alongside these ship <strong>skills</strong> — short written contracts that teach an agent
+          one job: how to run a bridge cycle, how to run a control cycle, and what each device's
+          topics mean. A new device type is a skill plus a bridge, not a protocol change — and both
+          optional layers above arrive the same way, without touching the contracts.
+        </p>
+      </div>
+    </figure>
+  </section>
+
+  <p class="colophon">
+    SKALE Base Testnet · chain ID 324705682 · Solidity 0.8.28 · TypeScript SDK, CLI, OpenClaw plugin<br>
+    Device names, topics and payloads are the ones the repository ships.
+  </p>
+
+</div>
+
+</body>
+</html>
