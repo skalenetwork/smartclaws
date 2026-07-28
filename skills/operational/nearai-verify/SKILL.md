@@ -60,9 +60,9 @@ attestation report and validates it. Says nothing about any individual message.
 - **Needs:**
   | Tool | Enables | If missing |
   | --- | --- | --- |
-  | `python3` stdlib | nonce freshness, `report_data` binding | always available |
+  | `python3` stdlib | response nonce echo | always available |
   | `cryptography` | TLS key-binding check | that one check is skipped |
-  | `dcap-qvl` | Intel TDX quote verification | that one check is skipped |
+  | `dcap-qvl` | Intel TDX quote verification and signer/nonce binding | those checks are skipped |
   | network to `api.trustedservices.intel.com` | Intel quote collateral | quote check is skipped |
   | network to `nras.attestation.nvidia.com` | NVIDIA GPU attestation | GPU check is skipped |
 
@@ -112,8 +112,11 @@ Conflating them is the worst thing this skill could do.
 - **nonce freshness** — the report echoes a 32-byte nonce generated this run, so
   it isn't a replay. A cached attestation is a replayed attestation; the script
   never caches reports.
-- **report_data binding** — the quote's `report_data` equals
-  `actions_hash || nonce`, tying the hardware quote to this request.
+- **signer + nonce binding** — after `dcap-qvl` cryptographically verifies the
+  Intel quote, the verifier extracts that verified quote's `report_data`. Its
+  first 32 bytes must bind the reported signing address (and the TLS
+  fingerprint when requested), and its final 32 bytes must equal this run's
+  nonce. A similarly named field elsewhere in the API response is not trusted.
 - **TLS key binding** — SHA256 of the served certificate's SubjectPublicKeyInfo
   matches `tls_cert_fingerprint` in the report. This is the check that proves
   **our** TLS session terminates inside the attested enclave rather than at a

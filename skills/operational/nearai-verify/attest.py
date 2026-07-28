@@ -29,6 +29,7 @@ import sys
 import sysconfig
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 CONFIG = Path(os.environ.get("OPENCLAW_CONFIG_PATH", Path.home() / ".openclaw" / "openclaw.json"))
 VENV = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "nearai-verify" / "venv"
@@ -79,7 +80,8 @@ def capabilities() -> dict:
     qvl_ok, qvl_v = probe("dcap_qvl")
     return {
         "cryptography": {"ok": crypto_ok, "detail": crypto_v, "enables": "TLS key-binding check"},
-        "dcap_qvl": {"ok": qvl_ok, "detail": qvl_v, "enables": "Intel TDX quote verification"},
+        "dcap_qvl": {"ok": qvl_ok, "detail": qvl_v,
+                     "enables": "Intel TDX quote + signer/nonce binding verification"},
         "intel_pcs": {"ok": net_ok(), "detail": "api.trustedservices.intel.com:443",
                       "enables": "Intel quote collateral download"},
         "nvidia_nras": {"ok": net_ok("nras.attestation.nvidia.com"),
@@ -155,7 +157,8 @@ def cmd_doctor(as_json: bool) -> int:
     print("      Needs  : an OpenClaw provider plugin (wrapStreamFn) - not built yet.")
     print("               A skill cannot see raw request/response bytes.")
     print()
-    print("  Checks that always run (stdlib): nonce freshness, report_data binding.")
+    print("  Stdlib check: response nonce echo.")
+    print("  Verified quote report_data binding requires dcap-qvl.")
     return 0
 
 
@@ -225,20 +228,108 @@ def spki_fingerprint(cert_der: bytes) -> str | None:
     return hashlib.sha256(spki).hexdigest()
 
 
-def verify_quote(quote_hex: str) -> tuple[bool | None, str]:
-    """(passed, detail). None = could not run."""
+def extract_verified_report_data(result: Any) -> str | None:
+    """Extract TD report_data from dcap-qvl's cryptographically verified result."""
+    try:
+        payload = json.loads(result.to_json())
+    except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+    report = payload.get("report")
+    if not isinstance(report, dict):
+        return None
+
+    # dcap-qvl serializes quote report variants as, for example,
+    # {"report": {"TD10": {"report_data": "..."}}}. Accept the field-name
+    # spelling used by older releases without searching outside the verified
+    # quote report, where an untrusted lookalike field could exist.
+    candidates = [report, *(v for v in report.values() if isinstance(v, dict))]
+    for candidate in candidates:
+        for key in ("report_data", "reportdata"):
+            value = candidate.get(key)
+            if isinstance(value, str):
+                return value.removeprefix("0x").lower()
+    return None
+
+
+def _decode_hex(value: object, name: str, expected_bytes: int) -> bytes:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} is missing")
+    raw = value.removeprefix("0x")
+    if len(raw) != expected_bytes * 2 or not re.fullmatch(r"[0-9a-fA-F]+", raw):
+        raise ValueError(f"{name} must be exactly {expected_bytes} bytes of hex")
+    return bytes.fromhex(raw)
+
+
+def verify_report_data_binding(
+    report_data_hex: str,
+    attestation: dict,
+    request_nonce: str,
+) -> tuple[bool, str]:
+    """Prove the verified TDX quote binds this signer and fresh request nonce."""
+    try:
+        report_data = _decode_hex(report_data_hex, "verified quote report_data", 64)
+        nonce = _decode_hex(request_nonce, "request nonce", 32)
+        algo = str(attestation.get("signing_algo", "ecdsa")).lower()
+        if algo == "ecdsa":
+            signing_address = _decode_hex(attestation.get("signing_address"),
+                                          "ECDSA signing address", 20)
+        elif algo == "ed25519":
+            signing_address = _decode_hex(attestation.get("signing_address"),
+                                          "Ed25519 signing address", 32)
+        else:
+            raise ValueError(f"unsupported signing algorithm: {algo}")
+
+        fingerprint_value = attestation.get("tls_cert_fingerprint")
+        if fingerprint_value is not None:
+            fingerprint = _decode_hex(fingerprint_value, "TLS certificate fingerprint", 32)
+            expected_signer = hashlib.sha256(signing_address + fingerprint).digest()
+            signer_label = "signer + TLS fingerprint"
+        else:
+            expected_signer = signing_address.ljust(32, b"\x00")
+            signer_label = "signer"
+    except ValueError as e:
+        return False, str(e)
+
+    signer_ok = secrets.compare_digest(report_data[:32], expected_signer)
+    nonce_ok = secrets.compare_digest(report_data[32:], nonce)
+    if signer_ok and nonce_ok:
+        return True, f"verified quote binds {signer_label} and fresh nonce"
+
+    failed = []
+    if not signer_ok:
+        failed.append(f"{signer_label} mismatch")
+    if not nonce_ok:
+        failed.append("nonce mismatch (possible replay)")
+    return False, ", ".join(failed)
+
+
+def verify_quote(quote_hex: str) -> tuple[bool | None, str, str | None]:
+    """(passed, detail, verified report_data). None = could not run."""
     try:
         import asyncio
         import dcap_qvl
     except ImportError:
-        return None, "dcap-qvl not installed"
+        return None, "dcap-qvl not installed", None
     try:
         r = asyncio.run(dcap_qvl.get_collateral_and_verify(bytes.fromhex(quote_hex)))
         status = str(getattr(r, "status", "?"))
         adv = list(getattr(r, "advisory_ids", []) or [])
-        return status.lower() in ("uptodate", "ok"), f"TCB {status}" + (f", advisories {adv}" if adv else "")
+        report_data = extract_verified_report_data(r)
+        return (status.lower() in ("uptodate", "ok"),
+                f"TCB {status}" + (f", advisories {adv}" if adv else ""),
+                report_data)
     except Exception as e:
-        return False, f"{type(e).__name__}: {e}"[:160]
+        return False, f"{type(e).__name__}: {e}"[:160], None
+
+
+def nvidia_verdict_passed(verdict: object) -> bool:
+    """Accept only explicit NVIDIA pass values; truthiness is not a verdict."""
+    if verdict is True:
+        return True
+    if isinstance(verdict, str):
+        return verdict.strip().lower() in ("pass", "passed", "true")
+    return False
 
 
 def verify_gpu(nvidia_payload: str, nonce: str) -> tuple[bool | None, str]:
@@ -270,8 +361,9 @@ def verify_gpu(nvidia_payload: str, nonce: str) -> tuple[bool | None, str]:
     verdict = claims.get("x-nvidia-overall-att-result")
     gpus = len(claims.get("submods", {}))
     arch = payload.get("arch", "?")
-    return bool(verdict), (f"{arch}, {gpus} GPU(s) attested by NVIDIA"
-                           if verdict else f"NVIDIA verdict: {verdict}")
+    passed = nvidia_verdict_passed(verdict)
+    return passed, (f"{arch}, {gpus} GPU(s) attested by NVIDIA"
+                    if passed else f"NVIDIA verdict did not pass: {verdict!r}")
 
 
 def cmd_attest(as_json: bool, endpoint: str | None) -> int:
@@ -290,13 +382,6 @@ def cmd_attest(as_json: bool, endpoint: str | None) -> int:
     checks.append(("nonce freshness", echoed == nonce,
                    "echoed our nonce" if echoed == nonce else f"expected {nonce[:12]}…, got {str(echoed)[:12]}…"))
 
-    cm = rep.get("compose_manager_attestation", {})
-    if cm:
-        expect = f"{cm.get('actions_hash','')}{cm.get('nonce','')}"
-        got = cm.get("report_data", "")
-        checks.append(("report_data binding", got == expect,
-                       "actions_hash||nonce matches quote report_data" if got == expect else "mismatch"))
-
     reported_fp = rep.get("tls_cert_fingerprint")
     live_fp = spki_fingerprint(cert_der)
     if live_fp is None:
@@ -308,8 +393,21 @@ def cmd_attest(as_json: bool, endpoint: str | None) -> int:
                        "our TLS session terminates inside the attested TEE" if live_fp == reported_fp
                        else "served key does not match the attested one"))
 
-    q_ok, q_detail = verify_quote(rep.get("intel_quote", ""))
+    q_ok, q_detail, verified_report_data = verify_quote(rep.get("intel_quote", ""))
     checks.append(("Intel TDX quote", q_ok, q_detail if q_ok is not None else q_detail + " - see --doctor"))
+    if q_ok is True and verified_report_data is not None:
+        binding_ok, binding_detail = verify_report_data_binding(
+            verified_report_data, rep, nonce)
+        checks.append(("signer + nonce binding", binding_ok, binding_detail))
+    elif q_ok is True:
+        checks.append(("signer + nonce binding", None,
+                       "dcap-qvl verified the quote but did not expose TD report_data"))
+    elif q_ok is False:
+        checks.append(("signer + nonce binding", False,
+                       "cannot trust report_data because the Intel quote did not verify"))
+    else:
+        checks.append(("signer + nonce binding", None,
+                       "needs a verified Intel quote - see --doctor"))
 
     g_ok, g_detail = verify_gpu(rep.get("nvidia_payload", ""), nonce)
     checks.append(("NVIDIA GPU attestation", g_ok, g_detail))
