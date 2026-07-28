@@ -15,6 +15,7 @@ is published to ClawHub on its own and installed with `clawhub install <slug>`.
 | `smartclaws-device-thermal-room-sensor` | `devices/thermal-room-sensor/` | yes | Device contract: telemetry-only room thermal sensor. |
 | `smartclaws-device-novapm-sds011` | `devices/novapm-sds011/` | yes | Device contract: NovaPM / SDS011 air-quality sensor. |
 | `smartclaws-tariff-file-source` | `sources/tariff-file-source/` | no | Local tariff snapshot contract for master agents. |
+| `nearai-verify` | `operational/nearai-verify/` | no | Check whether the agent's model endpoints are NEAR AI TEE endpoints. |
 
 Every plugin-backed skill except `smartclaws` declares
 `metadata.openclaw.requires.config: ["plugins.entries.smartclaws"]`, so it loads
@@ -22,6 +23,10 @@ only when the SmartClaws plugin is configured. The `smartclaws` onboarding skill
 is the exception — it runs *before* the plugin exists in order to help install it.
 `smartclaws-tariff-file-source` is also an exception because it describes a
 local/off-chain file source, not a SmartClaws plugin tool.
+
+`nearai-verify` is independent of SmartClaws entirely — it inspects OpenClaw's
+own model configuration and gateway logs, and is useful to any OpenClaw user
+running against NEAR AI Cloud.
 
 ## How an agent uses these
 

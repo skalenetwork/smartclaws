@@ -190,6 +190,7 @@ clawhub install smartclaws-master-agent
 clawhub install smartclaws-bridge-agent
 clawhub install smartclaws-device-shelly-plug-s-gen3
 clawhub install smartclaws-device-novapm-sds011
+clawhub install nearai-verify
 ```
 
 Use `smartclaws` first for onboarding. Then install one role skill
