@@ -4,9 +4,10 @@ description: >
   Check whether this agent is talking to a NEAR AI Cloud TEE endpoint or to an
   ordinary one, and cryptographically attest that endpoint. Reports which models
   the chain uses, which ones actually served recent turns, warns when a fallback
-  sends prompts outside the enclave, and verifies the Intel TDX quote. Trigger
-  when asked "am I private", "is this a TEE", "prove it", "which model answered
-  that", or before handling sensitive data.
+  sends prompts outside the enclave, verifies the Intel TDX quote, and uses the
+  nearai-verify OpenClaw plugin for message-level proof. Trigger when asked "am
+  I private", "is this a TEE", "prove it", "verify your latest response",
+  "which model answered that", or before handling sensitive data.
 license: LGPL-3.0-or-later
 metadata:
   openclaw:
@@ -37,6 +38,41 @@ Two paths, and they are **not** equally private:
   `google/*`) are proxied upstream and get no TEE guarantee at all.**
 
 So "using NEAR" does not mean "private". The model matters as much as the host.
+
+## Install and update
+
+Install the skill:
+
+```bash
+clawhub install nearai-verify
+```
+
+Levels 1 and 2 use the scripts bundled with this skill. Level 3 additionally
+requires the NEAR AI Verify OpenClaw plugin:
+
+```bash
+openclaw plugins install clawhub:nearai-verify-openclaw-plugin
+openclaw gateway restart
+openclaw plugins inspect nearai-verify --runtime
+```
+
+The ClawHub package is named `nearai-verify-openclaw-plugin`; its OpenClaw
+runtime/config id is `nearai-verify`. A message saying those names differ is
+expected.
+
+To update an existing installation:
+
+```bash
+clawhub update nearai-verify
+openclaw plugins install --force clawhub:nearai-verify-openclaw-plugin
+openclaw gateway restart
+```
+
+The plugin reads `NEAR_AI_API_KEY` through the configured `nearai` provider. A
+completion is eligible for Level 3 only when its model uses an
+`openai-completions` route with a direct
+`https://*.completions.near.ai/...` base URL. Gateway and non-NEAR routes are
+reported as skipped, never proven.
 
 ## The three levels
 
@@ -76,11 +112,51 @@ counts against usage. Run it as often as you like.
 
 ### Level 3 — PROVEN
 
-**Proves this specific message was signed inside that TEE.** Not built yet.
-Requires an OpenClaw provider plugin using `createStreamFn`: verification hashes
-the exact request and response bytes, and a skill never sees those. If asked for
-message-level proof, say plainly that it isn't available and that level 2 is the
-ceiling today.
+**Proves this specific message was signed inside that TEE.** Requires the
+`nearai-verify-openclaw-plugin`; the skill alone cannot reach Level 3. The
+plugin owns eligible direct-completions transports, hashes the exact request and
+streamed response bytes, verifies the message signature, and binds its recovered
+signer to a freshly verified Intel TDX quote. Verification runs outside the
+model and never trusts the model's claim about where it ran.
+
+The plugin verifies asynchronously and keeps bounded results in memory for the
+current OpenClaw process. Results are session-scoped and are cleared when the
+plugin is disabled, reloaded, or the gateway restarts.
+
+### Using Level 3
+
+For natural-language requests, use these read-only agent tools:
+
+| User intent | Tool call |
+| --- | --- |
+| “List the responses you can verify.” | `nearai_list_chat_ids` |
+| “Verify your latest response.” | `nearai_verify` with `selector: "latest"` |
+| “Verify chat ID `<id>`.” | `nearai_verify` with `selector: "<id>"` |
+
+When asked for message-level verification:
+
+1. Call `nearai_verify` with `latest` unless the user supplied a chat ID.
+2. If the user needs to choose a result, call `nearai_list_chat_ids` and present
+   the available IDs, newest first.
+3. Report the plugin's evidence level and overall status exactly. `PROVEN`
+   requires `PASS`; never rewrite `ATTESTED`, `CLAIMED`, `FAIL`, or `SKIP` as
+   proven.
+4. If no matching result exists, say that no settled, session-scoped plugin
+   record is available. Verification is asynchronous, so suggest retrying once.
+   After a gateway restart, old in-memory records cannot be recovered.
+5. If the route was skipped or no plugin record becomes available, use Levels 1
+   and 2 for configuration and endpoint evidence, but state plainly that they do
+   not prove the individual message.
+
+The deterministic human interface remains available in any supported chat:
+
+```text
+/nearai-verify latest
+/nearai-verify <chat_id>
+```
+
+Tool and slash-command results deliberately omit request bodies, response
+bodies, and API keys.
 
 ## Missing tools are findings, not failures
 
