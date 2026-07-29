@@ -64,18 +64,37 @@ type OpenAICompletionsOptions = NonNullable<
   Parameters<typeof buildOpenAICompletionsParams>[2]
 >;
 
+function toOpenAIReasoning(
+  reasoning: unknown,
+): OpenAICompletionsOptions["reasoning"] {
+  switch (reasoning) {
+    case "minimal":
+    case "low":
+    case "medium":
+    case "high":
+    case "xhigh":
+      return reasoning;
+    case "max":
+      return "xhigh";
+    default:
+      return undefined;
+  }
+}
+
 /**
- * The generic stream API calls its top reasoning level `max`; the OpenAI
- * completions builder calls the same level `xhigh`.
+ * The generic stream API includes `off` and calls its top reasoning level
+ * `max`. The OpenAI completions builder represents `off` by omitting the field
+ * and calls the top level `xhigh`.
  */
 function toOpenAICompletionsOptions(
   options: SimpleStreamOptions | undefined,
 ): OpenAICompletionsOptions | undefined {
   if (!options) return undefined;
-  return {
-    ...options,
-    reasoning: options.reasoning === "max" ? "xhigh" : options.reasoning,
-  };
+  const { reasoning, ...rest } = options;
+  const openAIReasoning = toOpenAIReasoning(reasoning);
+  return openAIReasoning === undefined
+    ? rest
+    : { ...rest, reasoning: openAIReasoning };
 }
 
 /**

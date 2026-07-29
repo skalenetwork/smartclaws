@@ -94,6 +94,7 @@ describe("NEAR AI verified transport integration", () => {
     const stream = streamFn(model, context, {
       apiKey: "current-key",
       sessionId: "session-1",
+      reasoning: "off",
       headers: {
         Authorization: "stale-key",
         "Content-Type": "text/plain",
@@ -121,6 +122,9 @@ describe("NEAR AI verified transport integration", () => {
     const requestPayload: unknown = JSON.parse(
       decoder.decode(requestBytes),
     );
+    expect(
+      isRecord(requestPayload) && "reasoning_effort" in requestPayload,
+    ).toBe(false);
     expect(requestPayload).toMatchObject({
       stream: true,
       integration_marker: true,
