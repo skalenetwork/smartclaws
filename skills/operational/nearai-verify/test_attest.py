@@ -6,8 +6,11 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import sys
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).with_name("attest.py")
@@ -18,17 +21,31 @@ SPEC.loader.exec_module(attest)
 
 
 class FakeVerifiedReport:
-    def __init__(self, report_data: str):
-        self.status = "UpToDate"
-        self.advisory_ids = []
+    def __init__(
+        self,
+        report_data: str,
+        *,
+        status: str = "UpToDate",
+        platform_status: str | None = "UpToDate",
+        qe_status: str | None = "UpToDate",
+    ):
         self._report_data = report_data
+        self._status = status
+        self._platform_status = platform_status
+        self._qe_status = qe_status
 
     def to_json(self) -> str:
-        return json.dumps({
-            "status": self.status,
-            "advisory_ids": self.advisory_ids,
+        payload = {
+            "status": self._status,
+            "advisory_ids": [],
             "report": {"TD10": {"report_data": self._report_data}},
-        })
+        }
+        if self._platform_status is not None:
+            payload["platform_status"] = {
+                "status": self._platform_status, "advisory_ids": []}
+        if self._qe_status is not None:
+            payload["qe_status"] = {"status": self._qe_status, "advisory_ids": []}
+        return json.dumps(payload)
 
 
 class ReportDataBindingTests(unittest.TestCase):
@@ -120,6 +137,70 @@ class NvidiaVerdictTests(unittest.TestCase):
         self.assertTrue(attest.nvidia_verdict_passed("PASS"))
         self.assertTrue(attest.nvidia_verdict_passed("true"))
         self.assertFalse(attest.nvidia_verdict_passed("warning"))
+
+
+class IntelQuotePolicyTests(unittest.TestCase):
+    report_data = "00" * 64
+
+    @staticmethod
+    def quote(vendor_id: bytes = attest.INTEL_QE_VENDOR_ID) -> bytes:
+        quote = bytearray(attest.DCAP_QUOTE_HEADER_LEN)
+        quote[
+            attest.QE_VENDOR_ID_OFFSET:
+            attest.QE_VENDOR_ID_OFFSET + len(vendor_id)
+        ] = vendor_id
+        return bytes(quote)
+
+    def verify(self, report: FakeVerifiedReport, quote: bytes | None = None):
+        async def get_collateral_and_verify(_quote: bytes):
+            return report
+
+        fake_module = types.SimpleNamespace(
+            get_collateral_and_verify=get_collateral_and_verify)
+        with mock.patch.dict(sys.modules, {"dcap_qvl": fake_module}):
+            return attest.verify_quote((quote or self.quote()).hex())
+
+    def test_accepts_intel_quote_when_all_verified_statuses_are_current(self):
+        passed, detail, _ = self.verify(FakeVerifiedReport(self.report_data))
+        self.assertTrue(passed)
+        self.assertIn("overall UpToDate", detail)
+        self.assertIn("platform UpToDate", detail)
+        self.assertIn("QE UpToDate", detail)
+
+    def test_rejects_non_passing_qe_status(self):
+        passed, detail, _ = self.verify(
+            FakeVerifiedReport(self.report_data, qe_status="OutOfDate"))
+        self.assertFalse(passed)
+        self.assertIn("QE=OutOfDate", detail)
+
+    def test_rejects_non_passing_platform_status(self):
+        passed, detail, _ = self.verify(
+            FakeVerifiedReport(self.report_data, platform_status="Revoked"))
+        self.assertFalse(passed)
+        self.assertIn("platform=Revoked", detail)
+
+    def test_skips_when_verified_qe_status_is_unavailable(self):
+        passed, detail, _ = self.verify(
+            FakeVerifiedReport(self.report_data, qe_status=None))
+        self.assertIsNone(passed)
+        self.assertIn("missing QE TCB status", detail)
+
+    def test_rejects_non_intel_qe_vendor_id(self):
+        passed, detail, _ = self.verify(
+            FakeVerifiedReport(self.report_data), self.quote(b"\xaa" * 16))
+        self.assertFalse(passed)
+        self.assertIn("unexpected QE Vendor ID", detail)
+
+    def test_rejects_truncated_quote_header(self):
+        passed, detail, _ = self.verify(
+            FakeVerifiedReport(self.report_data), b"\x01")
+        self.assertFalse(passed)
+        self.assertIn("shorter than", detail)
+
+
+class DependencyFloorTests(unittest.TestCase):
+    def test_dcap_qvl_floor_includes_critical_qe_identity_patch(self):
+        self.assertIn("dcap-qvl>=0.3.9", attest.EXTRAS)
 
 
 if __name__ == "__main__":

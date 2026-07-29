@@ -77,7 +77,7 @@ counts against usage. Run it as often as you like.
 ### Level 3 — PROVEN
 
 **Proves this specific message was signed inside that TEE.** Not built yet.
-Requires an OpenClaw provider plugin using `wrapStreamFn`: verification hashes
+Requires an OpenClaw provider plugin using `createStreamFn`: verification hashes
 the exact request and response bytes, and a skill never sees those. If asked for
 message-level proof, say plainly that it isn't available and that level 2 is the
 ceiling today.
@@ -126,9 +126,11 @@ Conflating them is the worst thing this skill could do.
   verification is skipped on purpose — a TEE makes its own TLS key and need not
   be CA-signed, so trust comes from the quote and this binding, not from a
   certificate authority.
-- **Intel TDX quote** — the quote validates against Intel PCS collateral, with
-  its TCB status reported. `UpToDate` is good; anything else is worth surfacing.
-  This covers the **CPU and the confidential VM**.
+- **Intel TDX quote** — the quote validates against Intel PCS collateral. The
+  aggregate, platform, and QE TCB statuses must all be `UpToDate`, and the quote
+  header must carry Intel's QE Vendor ID. A missing status is skipped; any
+  non-passing status or vendor mismatch fails. This covers the **CPU and the
+  confidential VM**.
 - **NVIDIA GPU attestation** — the GPU evidence is submitted to NVIDIA's
   attestation service, which returns a signed verdict. This covers the **GPU
   that actually holds the weights and your activations**. The evidence carries

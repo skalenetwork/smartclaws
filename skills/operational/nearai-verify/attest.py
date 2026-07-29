@@ -33,9 +33,12 @@ from typing import Any
 
 CONFIG = Path(os.environ.get("OPENCLAW_CONFIG_PATH", Path.home() / ".openclaw" / "openclaw.json"))
 VENV = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "nearai-verify" / "venv"
-EXTRAS = ["cryptography>=46.0.0", "dcap-qvl>=0.3.2"]
+EXTRAS = ["cryptography>=46.0.0", "dcap-qvl>=0.3.9"]
 NRAS_URL = "https://nras.attestation.nvidia.com/v3/attest/gpu"
 OK, NO = "ok", "MISSING"
+INTEL_QE_VENDOR_ID = bytes.fromhex("939a7233f79c4ca9940a0db3957f0607")
+DCAP_QUOTE_HEADER_LEN = 48
+QE_VENDOR_ID_OFFSET = 12
 
 
 # ---------------------------------------------------------------- capabilities
@@ -154,7 +157,7 @@ def cmd_doctor(as_json: bool) -> int:
 
     print("  [3] PROVEN     not available")
     print("      Proves : this specific message was signed inside that TEE.")
-    print("      Needs  : an OpenClaw provider plugin (wrapStreamFn) - not built yet.")
+    print("      Needs  : an OpenClaw provider plugin (createStreamFn) - not built yet.")
     print("               A skill cannot see raw request/response bytes.")
     print()
     print("  Stdlib check: response nonce echo.")
@@ -252,6 +255,44 @@ def extract_verified_report_data(result: Any) -> str | None:
     return None
 
 
+def appraise_verified_tcb_statuses(result: Any) -> tuple[bool | None, str]:
+    """Require passing aggregate, platform, and QE statuses from verified output."""
+    try:
+        payload = json.loads(result.to_json())
+    except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+        return None, "dcap-qvl result did not expose verified TCB statuses"
+
+    statuses: dict[str, str] = {}
+    overall = payload.get("status")
+    if isinstance(overall, str):
+        statuses["overall"] = overall
+    for label, key in (("platform", "platform_status"), ("QE", "qe_status")):
+        value = payload.get(key)
+        if isinstance(value, dict) and isinstance(value.get("status"), str):
+            statuses[label] = value["status"]
+
+    missing = [label for label in ("overall", "platform", "QE") if label not in statuses]
+    if missing:
+        return None, f"verified result missing {', '.join(missing)} TCB status"
+
+    failed = [f"{label}={status}" for label, status in statuses.items()
+              if status.lower() not in ("uptodate", "ok")]
+    detail = ", ".join(f"{label} {status}" for label, status in statuses.items())
+    if failed:
+        return False, "TCB policy rejected " + ", ".join(failed)
+    return True, detail
+
+
+def verify_intel_qe_vendor_id(quote: bytes) -> tuple[bool, str]:
+    """Enforce Intel's QE Vendor ID until dcap-qvl validates it upstream."""
+    if len(quote) < DCAP_QUOTE_HEADER_LEN:
+        return False, "DCAP quote is shorter than its 48-byte header"
+    actual = quote[QE_VENDOR_ID_OFFSET:QE_VENDOR_ID_OFFSET + len(INTEL_QE_VENDOR_ID)]
+    if not secrets.compare_digest(actual, INTEL_QE_VENDOR_ID):
+        return False, f"unexpected QE Vendor ID {actual.hex()}"
+    return True, "Intel QE Vendor ID"
+
+
 def _decode_hex(value: object, name: str, expected_bytes: int) -> bytes:
     if not isinstance(value, str):
         raise ValueError(f"{name} is missing")
@@ -312,13 +353,17 @@ def verify_quote(quote_hex: str) -> tuple[bool | None, str, str | None]:
     except ImportError:
         return None, "dcap-qvl not installed", None
     try:
-        r = asyncio.run(dcap_qvl.get_collateral_and_verify(bytes.fromhex(quote_hex)))
-        status = str(getattr(r, "status", "?"))
-        adv = list(getattr(r, "advisory_ids", []) or [])
+        quote = bytes.fromhex(quote_hex)
+        vendor_ok, vendor_detail = verify_intel_qe_vendor_id(quote)
+        if not vendor_ok:
+            return False, vendor_detail, None
+
+        r = asyncio.run(dcap_qvl.get_collateral_and_verify(quote))
+        status_ok, status_detail = appraise_verified_tcb_statuses(r)
         report_data = extract_verified_report_data(r)
-        return (status.lower() in ("uptodate", "ok"),
-                f"TCB {status}" + (f", advisories {adv}" if adv else ""),
-                report_data)
+        if status_ok is None:
+            return None, status_detail, report_data
+        return status_ok, f"{vendor_detail}; {status_detail}", report_data
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"[:160], None
 
