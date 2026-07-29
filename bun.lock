@@ -69,9 +69,10 @@
     },
     "packages/nearai-verify-plugin": {
       "name": "nearai-verify-openclaw-plugin",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@phala/dcap-qvl": ">=0.3.9",
+        "typebox": "^1.1.38",
         "viem": "^2.47.0",
       },
       "devDependencies": {

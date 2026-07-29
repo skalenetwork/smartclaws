@@ -32,6 +32,10 @@ describe("openclaw.plugin.json / package.json consistency", () => {
         expect(alias?.kind).toBe("runtime-slash");
     });
 
+    test("agent tool contracts are declared", () => {
+        expect(manifest.contracts.tools).toEqual(["nearai_list_chat_ids", "nearai_verify"]);
+    });
+
     test("configuration is locked to observation-only enforcement", () => {
         expect(manifest.configSchema.properties.enforcement.enum).toEqual(["observe"]);
     });

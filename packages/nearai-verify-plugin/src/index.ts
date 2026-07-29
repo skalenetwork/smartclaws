@@ -7,6 +7,7 @@
 import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
 import { AttestationCache } from "./cache.js";
 import { formatRecords, parseCommandSelector, RecordStore } from "./status.js";
+import { createVerificationTools } from "./tools.js";
 import {
     createNearAiVerifiedStreamFn,
     isSupportedDirectModel,
@@ -116,6 +117,8 @@ export default defineSingleProviderPluginEntry({
         },
     },
     register: (api) => {
+        api.registerTool((ctx) => createVerificationTools(ctx, store));
+
         api.registerCommand({
             name: COMMAND_NAME,
             description:

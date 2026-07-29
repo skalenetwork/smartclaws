@@ -2,7 +2,7 @@
     "id": "nearai-verify",
     "name": "NEAR AI Verify",
     "description": "Verify NEAR AI Cloud completions against TEE attestation.",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "providers": ["nearai"],
     "autoEnableWhenConfiguredProviders": ["nearai"],
     "activation": {
@@ -22,6 +22,9 @@
             "kind": "runtime-slash"
         }
     ],
+    "contracts": {
+        "tools": ["nearai_list_chat_ids", "nearai_verify"]
+    },
     "configSchema": {
         "type": "object",
         "additionalProperties": false,

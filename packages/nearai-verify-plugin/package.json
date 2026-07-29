@@ -1,6 +1,6 @@
 {
     "name": "nearai-verify-openclaw-plugin",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "description": "Verify NEAR AI Cloud completions against TEE attestation, as an OpenClaw provider transport.",
     "license": "LGPL-3.0-or-later",
@@ -27,12 +27,13 @@
         }
     },
     "scripts": {
-        "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:openclaw --external:openclaw/* --external:viem --external:@phala/dcap-qvl --outfile=dist/index.js",
+        "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:openclaw --external:openclaw/* --external:viem --external:@phala/dcap-qvl --external:typebox --outfile=dist/index.js",
         "test": "bun test",
         "check": "tsc --noEmit"
     },
     "dependencies": {
         "@phala/dcap-qvl": ">=0.3.9",
+        "typebox": "^1.1.38",
         "viem": "^2.47.0"
     },
     "peerDependencies": {

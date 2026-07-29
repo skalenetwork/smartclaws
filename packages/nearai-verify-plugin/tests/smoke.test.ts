@@ -18,20 +18,27 @@ interface RegisteredLifecycle {
     cleanup?: () => void | Promise<void>;
 }
 
+type RegisteredToolFactory = (ctx: { sessionId?: string }) => Array<{ name: string }>;
+
 /** Drive the plugin entry's register hook with a minimal fake plugin API. */
 function collectRegistrations(): {
     provider?: RegisteredProvider;
     command?: RegisteredCommand;
     lifecycle?: RegisteredLifecycle;
+    toolFactory?: RegisteredToolFactory;
 } {
     let provider: RegisteredProvider | undefined;
     let command: RegisteredCommand | undefined;
     let lifecycle: RegisteredLifecycle | undefined;
+    let toolFactory: RegisteredToolFactory | undefined;
     const api = {
         registerProvider: (value: RegisteredProvider) => {
             provider = value;
         },
         registerModelCatalogProvider: () => {},
+        registerTool: (value: RegisteredToolFactory) => {
+            toolFactory = value;
+        },
         registerCommand: (value: RegisteredCommand) => {
             command = value;
         },
@@ -42,7 +49,7 @@ function collectRegistrations(): {
         },
     };
     (entry as unknown as { register: (api: unknown) => void }).register(api);
-    return { provider, command, lifecycle };
+    return { provider, command, lifecycle, toolFactory };
 }
 
 function requireProvider(): RegisteredProvider {
@@ -86,6 +93,14 @@ describe("plugin registration smoke test", () => {
     test("registers the /nearai-verify runtime command", () => {
         const { command } = collectRegistrations();
         expect(command?.name).toBe("nearai-verify");
+    });
+
+    test("registers both session-scoped verification tools", () => {
+        const { toolFactory } = collectRegistrations();
+        expect(toolFactory?.({ sessionId: "s1" }).map((tool) => tool.name)).toEqual([
+            "nearai_list_chat_ids",
+            "nearai_verify",
+        ]);
     });
 
     test("registers a runtime lifecycle whose cleanup is safe to call", () => {

@@ -80,6 +80,22 @@ export class RecordStore {
         return scope.filter((r) => r.chatId === selector.chatId);
     }
 
+    /** List unique chat ids for one session, newest first. */
+    listChatIds(sessionId: string | undefined): string[] {
+        if (!sessionId) return [];
+        const scope = this.bySession.get(sessionId)?.toArray() ?? [];
+        const seen = new Set<string>();
+        const chatIds: string[] = [];
+        for (let i = scope.length - 1; i >= 0; i -= 1) {
+            const chatId = scope[i]?.chatId;
+            if (chatId && !seen.has(chatId)) {
+                seen.add(chatId);
+                chatIds.push(chatId);
+            }
+        }
+        return chatIds;
+    }
+
     /** Drop all records (used on plugin disable/reload). */
     clear(): void {
         this.bySession.clear();
@@ -92,6 +108,12 @@ export function parseCommandSelector(arg: string | undefined): "latest" | { chat
     const trimmed = (arg ?? "").trim();
     if (trimmed === "" || trimmed.toLowerCase() === "latest") return "latest";
     return { chatId: trimmed };
+}
+
+/** Render the chat ids available to an agent in its current session. */
+export function formatChatIds(chatIds: string[]): string {
+    if (chatIds.length === 0) return "No nearai-verify chat IDs found for this session.";
+    return `nearai-verify chat IDs (newest first):\n${chatIds.map((id) => `- ${id}`).join("\n")}`;
 }
 
 /** Render a compact, non-sensitive summary of records for the command reply. */

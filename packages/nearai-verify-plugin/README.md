@@ -32,6 +32,19 @@ Only direct `*.completions.near.ai` `openai-completions` routes are eligible for
 Shows TEE verification results for the current session. Results never include
 request/response bodies or API keys.
 
+## Agent tools
+
+The plugin also exposes two read-only, session-scoped tools:
+
+| Tool | Purpose |
+| --- | --- |
+| `nearai_list_chat_ids` | List chat IDs with settled verification results, newest first. |
+| `nearai_verify` | Read the result for `latest` or an exact chat ID. |
+
+These tools let an agent respond to natural-language requests such as “verify
+your latest response.” They only read verification performed outside the model;
+they cannot trigger, alter, or fabricate evidence.
+
 ## Configuration
 
 Plugin config (in the OpenClaw Gateway config entry):

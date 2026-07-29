@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatRecords, parseCommandSelector, RecordStore } from "../src/status.js";
+import { formatChatIds, formatRecords, parseCommandSelector, RecordStore } from "../src/status.js";
 import type { VerificationRecord } from "../src/types.js";
 
 function record(overrides: Partial<VerificationRecord> = {}): VerificationRecord {
@@ -65,6 +65,18 @@ describe("RecordStore session scoping", () => {
         expect(latest?.chatId).toBe("new");
     });
 
+    test("lists unique chat ids newest first within one session", () => {
+        const store = new RecordStore();
+        store.add(record({ sessionId: "s1", chatId: "old" }));
+        store.add(record({ sessionId: "s2", chatId: "other-session" }));
+        store.add(record({ sessionId: "s1", chatId: "new" }));
+        store.add(record({ sessionId: "s1", chatId: "old" }));
+
+        expect(store.listChatIds("s1")).toEqual(["old", "new"]);
+        expect(store.listChatIds("s2")).toEqual(["other-session"]);
+        expect(store.listChatIds(undefined)).toEqual([]);
+    });
+
     test("clear drops all records", () => {
         const store = new RecordStore();
         store.add(record({ sessionId: "s1" }));
@@ -103,5 +115,17 @@ describe("formatRecords", () => {
     });
     test("reports an empty result", () => {
         expect(formatRecords([])).toContain("No matching");
+    });
+});
+
+describe("formatChatIds", () => {
+    test("renders ids without unrelated record data", () => {
+        expect(formatChatIds(["new", "old"])).toBe(
+            "nearai-verify chat IDs (newest first):\n- new\n- old",
+        );
+    });
+
+    test("reports an empty result", () => {
+        expect(formatChatIds([])).toContain("No nearai-verify chat IDs");
     });
 });
