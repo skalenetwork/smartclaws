@@ -37,7 +37,13 @@ function recordUnprovable(info: UnprovableCapture): void {
     chatId: info.chatId,
     requestHash: info.requestHash,
     responseHash: info.responseHash,
-    checks: [{ name: info.status === "FAIL" ? "chat id" : "provability", result: info.status, detail: info.detail }],
+    checks: [
+      {
+        name: info.status === "FAIL" ? "chat id" : "provability",
+        result: info.status,
+        detail: info.detail,
+      },
+    ],
     status: info.status,
     evidence: deriveEvidence(info.status, false),
   });
@@ -100,8 +106,7 @@ export default defineSingleProviderPluginEntry({
     },
     // Own the transport for supported direct routes so request/response bytes
     // can be captured exactly.
-    createStreamFn: (ctx) =>
-      isSupportedDirectModel(ctx.model) ? verifiedStreamFn : undefined,
+    createStreamFn: (ctx) => (isSupportedDirectModel(ctx.model) ? verifiedStreamFn : undefined),
     // For nearai routes we cannot prove (e.g. gateway or non-completions),
     // record a SKIP and leave the generic transport untouched.
     wrapStreamFn: (ctx) => {
@@ -113,7 +118,8 @@ export default defineSingleProviderPluginEntry({
   register: (api) => {
     api.registerCommand({
       name: COMMAND_NAME,
-      description: "Show NEAR AI TEE verification results for this session (usage: /nearai-verify [latest|<chat_id>]).",
+      description:
+        "Show NEAR AI TEE verification results for this session (usage: /nearai-verify [latest|<chat_id>]).",
       acceptsArgs: true,
       requireAuth: true,
       exposeSenderIsOwner: true,

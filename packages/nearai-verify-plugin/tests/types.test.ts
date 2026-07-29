@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { combineStatus, deriveEvidence, type VerificationCheck } from "../src/types.js";
 
-const check = (result: VerificationCheck["result"]): VerificationCheck => ({ name: "c", result, detail: "" });
+const check = (result: VerificationCheck["result"]): VerificationCheck => ({
+  name: "c",
+  result,
+  detail: "",
+});
 
 describe("combineStatus", () => {
   test("any FAIL wins", () => {

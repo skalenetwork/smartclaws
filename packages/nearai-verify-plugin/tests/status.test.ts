@@ -37,14 +37,20 @@ describe("RecordStore session scoping", () => {
   test("a chat id is not a cross-session lookup oracle", () => {
     const store = new RecordStore();
     store.add(record({ sessionId: "s1", chatId: "secret" }));
-    expect(store.query({ sessionId: "s2", isOwner: true, selector: { chatId: "secret" } })).toHaveLength(0);
+    expect(
+      store.query({ sessionId: "s2", isOwner: true, selector: { chatId: "secret" } }),
+    ).toHaveLength(0);
   });
 
   test("global fallback is owner-only when there is no session", () => {
     const store = new RecordStore();
     store.add(record({ sessionId: undefined, chatId: "g" }));
-    expect(store.query({ sessionId: undefined, isOwner: true, selector: "latest" })).toHaveLength(1);
-    expect(store.query({ sessionId: undefined, isOwner: false, selector: "latest" })).toHaveLength(0);
+    expect(store.query({ sessionId: undefined, isOwner: true, selector: "latest" })).toHaveLength(
+      1,
+    );
+    expect(store.query({ sessionId: undefined, isOwner: false, selector: "latest" })).toHaveLength(
+      0,
+    );
   });
 
   test("latest returns the most recent record in scope", () => {
@@ -69,9 +75,13 @@ describe("RecordStore session scoping", () => {
     store.add(record({ sessionId: "s1", chatId: "recent" }));
     store.add(record({ sessionId: "s3", chatId: "new" }));
 
-    expect(store.query({ sessionId: "s1", isOwner: false, selector: "latest" })[0]?.chatId).toBe("recent");
+    expect(store.query({ sessionId: "s1", isOwner: false, selector: "latest" })[0]?.chatId).toBe(
+      "recent",
+    );
     expect(store.query({ sessionId: "s2", isOwner: false, selector: "latest" })).toHaveLength(0);
-    expect(store.query({ sessionId: "s3", isOwner: false, selector: "latest" })[0]?.chatId).toBe("new");
+    expect(store.query({ sessionId: "s3", isOwner: false, selector: "latest" })[0]?.chatId).toBe(
+      "new",
+    );
   });
 });
 

@@ -22,7 +22,11 @@ export interface CacheLookup {
 }
 
 /** Build the cache key for an endpoint + signer + algorithm. */
-export function attestationCacheKey(endpoint: string, signingAddress: string, signingAlgo: string): string {
+export function attestationCacheKey(
+  endpoint: string,
+  signingAddress: string,
+  signingAlgo: string,
+): string {
   return `${endpoint}\u0000${signingAddress.toLowerCase()}\u0000${signingAlgo.toLowerCase()}`;
 }
 
@@ -60,7 +64,7 @@ export class AttestationCache {
       refreshError = err;
     }
 
-    if (refreshed && refreshed.passed) {
+    if (refreshed?.passed) {
       this.entries.set(key, { result: refreshed, storedAt: this.now() });
       return { result: refreshed, cacheAgeMs: 0, stale: false };
     }
@@ -75,7 +79,10 @@ export class AttestationCache {
     throw refreshError ?? new Error("attestation refresh failed");
   }
 
-  private runSingleFlight(key: string, refresh: () => Promise<AttestationResult>): Promise<AttestationResult> {
+  private runSingleFlight(
+    key: string,
+    refresh: () => Promise<AttestationResult>,
+  ): Promise<AttestationResult> {
     const existing = this.inflight.get(key);
     if (existing) return existing;
     const promise = (async () => {

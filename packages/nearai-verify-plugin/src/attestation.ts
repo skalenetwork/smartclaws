@@ -9,28 +9,28 @@
 // the recovered signer and a fresh nonce.
 import {
   type Collateral,
+  verify as dcapVerify,
   getCollateralFromPcs,
   Quote,
   type TcbStatus,
-  verify as dcapVerify,
 } from "@phala/dcap-qvl";
 import type { CheckResult } from "./types.js";
 import {
   buildOriginUrl,
   bytesToHex,
   constantTimeEqualBytes,
-  describeError,
   type DirectOrigin,
+  describeError,
   ECDSA_ADDRESS_BYTES,
   ECDSA_SIGNING_ALGORITHM,
   ED25519_ADDRESS_BYTES,
   ED25519_SIGNING_ALGORITHM,
   hexToBytes,
   isRecord,
-  mergeRequestHeaders,
   MILLISECONDS_PER_SECOND,
-  sha256,
+  mergeRequestHeaders,
   SHA_256_BYTES,
+  sha256,
   TDX_REPORT_DATA_BYTES,
 } from "./util.js";
 
@@ -109,7 +109,11 @@ export interface AttestationResult {
 /** Injectable verifier surface, so tests need no live Intel/NVIDIA services. */
 export interface DcapAdapter {
   getCollateralFromPcs(quote: Uint8Array): Promise<unknown>;
-  verify(quote: Uint8Array, collateral: unknown, nowSecs: number): { status: TcbStatus; report: unknown };
+  verify(
+    quote: Uint8Array,
+    collateral: unknown,
+    nowSecs: number,
+  ): { status: TcbStatus; report: unknown };
   parseReportData(quote: Uint8Array): Uint8Array | null;
 }
 
@@ -135,7 +139,10 @@ export function verifyIntelQeVendorId(quote: Uint8Array): { ok: boolean; detail:
   if (quote.length < DCAP_QUOTE_HEADER_LEN) {
     return { ok: false, detail: "DCAP quote is shorter than its 48-byte header" };
   }
-  const actual = quote.subarray(QE_VENDOR_ID_OFFSET, QE_VENDOR_ID_OFFSET + INTEL_QE_VENDOR_ID.length);
+  const actual = quote.subarray(
+    QE_VENDOR_ID_OFFSET,
+    QE_VENDOR_ID_OFFSET + INTEL_QE_VENDOR_ID.length,
+  );
   if (!constantTimeEqualBytes(actual, INTEL_QE_VENDOR_ID)) {
     return { ok: false, detail: `unexpected QE Vendor ID ${bytesToHex(actual)}` };
   }
@@ -168,18 +175,13 @@ export function verifyReportDataBinding(params: {
     return { ok: false, detail: `invalid request nonce: ${describeError(err)}` };
   }
   const algo = (params.signingAlgo ?? ECDSA_SIGNING_ALGORITHM).toLowerCase();
-  if (
-    algo !== ECDSA_SIGNING_ALGORITHM &&
-    algo !== ED25519_SIGNING_ALGORITHM
-  ) {
+  if (algo !== ECDSA_SIGNING_ALGORITHM && algo !== ED25519_SIGNING_ALGORITHM) {
     return { ok: false, detail: `unsupported signing algorithm: ${algo}` };
   }
   try {
     signer = hexToBytes(
       params.signingAddress,
-      algo === ECDSA_SIGNING_ALGORITHM
-        ? ECDSA_ADDRESS_BYTES
-        : ED25519_ADDRESS_BYTES,
+      algo === ECDSA_SIGNING_ALGORITHM ? ECDSA_ADDRESS_BYTES : ED25519_ADDRESS_BYTES,
     );
   } catch (err) {
     return { ok: false, detail: `invalid signing address: ${describeError(err)}` };
@@ -255,7 +257,10 @@ export async function verifyGpu(params: {
 
   const evidenceNonce = typeof payload.nonce === "string" ? payload.nonce : "";
   if (evidenceNonce.toLowerCase() !== params.nonce.toLowerCase()) {
-    return { result: "FAIL", detail: "GPU evidence nonce does not match our nonce (possible replay)" };
+    return {
+      result: "FAIL",
+      detail: "GPU evidence nonce does not match our nonce (possible replay)",
+    };
   }
 
   let claims: Record<string, unknown>;
@@ -267,19 +272,13 @@ export async function verifyGpu(params: {
       signal: params.signal,
     });
     const body: unknown = await response.json();
-    if (
-      !Array.isArray(body) ||
-      !Array.isArray(body[0]) ||
-      typeof body[0][1] !== "string"
-    ) {
+    if (!Array.isArray(body) || !Array.isArray(body[0]) || typeof body[0][1] !== "string") {
       throw new TypeError("NVIDIA NRAS response did not contain a JWT");
     }
     const jwt = body[0][1];
     let claimsB64 = jwt.split(".")[1];
     claimsB64 += "=".repeat((4 - (claimsB64.length % 4)) % 4);
-    const decodedClaims: unknown = JSON.parse(
-      Buffer.from(claimsB64, "base64url").toString("utf8"),
-    );
+    const decodedClaims: unknown = JSON.parse(Buffer.from(claimsB64, "base64url").toString("utf8"));
     if (!isRecord(decodedClaims)) {
       throw new TypeError("NVIDIA NRAS JWT claims must be an object");
     }
@@ -355,11 +354,14 @@ export async function verifyAttestationReport(params: {
 
   // The report must bind the same signer we recovered from the message.
   const reportSigner = (report.signing_address ?? "").toLowerCase();
-  const signerMatch = reportSigner.length > 0 && reportSigner === params.recoveredAddress.toLowerCase();
+  const signerMatch =
+    reportSigner.length > 0 && reportSigner === params.recoveredAddress.toLowerCase();
   checks.push({
     name: "signer identity",
     result: signerMatch ? "PASS" : "FAIL",
-    detail: signerMatch ? "attested signer matches recovered signer" : "attested signer does not match recovered signer",
+    detail: signerMatch
+      ? "attested signer matches recovered signer"
+      : "attested signer does not match recovered signer",
   });
 
   // Intel TDX quote + QE Vendor ID + report_data binding.
@@ -377,7 +379,11 @@ export async function verifyAttestationReport(params: {
     const vendor = verifyIntelQeVendorId(quote);
     if (!vendor.ok) {
       checks.push({ name: "Intel TDX quote", result: "FAIL", detail: vendor.detail });
-      checks.push({ name: "signer + nonce binding", result: "FAIL", detail: "quote header rejected" });
+      checks.push({
+        name: "signer + nonce binding",
+        result: "FAIL",
+        detail: "quote header rejected",
+      });
     } else {
       // Separate collateral retrieval (infrastructure -> SKIP) from quote
       // verification (a throw means the verifier rejected the quote -> FAIL).
@@ -392,17 +398,17 @@ export async function verifyAttestationReport(params: {
           result: "SKIP",
           detail: `quote collateral unavailable (${describeError(err)})`,
         });
-        checks.push({ name: "signer + nonce binding", result: "SKIP", detail: "no verified quote" });
+        checks.push({
+          name: "signer + nonce binding",
+          result: "SKIP",
+          detail: "no verified quote",
+        });
       }
 
       let verified: { status: TcbStatus; report: unknown } | null = null;
       if (collateralOk) {
         try {
-          verified = dcap.verify(
-            quote,
-            collateral,
-            Math.floor(now() / MILLISECONDS_PER_SECOND),
-          );
+          verified = dcap.verify(quote, collateral, Math.floor(now() / MILLISECONDS_PER_SECOND));
         } catch (err) {
           // A rejected/malformed/revoked quote is a proof failure, not a skip.
           checks.push({
@@ -410,7 +416,11 @@ export async function verifyAttestationReport(params: {
             result: "FAIL",
             detail: `quote rejected by verifier (${describeError(err)})`,
           });
-          checks.push({ name: "signer + nonce binding", result: "FAIL", detail: "quote did not verify" });
+          checks.push({
+            name: "signer + nonce binding",
+            result: "FAIL",
+            detail: "quote did not verify",
+          });
         }
       }
 
@@ -419,10 +429,16 @@ export async function verifyAttestationReport(params: {
         checks.push({
           name: "Intel TDX quote",
           result: statusOk ? "PASS" : "FAIL",
-          detail: statusOk ? `${vendor.detail}; TCB ${verified.status}` : `TCB status ${verified.status}`,
+          detail: statusOk
+            ? `${vendor.detail}; TCB ${verified.status}`
+            : `TCB status ${verified.status}`,
         });
         if (!statusOk) {
-          checks.push({ name: "signer + nonce binding", result: "FAIL", detail: "quote did not verify" });
+          checks.push({
+            name: "signer + nonce binding",
+            result: "FAIL",
+            detail: "quote did not verify",
+          });
         } else {
           const reportData = dcap.parseReportData(quote);
           if (!reportData) {

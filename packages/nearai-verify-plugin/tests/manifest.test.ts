@@ -1,6 +1,6 @@
+import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, test } from "bun:test";
 
 const root = join(import.meta.dir, "..");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
@@ -26,7 +26,9 @@ describe("openclaw.plugin.json / package.json consistency", () => {
   });
 
   test("the runtime slash command alias is registered", () => {
-    const alias = manifest.commandAliases?.find((entry: { name: string }) => entry.name === "nearai-verify");
+    const alias = manifest.commandAliases?.find(
+      (entry: { name: string }) => entry.name === "nearai-verify",
+    );
     expect(alias?.kind).toBe("runtime-slash");
   });
 

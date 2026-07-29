@@ -6,8 +6,8 @@ import type { CheckResult, SignatureKind } from "./types.js";
 import {
   buildOriginUrl,
   constantTimeEqualHex,
-  describeError,
   type DirectOrigin,
+  describeError,
   ECDSA_SIGNING_ALGORITHM,
   isRecord,
   mergeRequestHeaders,
@@ -51,28 +51,18 @@ function parseSignaturePayload(value: unknown): SignaturePayload {
   ) {
     throw new TypeError("signature response is missing required string fields");
   }
-  if (
-    value.signing_algo !== undefined &&
-    typeof value.signing_algo !== "string"
-  ) {
+  if (value.signing_algo !== undefined && typeof value.signing_algo !== "string") {
     throw new TypeError("signature response signing_algo must be a string");
   }
-  if (
-    value.signature_kind !== undefined &&
-    typeof value.signature_kind !== "string"
-  ) {
+  if (value.signature_kind !== undefined && typeof value.signature_kind !== "string") {
     throw new TypeError("signature response signature_kind must be a string");
   }
   return {
     signature: value.signature,
     signing_address: value.signing_address,
     text: value.text,
-    ...(value.signing_algo !== undefined
-      ? { signing_algo: value.signing_algo }
-      : {}),
-    ...(value.signature_kind !== undefined
-      ? { signature_kind: value.signature_kind }
-      : {}),
+    ...(value.signing_algo !== undefined ? { signing_algo: value.signing_algo } : {}),
+    ...(value.signature_kind !== undefined ? { signature_kind: value.signature_kind } : {}),
   };
 }
 
@@ -94,7 +84,10 @@ export function parseSignatureText(
     return { ok: true, model, req, res };
   }
   if (parts.length === 2) {
-    return { ok: false, reason: "two-part (gateway/legacy) signature payload is not proven on a direct endpoint" };
+    return {
+      ok: false,
+      reason: "two-part (gateway/legacy) signature payload is not proven on a direct endpoint",
+    };
   }
   return { ok: false, reason: `unexpected signature text with ${parts.length} parts` };
 }
@@ -109,7 +102,8 @@ export async function verifySignaturePayload(
   requestHash: string,
   responseHash: string,
 ): Promise<SignatureVerification> {
-  const signatureKindPresent = typeof payload.signature_kind === "string" && payload.signature_kind.length > 0;
+  const signatureKindPresent =
+    typeof payload.signature_kind === "string" && payload.signature_kind.length > 0;
 
   const parsed = parseSignatureText(payload.text, requestedModel);
   if (!parsed.ok) {
@@ -120,7 +114,12 @@ export async function verifySignaturePayload(
     return { status: "FAIL", detail: "request hash mismatch", signatureKindPresent, proven: false };
   }
   if (!constantTimeEqualHex(parsed.res, responseHash)) {
-    return { status: "FAIL", detail: "response hash mismatch", signatureKindPresent, proven: false };
+    return {
+      status: "FAIL",
+      detail: "response hash mismatch",
+      signatureKindPresent,
+      proven: false,
+    };
   }
 
   if (

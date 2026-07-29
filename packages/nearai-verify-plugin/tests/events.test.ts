@@ -6,7 +6,12 @@ import {
   normalizeCompletionUsage,
 } from "../src/events.js";
 
-type Event = { type: string; delta?: string; contentIndex?: number; toolCall?: { arguments: unknown } };
+type Event = {
+  type: string;
+  delta?: string;
+  contentIndex?: number;
+  toolCall?: { arguments: unknown };
+};
 
 function drive(chunks: CompletionChunk[]) {
   const events: Event[] = [];
@@ -38,7 +43,14 @@ describe("CompletionEventAdapter reasoning", () => {
       { choices: [{ delta: { content: "answer" } }] },
       { choices: [{ finish_reason: "stop", delta: {} }] },
     ]);
-    expect(types).toEqual(["thinking_start", "thinking_delta", "thinking_end", "text_start", "text_delta", "text_end"]);
+    expect(types).toEqual([
+      "thinking_start",
+      "thinking_delta",
+      "thinking_end",
+      "text_start",
+      "text_delta",
+      "text_end",
+    ]);
     expect(output.content[0]).toEqual({ type: "thinking", thinking: "let me think" });
   });
 });
@@ -94,7 +106,15 @@ describe("CompletionEventAdapter usage", () => {
 describe("CompletionEventAdapter tool calls", () => {
   test("assembles streamed tool-call arguments and maps stop reason", () => {
     const { types, events, output } = drive([
-      { choices: [{ delta: { tool_calls: [{ index: 0, id: "t1", function: { name: "foo", arguments: '{"a":' } }] } }] },
+      {
+        choices: [
+          {
+            delta: {
+              tool_calls: [{ index: 0, id: "t1", function: { name: "foo", arguments: '{"a":' } }],
+            },
+          },
+        ],
+      },
       { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: "1}" } }] } }] },
       { choices: [{ finish_reason: "tool_calls", delta: {} }] },
     ]);

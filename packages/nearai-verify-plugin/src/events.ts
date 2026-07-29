@@ -72,10 +72,7 @@ export function parseCompletionChunk(value: unknown): CompletionChunk | null {
   chunk.choices = value.choices.flatMap((choiceValue) => {
     if (!isRecord(choiceValue)) return [];
     const choice: NonNullable<CompletionChunk["choices"]>[number] = {};
-    if (
-      typeof choiceValue.finish_reason === "string" ||
-      choiceValue.finish_reason === null
-    ) {
+    if (typeof choiceValue.finish_reason === "string" || choiceValue.finish_reason === null) {
       choice.finish_reason = choiceValue.finish_reason;
     }
     if (!isRecord(choiceValue.delta)) return [choice];
@@ -85,16 +82,10 @@ export function parseCompletionChunk(value: unknown): CompletionChunk | null {
     if (typeof rawDelta.content === "string" || rawDelta.content === null) {
       delta.content = rawDelta.content;
     }
-    if (
-      typeof rawDelta.reasoning_content === "string" ||
-      rawDelta.reasoning_content === null
-    ) {
+    if (typeof rawDelta.reasoning_content === "string" || rawDelta.reasoning_content === null) {
       delta.reasoning_content = rawDelta.reasoning_content;
     }
-    if (
-      typeof rawDelta.reasoning === "string" ||
-      rawDelta.reasoning === null
-    ) {
+    if (typeof rawDelta.reasoning === "string" || rawDelta.reasoning === null) {
       delta.reasoning = rawDelta.reasoning;
     }
     if (Array.isArray(rawDelta.tool_calls)) {
@@ -135,7 +126,9 @@ export function normalizeCompletionUsage(
 ): Usage & { reasoningTokens?: number } {
   const raw = isRecord(rawUsage) ? rawUsage : {};
   const promptDetails = isRecord(raw.prompt_tokens_details) ? raw.prompt_tokens_details : {};
-  const completionDetails = isRecord(raw.completion_tokens_details) ? raw.completion_tokens_details : {};
+  const completionDetails = isRecord(raw.completion_tokens_details)
+    ? raw.completion_tokens_details
+    : {};
   const promptTokens = nonNegativeNumber(raw.prompt_tokens);
   const cacheRead = nonNegativeNumber(promptDetails.cached_tokens);
   const input = Math.max(0, promptTokens - cacheRead);
@@ -183,8 +176,9 @@ export class CompletionEventAdapter {
   constructor(
     private readonly stream: WritableTransportStream,
     output?: TransportOutput,
-    private readonly normalizeUsage: (usage: unknown) => Usage & { reasoningTokens?: number } =
-      normalizeCompletionUsage,
+    private readonly normalizeUsage: (
+      usage: unknown,
+    ) => Usage & { reasoningTokens?: number } = normalizeCompletionUsage,
   ) {
     this.output = output ?? { content: [], stopReason: "stop" };
   }
@@ -199,9 +193,19 @@ export class CompletionEventAdapter {
     if (!block) return;
     const contentIndex = this.blockIndex(block);
     if (block.type === "text") {
-      this.stream.push({ type: "text_end", contentIndex, content: block.text, partial: this.output });
+      this.stream.push({
+        type: "text_end",
+        contentIndex,
+        content: block.text,
+        partial: this.output,
+      });
     } else {
-      this.stream.push({ type: "thinking_end", contentIndex, content: block.thinking, partial: this.output });
+      this.stream.push({
+        type: "thinking_end",
+        contentIndex,
+        content: block.thinking,
+        partial: this.output,
+      });
     }
     this.current = null;
   }
@@ -226,7 +230,11 @@ export class CompletionEventAdapter {
     const block: TextBlock = { type: "text", text: "" };
     this.output.content.push(block);
     this.current = block;
-    this.stream.push({ type: "text_start", contentIndex: this.blockIndex(block), partial: this.output });
+    this.stream.push({
+      type: "text_start",
+      contentIndex: this.blockIndex(block),
+      partial: this.output,
+    });
     return block;
   }
 
@@ -236,7 +244,11 @@ export class CompletionEventAdapter {
     const block: ThinkingBlock = { type: "thinking", thinking: "" };
     this.output.content.push(block);
     this.current = block;
-    this.stream.push({ type: "thinking_start", contentIndex: this.blockIndex(block), partial: this.output });
+    this.stream.push({
+      type: "thinking_start",
+      contentIndex: this.blockIndex(block),
+      partial: this.output,
+    });
     return block;
   }
 
@@ -273,7 +285,11 @@ export class CompletionEventAdapter {
     if (delta.content) {
       const block = this.openText();
       block.text += delta.content;
-      this.stream.push({ type: "text_delta", contentIndex: this.blockIndex(block), delta: delta.content });
+      this.stream.push({
+        type: "text_delta",
+        contentIndex: this.blockIndex(block),
+        delta: delta.content,
+      });
     }
 
     if (delta.tool_calls && delta.tool_calls.length > 0) {
@@ -286,22 +302,29 @@ export class CompletionEventAdapter {
         const index = typeof toolCall.index === "number" ? toolCall.index : 0;
         let block = this.toolCallsByIndex.get(index);
         if (!block) {
-          block = { type: "toolCall", id: toolCall.id ?? "", name: toolCall.function?.name ?? "", arguments: {}, partialArgs: "" };
+          block = {
+            type: "toolCall",
+            id: toolCall.id ?? "",
+            name: toolCall.function?.name ?? "",
+            arguments: {},
+            partialArgs: "",
+          };
           this.output.content.push(block);
           this.toolCallsByIndex.set(index, block);
-          this.stream.push({ type: "toolcall_start", contentIndex: this.blockIndex(block), partial: this.output });
+          this.stream.push({
+            type: "toolcall_start",
+            contentIndex: this.blockIndex(block),
+            partial: this.output,
+          });
         }
         if (toolCall.id) block.id = toolCall.id;
         if (toolCall.function?.name) block.name = toolCall.function.name;
         const argsDelta = toolCall.function?.arguments;
         if (argsDelta) {
           const argumentBytes =
-            (this.toolCallArgumentBytes.get(block) ?? 0) +
-            Buffer.byteLength(argsDelta, "utf8");
+            (this.toolCallArgumentBytes.get(block) ?? 0) + Buffer.byteLength(argsDelta, "utf8");
           if (argumentBytes > MAX_TOOL_CALL_ARGUMENT_BYTES) {
-            throw new Error(
-              `tool-call arguments exceed ${MAX_TOOL_CALL_ARGUMENT_BYTES} bytes`,
-            );
+            throw new Error(`tool-call arguments exceed ${MAX_TOOL_CALL_ARGUMENT_BYTES} bytes`);
           }
           this.toolCallArgumentBytes.set(block, argumentBytes);
           block.partialArgs += argsDelta;
@@ -323,7 +346,8 @@ export class CompletionEventAdapter {
     this.closeToolCalls();
     const hasToolCalls = this.output.content.some((b) => b.type === "toolCall");
     if (this.output.stopReason === "toolUse" && !hasToolCalls) this.output.stopReason = "stop";
-    if (this.sawStop && this.output.stopReason === "stop" && hasToolCalls) this.output.stopReason = "toolUse";
+    if (this.sawStop && this.output.stopReason === "stop" && hasToolCalls)
+      this.output.stopReason = "toolUse";
     return this.output;
   }
 }

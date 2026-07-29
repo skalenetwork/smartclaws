@@ -1,9 +1,14 @@
 // Bounded, observation-only verification worker. Verification runs after the
 // user-visible response has finished streaming and must never delay a turn.
-import { RecordStore } from "./status.js";
-import { combineStatus, deriveEvidence, type VerificationJobInput, type VerificationRecord } from "./types.js";
+import type { RecordStore } from "./status.js";
+import {
+  combineStatus,
+  deriveEvidence,
+  type VerificationJobInput,
+  type VerificationRecord,
+} from "./types.js";
 import { describeError } from "./util.js";
-import { verifyMessage, type VerifyDeps } from "./verify.js";
+import { type VerifyDeps, verifyMessage } from "./verify.js";
 
 export const MAX_CONCURRENT_JOBS = 2;
 export const MAX_PENDING_JOBS = 100;
@@ -71,7 +76,8 @@ export class VerificationWorker {
       // Do not repopulate the store after shutdown cleared it.
       if (!this.shuttingDown) this.store.add(record);
     } catch (err) {
-      if (!this.shuttingDown) this.store.add(failureRecord(job.input, err, this.deps.now?.() ?? Date.now()));
+      if (!this.shuttingDown)
+        this.store.add(failureRecord(job.input, err, this.deps.now?.() ?? Date.now()));
     } finally {
       clearTimeout(timeout);
       this.activeControllers.delete(job.controller);

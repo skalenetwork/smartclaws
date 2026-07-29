@@ -11,10 +11,15 @@ import {
 describe("validateDirectOrigin", () => {
   test("accepts a plain https direct host", () => {
     const origin = validateDirectOrigin("https://node1.completions.near.ai/v1");
-    expect(origin).toEqual({ origin: "https://node1.completions.near.ai", host: "node1.completions.near.ai" });
+    expect(origin).toEqual({
+      origin: "https://node1.completions.near.ai",
+      host: "node1.completions.near.ai",
+    });
   });
   test("lowercases the host", () => {
-    expect(validateDirectOrigin("https://Node1.Completions.NEAR.ai/v1")?.host).toBe("node1.completions.near.ai");
+    expect(validateDirectOrigin("https://Node1.Completions.NEAR.ai/v1")?.host).toBe(
+      "node1.completions.near.ai",
+    );
   });
   test.each([
     ["http scheme", "http://node1.completions.near.ai/v1"],
@@ -30,7 +35,8 @@ describe("validateDirectOrigin", () => {
 });
 
 describe("buildOriginUrl", () => {
-  const origin = validateDirectOrigin("https://n.completions.near.ai/v1")!;
+  const origin = validateDirectOrigin("https://n.completions.near.ai/v1");
+  if (!origin) throw new Error("test direct origin must be valid");
   test("builds a same-origin url with params", () => {
     const url = buildOriginUrl(origin, "/v1/signature/abc", { signing_algo: "ecdsa" });
     expect(url).toBe("https://n.completions.near.ai/v1/signature/abc?signing_algo=ecdsa");
@@ -62,9 +68,7 @@ describe("mergeRequestHeaders", () => {
 
 describe("describeError", () => {
   test("preserves an Error's name and message", () => {
-    expect(describeError(new TypeError("bad value"))).toBe(
-      "TypeError: bad value",
-    );
+    expect(describeError(new TypeError("bad value"))).toBe("TypeError: bad value");
     expect(describeError("plain failure")).toBe("plain failure");
   });
 });

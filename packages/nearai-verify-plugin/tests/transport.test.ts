@@ -1,10 +1,6 @@
-import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import type {
-  AssistantMessageEvent,
-  Context,
-  Model,
-} from "openclaw/plugin-sdk/llm";
+import { createHash } from "node:crypto";
+import type { AssistantMessageEvent, Context, Model } from "openclaw/plugin-sdk/llm";
 import { createNearAiVerifiedStreamFn } from "../src/transport.js";
 import type { VerificationJobInput } from "../src/types.js";
 import { isRecord } from "../src/util.js";
@@ -110,21 +106,15 @@ describe("NEAR AI verified transport integration", () => {
     for await (const event of stream) events.push(event);
     const result = await stream.result();
 
-    expect(observed.url).toBe(
-      "https://node1.completions.near.ai/v1/chat/completions",
-    );
+    expect(observed.url).toBe("https://node1.completions.near.ai/v1/chat/completions");
     expect(observed.headers?.get("authorization")).toBe("Bearer current-key");
     expect(observed.headers?.get("content-type")).toBe("application/json");
     expect(observed.headers?.get("x-request-id")).toBe("request-1");
 
     const requestBytes = observed.requestBytes;
     if (!requestBytes) throw new Error("transport did not send request bytes");
-    const requestPayload: unknown = JSON.parse(
-      decoder.decode(requestBytes),
-    );
-    expect(
-      isRecord(requestPayload) && "reasoning_effort" in requestPayload,
-    ).toBe(false);
+    const requestPayload: unknown = JSON.parse(decoder.decode(requestBytes));
+    expect(isRecord(requestPayload) && "reasoning_effort" in requestPayload).toBe(false);
     expect(requestPayload).toMatchObject({
       stream: true,
       integration_marker: true,

@@ -97,8 +97,14 @@ describe("plugin registration smoke test", () => {
   test("catalog preserves the configured provider verbatim and refuses when absent", async () => {
     const provider = requireProvider();
     await expect(provider.catalog.run({ config: {} })).rejects.toThrow();
-    const configured = { api: "openai-completions", baseUrl: "https://node1.completions.near.ai/v1", models: [] };
-    const result = await provider.catalog.run({ config: { models: { providers: { nearai: configured } } } });
+    const configured = {
+      api: "openai-completions",
+      baseUrl: "https://node1.completions.near.ai/v1",
+      models: [],
+    };
+    const result = await provider.catalog.run({
+      config: { models: { providers: { nearai: configured } } },
+    });
     expect(result).toEqual({ provider: configured });
   });
 });

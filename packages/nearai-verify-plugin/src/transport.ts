@@ -20,11 +20,7 @@ import {
   parseCompletionChunk,
   type TransportOutput,
 } from "./events.js";
-import {
-  SSE_DONE,
-  SseByteHasher,
-  StableChatIdTracker,
-} from "./sse.js";
+import { SSE_DONE, SseByteHasher, StableChatIdTracker } from "./sse.js";
 import type { VerificationJobInput } from "./types.js";
 import {
   isRecord,
@@ -60,13 +56,9 @@ export interface UnprovableCapture {
 /** Callback that records a terminal, non-verifiable outcome. */
 export type UnprovableSink = (info: UnprovableCapture) => void;
 
-type OpenAICompletionsOptions = NonNullable<
-  Parameters<typeof buildOpenAICompletionsParams>[2]
->;
+type OpenAICompletionsOptions = NonNullable<Parameters<typeof buildOpenAICompletionsParams>[2]>;
 
-function toOpenAIReasoning(
-  reasoning: unknown,
-): OpenAICompletionsOptions["reasoning"] {
+function toOpenAIReasoning(reasoning: unknown): OpenAICompletionsOptions["reasoning"] {
   switch (reasoning) {
     case "minimal":
     case "low":
@@ -92,9 +84,7 @@ function toOpenAICompletionsOptions(
   if (!options) return undefined;
   const { reasoning, ...rest } = options;
   const openAIReasoning = toOpenAIReasoning(reasoning);
-  return openAIReasoning === undefined
-    ? rest
-    : { ...rest, reasoning: openAIReasoning };
+  return openAIReasoning === undefined ? rest : { ...rest, reasoning: openAIReasoning };
 }
 
 /**
@@ -106,7 +96,7 @@ export function isSupportedDirectModel(model: RuntimeModelLike | undefined): boo
   if (model.api !== "openai-completions") return false;
   if (!model.baseUrl) return false;
   const origin = validateDirectOrigin(model.baseUrl);
-  return origin !== null && origin.host.endsWith(NEAR_DIRECT_HOST_SUFFIX);
+  return origin?.host.endsWith(NEAR_DIRECT_HOST_SUFFIX) ?? false;
 }
 
 /**
@@ -119,7 +109,11 @@ export function createNearAiVerifiedStreamFn(
 ) {
   const fetchOverride = options?.fetchImpl;
   const onUnprovable = options?.onUnprovable;
-  return function nearAiVerifiedStreamFn(model: Model, context: Context, options?: SimpleStreamOptions) {
+  return function nearAiVerifiedStreamFn(
+    model: Model,
+    context: Context,
+    options?: SimpleStreamOptions,
+  ) {
     const { eventStream, stream } = createWritableTransportEventStream();
     // Seed the assistant message the way the built-in transport does, so the
     // persisted `done` message carries role, model, usage, and content — not
@@ -174,8 +168,7 @@ export function createNearAiVerifiedStreamFn(
           throw new Error("completions URL escaped the validated origin");
         }
 
-        const guardedFetch =
-          fetchOverride ?? buildGuardedModelFetch(model, options?.timeoutMs);
+        const guardedFetch = fetchOverride ?? buildGuardedModelFetch(model, options?.timeoutMs);
         const response = await guardedFetch(completionsUrl, {
           method: "POST",
           headers: mergeRequestHeaders(options?.headers, {
@@ -193,10 +186,8 @@ export function createNearAiVerifiedStreamFn(
         }
 
         const hasher = new SseByteHasher();
-        const adapter = new CompletionEventAdapter(
-          stream,
-          output,
-          (usage) => normalizeCompletionUsage(usage, model),
+        const adapter = new CompletionEventAdapter(stream, output, (usage) =>
+          normalizeCompletionUsage(usage, model),
         );
         const chatIdTracker = new StableChatIdTracker();
 
@@ -244,9 +235,18 @@ export function createNearAiVerifiedStreamFn(
           responseHash,
         };
         if (conflict) {
-          onUnprovable?.({ ...terminal, chatId, status: "FAIL", detail: "completion stream reported conflicting chat ids" });
+          onUnprovable?.({
+            ...terminal,
+            chatId,
+            status: "FAIL",
+            detail: "completion stream reported conflicting chat ids",
+          });
         } else if (!chatId) {
-          onUnprovable?.({ ...terminal, status: "SKIP", detail: "no stable chat id in completion stream; cannot locate signature" });
+          onUnprovable?.({
+            ...terminal,
+            status: "SKIP",
+            detail: "no stable chat id in completion stream; cannot locate signature",
+          });
         } else {
           capture({
             sessionId: options?.sessionId,

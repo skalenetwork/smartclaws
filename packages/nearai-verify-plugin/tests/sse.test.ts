@@ -1,10 +1,6 @@
-import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import {
-  MAX_SSE_EVENT_CHARS,
-  SseByteHasher,
-  StableChatIdTracker,
-} from "../src/sse.js";
+import { createHash } from "node:crypto";
+import { MAX_SSE_EVENT_CHARS, SseByteHasher, StableChatIdTracker } from "../src/sse.js";
 
 const encoder = new TextEncoder();
 
@@ -24,7 +20,13 @@ function run(bytes: Uint8Array, chunkSize: number): { hash: string; data: string
   return { hash: responseHash, data };
 }
 
-const body = ['data: {"id":"chat-1","choices":[{"delta":{"content":"Hi"}}]}', "", 'data: [DONE]', "", ""].join("\n");
+const body = [
+  'data: {"id":"chat-1","choices":[{"delta":{"content":"Hi"}}]}',
+  "",
+  "data: [DONE]",
+  "",
+  "",
+].join("\n");
 
 describe("SseByteHasher hash exactness", () => {
   test("hash covers the exact bytes including the trailing [DONE] newlines", () => {
@@ -44,7 +46,8 @@ describe("SseByteHasher hash exactness", () => {
   });
 
   test("splitting inside a multi-byte UTF-8 sequence is safe", () => {
-    const withEmoji = 'data: {"id":"c","choices":[{"delta":{"content":"party 🎉 time"}}]}\n\ndata: [DONE]\n\n';
+    const withEmoji =
+      'data: {"id":"c","choices":[{"delta":{"content":"party 🎉 time"}}]}\n\ndata: [DONE]\n\n';
     const bytes = encoder.encode(withEmoji);
     const expected = sha256Hex(bytes);
     // The emoji occupies 4 bytes; assert every split reproduces both the hash
@@ -57,7 +60,7 @@ describe("SseByteHasher hash exactness", () => {
   });
 
   test("handles CRLF framing and comment lines", () => {
-    const crlf = ": keep-alive\r\ndata: {\"id\":\"c\"}\r\n\r\ndata: [DONE]\r\n\r\n";
+    const crlf = ': keep-alive\r\ndata: {"id":"c"}\r\n\r\ndata: [DONE]\r\n\r\n';
     const bytes = encoder.encode(crlf);
     const { data } = run(bytes, 3);
     expect(data).toEqual(['{"id":"c"}', "[DONE]"]);
@@ -72,9 +75,7 @@ describe("SseByteHasher hash exactness", () => {
   test("rejects an unterminated event that exceeds the buffer limit", () => {
     const hasher = new SseByteHasher();
     expect(() =>
-      hasher.push(
-        encoder.encode(`data: ${"x".repeat(MAX_SSE_EVENT_CHARS + 1)}`),
-      ),
+      hasher.push(encoder.encode(`data: ${"x".repeat(MAX_SSE_EVENT_CHARS + 1)}`)),
     ).toThrow(/SSE event exceeds/);
   });
 });

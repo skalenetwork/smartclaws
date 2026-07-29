@@ -28,9 +28,13 @@ const hangingFetch = ((_url: unknown, init?: { signal?: AbortSignal }) =>
 describe("VerificationWorker", () => {
   test("caps pending work; overflow returns false and records a SKIP", () => {
     const store = new RecordStore();
-    const worker = new VerificationWorker(store, { cache: new AttestationCache(), fetchImpl: hangingFetch }, {
-      deadlineMs: 50,
-    });
+    const worker = new VerificationWorker(
+      store,
+      { cache: new AttestationCache(), fetchImpl: hangingFetch },
+      {
+        deadlineMs: 50,
+      },
+    );
 
     const results: boolean[] = [];
     for (let i = 0; i < MAX_CONCURRENT_JOBS + MAX_PENDING_JOBS + 1; i++) {
@@ -49,9 +53,13 @@ describe("VerificationWorker", () => {
 
   test("runs at most MAX_CONCURRENT_JOBS at once", () => {
     const store = new RecordStore();
-    const worker = new VerificationWorker(store, { cache: new AttestationCache(), fetchImpl: hangingFetch }, {
-      deadlineMs: 50,
-    });
+    const worker = new VerificationWorker(
+      store,
+      { cache: new AttestationCache(), fetchImpl: hangingFetch },
+      {
+        deadlineMs: 50,
+      },
+    );
     for (let i = 0; i < 5; i++) worker.enqueue(input({ chatId: `c${i}` }));
     expect(worker.pending).toBe(5 - MAX_CONCURRENT_JOBS);
     worker.shutdown();
@@ -59,9 +67,13 @@ describe("VerificationWorker", () => {
 
   test("shutdown clears the queue and scrubs queued credentials", () => {
     const store = new RecordStore();
-    const worker = new VerificationWorker(store, { cache: new AttestationCache(), fetchImpl: hangingFetch }, {
-      deadlineMs: 50,
-    });
+    const worker = new VerificationWorker(
+      store,
+      { cache: new AttestationCache(), fetchImpl: hangingFetch },
+      {
+        deadlineMs: 50,
+      },
+    );
     // Fill the two concurrent slots, then queue one more we can inspect.
     worker.enqueue(input());
     worker.enqueue(input());
@@ -76,7 +88,10 @@ describe("VerificationWorker", () => {
 
   test("a settled job scrubs its credential and stores a record", async () => {
     const store = new RecordStore();
-    const worker = new VerificationWorker(store, { cache: new AttestationCache(), fetchImpl: rejectingFetch });
+    const worker = new VerificationWorker(store, {
+      cache: new AttestationCache(),
+      fetchImpl: rejectingFetch,
+    });
     const job = input({ sessionId: "s1", apiKey: "will-be-cleared" });
     worker.enqueue(job);
     // Let the job settle (signature fetch rejects -> SKIP record).

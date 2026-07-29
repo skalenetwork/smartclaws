@@ -12,16 +12,26 @@ import { validateDirectOrigin } from "../src/util.js";
 const MODEL = "deepseek-ai/DeepSeek-V4-Flash";
 const REQ = "a".repeat(64);
 const RES = "b".repeat(64);
-const account = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
+const account = privateKeyToAccount(
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+);
 
-async function signedPayload(text: string, overrides: Partial<SignaturePayload> = {}): Promise<SignaturePayload> {
+async function signedPayload(
+  text: string,
+  overrides: Partial<SignaturePayload> = {},
+): Promise<SignaturePayload> {
   const signature = await account.signMessage({ message: text });
   return { signature, signing_address: account.address, signing_algo: "ecdsa", text, ...overrides };
 }
 
 describe("parseSignatureText", () => {
   test("three-part direct payload with matching model", () => {
-    expect(parseSignatureText(`${MODEL}:${REQ}:${RES}`, MODEL)).toEqual({ ok: true, model: MODEL, req: REQ, res: RES });
+    expect(parseSignatureText(`${MODEL}:${REQ}:${RES}`, MODEL)).toEqual({
+      ok: true,
+      model: MODEL,
+      req: REQ,
+      res: RES,
+    });
   });
   test("three-part with mismatched model is rejected", () => {
     const r = parseSignatureText(`other:${REQ}:${RES}`, MODEL);
@@ -67,7 +77,9 @@ describe("verifySignaturePayload", () => {
   });
 
   test("tampered signature (recovered != claimed) is FAIL", async () => {
-    const other = privateKeyToAccount("0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba");
+    const other = privateKeyToAccount(
+      "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    );
     const text = `${MODEL}:${REQ}:${RES}`;
     const payload: SignaturePayload = {
       signature: await other.signMessage({ message: text }),
@@ -111,7 +123,8 @@ describe("isTransientSignatureMiss", () => {
 });
 
 describe("fetchSignaturePayload retry", () => {
-  const origin = validateDirectOrigin("https://n.completions.near.ai/v1")!;
+  const origin = validateDirectOrigin("https://n.completions.near.ai/v1");
+  if (!origin) throw new Error("test direct origin must be valid");
 
   test("retries transient 404 then succeeds", async () => {
     let calls = 0;
@@ -120,7 +133,9 @@ describe("fetchSignaturePayload retry", () => {
       if (calls < 3) {
         return new Response("chat not found", { status: 404 });
       }
-      return new Response(JSON.stringify({ signature: "0x", signing_address: "0x", text: "x" }), { status: 200 });
+      return new Response(JSON.stringify({ signature: "0x", signing_address: "0x", text: "x" }), {
+        status: 200,
+      });
     }) as unknown as typeof fetch;
     let clock = 0;
     const payload = await fetchSignaturePayload({
@@ -138,7 +153,8 @@ describe("fetchSignaturePayload retry", () => {
   });
 
   test("gives up after the retry deadline", async () => {
-    const fetchImpl = (async () => new Response("chat not found", { status: 404 })) as unknown as typeof fetch;
+    const fetchImpl = (async () =>
+      new Response("chat not found", { status: 404 })) as unknown as typeof fetch;
     let clock = 0;
     await expect(
       fetchSignaturePayload({
@@ -171,7 +187,13 @@ describe("fetchSignaturePayload retry", () => {
     controller.abort();
     const fetchImpl = (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
     await expect(
-      fetchSignaturePayload({ origin, chatId: "c1", apiKey: "k", fetchImpl, signal: controller.signal }),
+      fetchSignaturePayload({
+        origin,
+        chatId: "c1",
+        apiKey: "k",
+        fetchImpl,
+        signal: controller.signal,
+      }),
     ).rejects.toThrow(/aborted/);
   });
 });

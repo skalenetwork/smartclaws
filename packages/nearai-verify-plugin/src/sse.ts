@@ -49,8 +49,8 @@ export class SseByteHasher {
     const events: SseEvent[] = [];
     // Events are separated by a blank line. Normalize CRLF to LF for framing.
     let normalized = this.textBuffer.replace(/\r\n/g, "\n");
-    let idx: number;
-    while ((idx = normalized.indexOf("\n\n")) !== -1) {
+    let idx = normalized.indexOf("\n\n");
+    while (idx !== -1) {
       const block = normalized.slice(0, idx);
       if (block.length > MAX_SSE_EVENT_CHARS) {
         throw new Error(`SSE event exceeds ${MAX_SSE_EVENT_CHARS} characters`);
@@ -58,6 +58,7 @@ export class SseByteHasher {
       normalized = normalized.slice(idx + 2);
       const event = parseSseBlock(block);
       if (event) events.push(event);
+      idx = normalized.indexOf("\n\n");
     }
     if (final && normalized.length > 0) {
       if (normalized.length > MAX_SSE_EVENT_CHARS) {

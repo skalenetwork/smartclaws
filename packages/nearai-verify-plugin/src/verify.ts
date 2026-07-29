@@ -6,7 +6,7 @@ import {
   fetchAttestationReport,
   verifyAttestationReport,
 } from "./attestation.js";
-import { AttestationCache, attestationCacheKey } from "./cache.js";
+import { type AttestationCache, attestationCacheKey } from "./cache.js";
 import { fetchSignaturePayload, verifySignaturePayload } from "./signature.js";
 import {
   combineStatus,
@@ -16,8 +16,8 @@ import {
   type VerificationRecord,
 } from "./types.js";
 import {
-  describeError,
   type DirectOrigin,
+  describeError,
   ECDSA_SIGNING_ALGORITHM,
   validateDirectOrigin,
 } from "./util.js";
@@ -61,7 +61,11 @@ export async function verifyMessage(
 
   const origin = validateDirectOrigin(input.endpoint);
   if (!origin) {
-    record.checks.push({ name: "endpoint", result: "SKIP", detail: "not a NEAR direct completions origin" });
+    record.checks.push({
+      name: "endpoint",
+      result: "SKIP",
+      detail: "not a NEAR direct completions origin",
+    });
     return settle(record, false, now);
   }
 
@@ -80,7 +84,12 @@ export async function verifyMessage(
       signal,
     });
     if (payload.signing_algo) signingAlgo = payload.signing_algo;
-    const sig = await verifySignaturePayload(payload, input.model, input.requestHash, input.responseHash);
+    const sig = await verifySignaturePayload(
+      payload,
+      input.model,
+      input.requestHash,
+      input.responseHash,
+    );
     record.signingAddress = sig.signingAddress;
     record.recoveredAddress = sig.recoveredAddress;
     record.signatureKind = sig.signatureKind;
@@ -98,21 +107,42 @@ export async function verifyMessage(
 
   // Step 4: attestation (only meaningful once we have a recovered signer).
   if (recoveredAddress && signatureProven) {
-    const lookup = await attest(origin, recoveredAddress, signingAlgo, input, deps, makeNonce, signal);
+    const lookup = await attest(
+      origin,
+      recoveredAddress,
+      signingAlgo,
+      input,
+      deps,
+      makeNonce,
+      signal,
+    );
     for (const c of lookup.result.checks) checks.push(c);
     record.attestationCacheAgeMs = lookup.cacheAgeMs;
     record.attestationVerifyMs = lookup.verifyMs;
     if (lookup.stale) {
-      checks.push({ name: "attestation freshness", result: "SKIP", detail: "served stale attestation; downgraded" });
+      checks.push({
+        name: "attestation freshness",
+        result: "SKIP",
+        detail: "served stale attestation; downgraded",
+      });
     }
   } else if (recoveredAddress) {
-    checks.push({ name: "hardware attestation", result: "SKIP", detail: "signature not proven on a direct endpoint" });
+    checks.push({
+      name: "hardware attestation",
+      result: "SKIP",
+      detail: "signature not proven on a direct endpoint",
+    });
   } else {
-    checks.push({ name: "hardware attestation", result: "SKIP", detail: "no recovered signer to attest" });
+    checks.push({
+      name: "hardware attestation",
+      result: "SKIP",
+      detail: "no recovered signer to attest",
+    });
   }
 
   record.checks = checks;
-  const hasProvenChain = signatureProven && !checks.some((c) => c.result === "FAIL" || c.result === "SKIP");
+  const hasProvenChain =
+    signatureProven && !checks.some((c) => c.result === "FAIL" || c.result === "SKIP");
   return settle(record, hasProvenChain, now);
 }
 
@@ -176,7 +206,11 @@ async function attest(
   }
 }
 
-function settle(record: VerificationRecord, hasProvenChain: boolean, now: () => number): VerificationRecord {
+function settle(
+  record: VerificationRecord,
+  hasProvenChain: boolean,
+  now: () => number,
+): VerificationRecord {
   record.status = combineStatus(record.checks);
   record.evidence = deriveEvidence(record.status, hasProvenChain);
   record.durationMs = now() - record.startedAt;

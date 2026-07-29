@@ -49,11 +49,10 @@ jobs:
       - name: Install workspace deps
         run: bun install
 
-      # Lint cli + sdk + plugin (dashboard is intentionally excluded). Run from
-      # packages/cli so biome resolves from its devDependency.
+      # The root script changes into packages/cli so Biome resolves from its
+      # pinned devDependency rather than an unrelated package from the registry.
       - name: Lint
-        working-directory: packages/cli
-        run: bunx biome check src ../sdk/src ../openclaw-plugin/src ../nearai-verify-plugin/src ../nearai-verify-plugin/tests
+        run: bun run lint
 
       - name: Build packages
         run: bun run build:packages

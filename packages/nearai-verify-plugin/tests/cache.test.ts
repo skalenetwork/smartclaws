@@ -2,14 +2,24 @@ import { describe, expect, test } from "bun:test";
 import type { AttestationResult } from "../src/attestation.js";
 import { AttestationCache, attestationCacheKey } from "../src/cache.js";
 
-const pass = (): AttestationResult => ({ checks: [{ name: "x", result: "PASS", detail: "" }], passed: true, failed: false });
-const fail = (): AttestationResult => ({ checks: [{ name: "x", result: "FAIL", detail: "" }], passed: false, failed: true });
+const pass = (): AttestationResult => ({
+  checks: [{ name: "x", result: "PASS", detail: "" }],
+  passed: true,
+  failed: false,
+});
+const fail = (): AttestationResult => ({
+  checks: [{ name: "x", result: "FAIL", detail: "" }],
+  passed: false,
+  failed: true,
+});
 
 const KEY = attestationCacheKey("https://n.completions.near.ai", "0xAbC", "ecdsa");
 
 describe("attestationCacheKey", () => {
   test("is case-insensitive on address and algo", () => {
-    expect(attestationCacheKey("https://n", "0xABC", "ECDSA")).toBe(attestationCacheKey("https://n", "0xabc", "ecdsa"));
+    expect(attestationCacheKey("https://n", "0xABC", "ECDSA")).toBe(
+      attestationCacheKey("https://n", "0xabc", "ecdsa"),
+    );
   });
 });
 

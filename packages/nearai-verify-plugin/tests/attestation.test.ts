@@ -38,9 +38,12 @@ function goodReport(): AttestationReport {
 }
 
 function passingGpuFetch(verdict = "pass"): typeof fetch {
-  const claims = Buffer.from(JSON.stringify({ "x-nvidia-overall-att-result": verdict })).toString("base64url");
+  const claims = Buffer.from(JSON.stringify({ "x-nvidia-overall-att-result": verdict })).toString(
+    "base64url",
+  );
   const jwt = `h.${claims}.s`;
-  return (async () => new Response(JSON.stringify([["x", jwt]]), { status: 200 })) as unknown as typeof fetch;
+  return (async () =>
+    new Response(JSON.stringify([["x", jwt]]), { status: 200 })) as unknown as typeof fetch;
 }
 
 function adapter(overrides: Partial<DcapAdapter> = {}): DcapAdapter {
@@ -68,7 +71,11 @@ describe("verifyIntelQeVendorId", () => {
 
 describe("verifyReportDataBinding", () => {
   test("binds signer and nonce", () => {
-    const r = verifyReportDataBinding({ reportData: makeReportData(), signingAddress: ADDR, requestNonce: NONCE });
+    const r = verifyReportDataBinding({
+      reportData: makeReportData(),
+      signingAddress: ADDR,
+      requestNonce: NONCE,
+    });
     expect(r.ok).toBe(true);
   });
   test("rejects a signer that is not in the quote", () => {
@@ -90,16 +97,22 @@ describe("verifyReportDataBinding", () => {
     expect(r.detail).toContain("nonce mismatch");
   });
   test("rejects report_data of the wrong length", () => {
-    expect(verifyReportDataBinding({ reportData: new Uint8Array(32), signingAddress: ADDR, requestNonce: NONCE }).ok).toBe(
-      false,
-    );
+    expect(
+      verifyReportDataBinding({
+        reportData: new Uint8Array(32),
+        signingAddress: ADDR,
+        requestNonce: NONCE,
+      }).ok,
+    ).toBe(false);
   });
 });
 
 describe("nvidiaVerdictPassed", () => {
   test("accepts explicit pass values only", () => {
-    for (const v of [true, "pass", "PASS", "passed", "true"]) expect(nvidiaVerdictPassed(v)).toBe(true);
-    for (const v of ["fail", "1", "yes", 1, {}, null, undefined]) expect(nvidiaVerdictPassed(v)).toBe(false);
+    for (const v of [true, "pass", "PASS", "passed", "true"])
+      expect(nvidiaVerdictPassed(v)).toBe(true);
+    for (const v of ["fail", "1", "yes", 1, {}, null, undefined])
+      expect(nvidiaVerdictPassed(v)).toBe(false);
   });
 });
 

@@ -1,6 +1,6 @@
+import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, test } from "bun:test";
 
 const pkg = JSON.parse(readFileSync(join(import.meta.dir, "..", "package.json"), "utf8"));
 const lockfile = readFileSync(join(import.meta.dir, "..", "..", "..", "bun.lock"), "utf8");
@@ -42,9 +42,7 @@ describe("DCAP verifier dependency audit (GHSA-796p-j2gh-9m2q)", () => {
 
   test("resolves @phala/dcap-qvl at or above the patched floor", () => {
     const matches = [
-      ...lockfile.matchAll(
-        /"@phala\/dcap-qvl": \["@phala\/dcap-qvl@(\d+\.\d+\.\d+)"/g,
-      ),
+      ...lockfile.matchAll(/"@phala\/dcap-qvl": \["@phala\/dcap-qvl@(\d+\.\d+\.\d+)"/g),
     ];
     expect(matches).toHaveLength(1);
     const resolved = matches[0]?.[1];
