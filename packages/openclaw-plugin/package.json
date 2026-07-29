@@ -4,6 +4,9 @@
   "type": "module",
   "description": "Publish and read IoT data on SKALE through SmartClaws, as OpenClaw agent tools.",
   "license": "LGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "files": [
     "dist",
     "openclaw.plugin.json",

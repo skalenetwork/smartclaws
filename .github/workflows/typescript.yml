@@ -6,11 +6,17 @@ on:
     paths:
       - "packages/**"
       - "smart-contracts/contracts/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/typescript.yml"
   pull_request:
     branches: [main]
     paths:
       - "packages/**"
       - "smart-contracts/contracts/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/typescript.yml"
 
 jobs:
   test:
@@ -24,7 +30,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - uses: oven-sh/setup-bun@v2
 
@@ -47,7 +53,7 @@ jobs:
       # packages/cli so biome resolves from its devDependency.
       - name: Lint
         working-directory: packages/cli
-        run: bunx biome check src ../sdk/src ../openclaw-plugin/src
+        run: bunx biome check src ../sdk/src ../openclaw-plugin/src ../nearai-verify-plugin/src ../nearai-verify-plugin/tests
 
       - name: Build packages
         run: bun run build:packages
@@ -68,11 +74,19 @@ jobs:
         working-directory: packages/openclaw-plugin
         run: bun run check
 
+      - name: Type check nearai-verify plugin
+        working-directory: packages/nearai-verify-plugin
+        run: bun run check
+
       - name: SDK tests
         run: bun run test:sdk
 
       - name: Plugin tests
         working-directory: packages/openclaw-plugin
+        run: bun test
+
+      - name: nearai-verify plugin tests
+        working-directory: packages/nearai-verify-plugin
         run: bun test
 
       - name: Verify plugin manifest is current
@@ -91,3 +105,59 @@ jobs:
       - name: CLI integration tests
         working-directory: packages/cli
         run: bun run test:integration
+
+  # Validates the Node floor the plugin bundles claim (esbuild --target=node22
+  # and the `engines` field). Deliberately narrow: the contract toolchain and
+  # integration tests above do not vary by Node version, so they stay in `test`.
+  #
+  # Note the checks here are `node` invocations, not `bun test` — Bun tests run
+  # on the Bun runtime, so they would be identical across every matrix leg and
+  # prove nothing about Node compatibility.
+  plugin-node-matrix:
+    name: Plugin bundles on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+        experimental: [false]
+        include:
+          # Node 26 is the Current line: advisory signal, must not block a merge.
+          - node: "26"
+            experimental: true
+
+    continue-on-error: ${{ matrix.experimental }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      # ABIs are committed under packages/core/abi, so hardhat is not needed here.
+      - name: Install workspace deps
+        run: bun install
+
+      - name: Build packages
+        run: bun run build:packages
+
+      - name: Smoke-load built bundles under Node ${{ matrix.node }}
+        run: |
+          set -euo pipefail
+          for bundle in \
+            packages/openclaw-plugin/dist/index.js \
+            packages/nearai-verify-plugin/dist/index.js
+          do
+            echo "Loading $bundle"
+            node --input-type=module -e "
+              import('./$bundle')
+                .then(() => console.log('  ok'))
+                .catch((err) => { console.error('  failed:', err.message); process.exit(1); });
+            "
+          done
