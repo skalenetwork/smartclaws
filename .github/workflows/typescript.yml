@@ -40,7 +40,7 @@ jobs:
 
       - name: Compile contracts
         working-directory: smart-contracts
-        run: bunx hardhat compile
+        run: bun run compile
 
       - name: Export ABIs
         working-directory: smart-contracts
@@ -49,8 +49,7 @@ jobs:
       - name: Install workspace deps
         run: bun install
 
-      # The root script changes into packages/cli so Biome resolves from its
-      # pinned devDependency rather than an unrelated package from the registry.
+      # Biome is pinned once at the workspace root.
       - name: Lint
         run: bun run lint
 
@@ -59,7 +58,7 @@ jobs:
 
       - name: Type check core
         working-directory: packages/core
-        run: bunx tsc --noEmit
+        run: bun run check
 
       - name: Type check SDK
         working-directory: packages/sdk

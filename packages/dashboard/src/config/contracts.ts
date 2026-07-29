@@ -7,9 +7,9 @@ import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json";
 import SmartClawsDeviceGroupABI from "@smartclaws/core/abi/SmartClawsDeviceGroup.json";
 
 export const abis = {
-  registry: SmartClawsABI.abi as Abi,
-  agent: SmartClawsAgentABI.abi as Abi,
-  channel: SmartClawsChannelABI.abi as Abi,
-  device: SmartClawsDeviceABI.abi as Abi,
-  deviceGroup: SmartClawsDeviceGroupABI.abi as Abi,
+    registry: SmartClawsABI.abi as Abi,
+    agent: SmartClawsAgentABI.abi as Abi,
+    channel: SmartClawsChannelABI.abi as Abi,
+    device: SmartClawsDeviceABI.abi as Abi,
+    deviceGroup: SmartClawsDeviceGroupABI.abi as Abi,
 };

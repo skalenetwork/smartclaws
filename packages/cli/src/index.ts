@@ -13,9 +13,9 @@ import { walletCommand } from "./commands/wallet.ts";
 import { whoamiCommand } from "./commands/whoami.ts";
 
 program
-  .name("smartclaws")
-  .description("SmartClaws CLI — interact with SmartClaws contracts on SKALE")
-  .version(pkg.version);
+    .name("smartclaws")
+    .description("SmartClaws CLI — interact with SmartClaws contracts on SKALE")
+    .version(pkg.version);
 
 program.addCommand(initCommand);
 program.addCommand(registerCommand);

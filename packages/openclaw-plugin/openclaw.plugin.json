@@ -1,50 +1,50 @@
 {
-  "id": "smartclaws",
-  "name": "SmartClaws",
-  "description": "Publish and read IoT telemetry on SKALE through SmartClaws.",
-  "version": "0.2.0",
-  "configSchema": {
-    "type": "object",
-    "properties": {
-      "smartclawsHome": {
-        "type": "string",
-        "description": "SmartClaws config directory. Defaults to SMARTCLAWS_HOME or ~/.smartclaws."
-      },
-      "network": {
-        "type": "string",
-        "description": "Default network name. Currently supported: base-testnet."
-      },
-      "rpcUrl": {
-        "type": "string",
-        "description": "Override RPC URL."
-      },
-      "chainId": {
-        "type": "number",
-        "description": "Override chain ID (required with rpcUrl when no network is set)."
-      },
-      "registryAddress": {
-        "type": "string",
-        "description": "Override registry contract address."
-      }
-    }
-  },
-  "activation": {
-    "onStartup": true
-  },
-  "contracts": {
-    "tools": [
-      "smartclaws_wallet_info",
-      "smartclaws_read",
-      "smartclaws_publish",
-      "smartclaws_notify"
-    ]
-  },
-  "toolMetadata": {
-    "smartclaws_publish": {
-      "optional": true
+    "id": "smartclaws",
+    "name": "SmartClaws",
+    "description": "Publish and read IoT telemetry on SKALE through SmartClaws.",
+    "version": "0.2.0",
+    "configSchema": {
+        "type": "object",
+        "properties": {
+            "smartclawsHome": {
+                "type": "string",
+                "description": "SmartClaws config directory. Defaults to SMARTCLAWS_HOME or ~/.smartclaws."
+            },
+            "network": {
+                "type": "string",
+                "description": "Default network name. Currently supported: base-testnet."
+            },
+            "rpcUrl": {
+                "type": "string",
+                "description": "Override RPC URL."
+            },
+            "chainId": {
+                "type": "number",
+                "description": "Override chain ID (required with rpcUrl when no network is set)."
+            },
+            "registryAddress": {
+                "type": "string",
+                "description": "Override registry contract address."
+            }
+        }
     },
-    "smartclaws_notify": {
-      "optional": true
+    "activation": {
+        "onStartup": true
+    },
+    "contracts": {
+        "tools": [
+            "smartclaws_wallet_info",
+            "smartclaws_read",
+            "smartclaws_publish",
+            "smartclaws_notify"
+        ]
+    },
+    "toolMetadata": {
+        "smartclaws_publish": {
+            "optional": true
+        },
+        "smartclaws_notify": {
+            "optional": true
+        }
     }
-  }
 }

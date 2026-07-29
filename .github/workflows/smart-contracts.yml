@@ -31,10 +31,10 @@ jobs:
         run: bun install
 
       - name: Compile contracts
-        run: bunx hardhat compile
+        run: bun run compile
 
       - name: Lint Solidity
-        run: bunx solhint 'contracts/**/*.sol'
+        run: bun run lint
 
       - name: Run tests
-        run: bunx hardhat test
+        run: bun test

@@ -1,31 +1,33 @@
 {
-  "name": "@smartclaws/sdk",
-  "version": "0.3.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "bun": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": ["dist", "src"],
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "check": "tsc --noEmit",
-    "lint": "biome check src/",
-    "test": "bun test"
-  },
-  "dependencies": {
-    "@smartclaws/core": "workspace:*",
-    "viem": "^2.47.0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.0",
-    "@types/bun": "^1.3.11",
-    "@types/node": "^22.0.0",
-    "typescript": "^6.0.0"
-  },
-  "license": "LGPL-3.0-or-later"
+    "name": "@smartclaws/sdk",
+    "version": "0.3.0",
+    "type": "module",
+    "exports": {
+        ".": {
+            "bun": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        }
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "check": "tsc --noEmit",
+        "lint": "biome check src/",
+        "test": "bun test"
+    },
+    "dependencies": {
+        "@smartclaws/core": "workspace:*",
+        "viem": "^2.47.0"
+    },
+    "devDependencies": {
+        "@types/bun": "^1.3.11",
+        "@types/node": "^22.0.0",
+        "typescript": "^6.0.0"
+    },
+    "license": "LGPL-3.0-or-later"
 }

@@ -67,7 +67,7 @@ jobs:
 
       - name: Compile contracts
         working-directory: smart-contracts
-        run: bunx hardhat compile
+        run: bun run compile
 
       - name: Export ABIs
         working-directory: smart-contracts
@@ -75,21 +75,20 @@ jobs:
 
       - name: Contract tests
         working-directory: smart-contracts
-        run: bunx hardhat test
+        run: bun test
 
       - name: Install workspace deps
         run: bun install
 
       - name: Lint
-        working-directory: packages/cli
-        run: bunx biome check src ../sdk/src ../openclaw-plugin/src
+        run: bun run lint
 
       - name: Build packages
         run: bun run build:packages
 
       - name: Type check core
         working-directory: packages/core
-        run: bunx tsc --noEmit
+        run: bun run check
 
       - name: Type check SDK
         working-directory: packages/sdk
@@ -103,11 +102,19 @@ jobs:
         working-directory: packages/openclaw-plugin
         run: bun run check
 
+      - name: Type check nearai-verify plugin
+        working-directory: packages/nearai-verify-plugin
+        run: bun run check
+
       - name: SDK tests
         run: bun run test:sdk
 
       - name: Plugin tests
         working-directory: packages/openclaw-plugin
+        run: bun test
+
+      - name: nearai-verify plugin tests
+        working-directory: packages/nearai-verify-plugin
         run: bun test
 
       - name: Verify plugin manifest is current

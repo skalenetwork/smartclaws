@@ -1,9 +1,9 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "strict": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "noEmit": true
-  }
+    "compilerOptions": {
+        "target": "ES2022",
+        "strict": true,
+        "skipLibCheck": true,
+        "resolveJsonModule": true,
+        "noEmit": true
+    }
 }

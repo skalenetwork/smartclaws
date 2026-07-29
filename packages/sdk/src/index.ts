@@ -4,12 +4,12 @@
 
 // Convenience re-exports of core primitives
 export type {
-  AgentFile,
-  Config,
-  DeviceFile,
-  GroupFile,
-  SmartClawsMode,
-  WalletFile,
+    AgentFile,
+    Config,
+    DeviceFile,
+    GroupFile,
+    SmartClawsMode,
+    WalletFile,
 } from "@smartclaws/core/types";
 export * from "./agent.js";
 export * from "./backup.js";

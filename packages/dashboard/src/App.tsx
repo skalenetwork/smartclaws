@@ -17,26 +17,26 @@ import { Toaster } from "./components/ui/sonner";
 const queryClient = new QueryClient();
 
 export function App() {
-  return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <Routes>
-            <Route index element={<HomePage />} />
-            <Route element={<AppLayout />}>
-              <Route path="overview" element={<OverviewPage />} />
-              <Route path="groups" element={<DeviceGroupsPage />} />
-              <Route path="groups/:address" element={<GroupDetailPage />} />
-              <Route path="devices/:address" element={<DeviceDetailPage />} />
-              <Route path="channels/:address" element={<ChannelDetailPage />} />
-              <Route path="agents" element={<AgentsPage />} />
-              <Route path="skills" element={<SkillsPage />} />
-              <Route path="setup" element={<InstallationPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-        <Toaster />
-      </QueryClientProvider>
-    </WagmiProvider>
-  );
+    return (
+        <WagmiProvider config={config}>
+            <QueryClientProvider client={queryClient}>
+                <BrowserRouter>
+                    <Routes>
+                        <Route index element={<HomePage />} />
+                        <Route element={<AppLayout />}>
+                            <Route path="overview" element={<OverviewPage />} />
+                            <Route path="groups" element={<DeviceGroupsPage />} />
+                            <Route path="groups/:address" element={<GroupDetailPage />} />
+                            <Route path="devices/:address" element={<DeviceDetailPage />} />
+                            <Route path="channels/:address" element={<ChannelDetailPage />} />
+                            <Route path="agents" element={<AgentsPage />} />
+                            <Route path="skills" element={<SkillsPage />} />
+                            <Route path="setup" element={<InstallationPage />} />
+                        </Route>
+                    </Routes>
+                </BrowserRouter>
+                <Toaster />
+            </QueryClientProvider>
+        </WagmiProvider>
+    );
 }

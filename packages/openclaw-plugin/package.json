@@ -1,48 +1,48 @@
 {
-  "name": "smartclaws-openclaw-plugin",
-  "version": "0.2.0",
-  "type": "module",
-  "description": "Publish and read IoT data on SKALE through SmartClaws, as OpenClaw agent tools.",
-  "license": "LGPL-3.0-or-later",
-  "engines": {
-    "node": ">=22.19.0"
-  },
-  "files": [
-    "dist",
-    "openclaw.plugin.json",
-    "README.md"
-  ],
-  "openclaw": {
-    "extensions": [
-      "./dist/index.js"
-    ],
-    "compat": {
-      "pluginApi": ">=2026.5.17"
+    "name": "smartclaws-openclaw-plugin",
+    "version": "0.2.0",
+    "type": "module",
+    "description": "Publish and read IoT data on SKALE through SmartClaws, as OpenClaw agent tools.",
+    "license": "LGPL-3.0-or-later",
+    "engines": {
+        "node": ">=22.19.0"
     },
-    "build": {
-      "openclawVersion": "2026.5.17"
+    "files": [
+        "dist",
+        "openclaw.plugin.json",
+        "README.md"
+    ],
+    "openclaw": {
+        "extensions": [
+            "./dist/index.js"
+        ],
+        "compat": {
+            "pluginApi": ">=2026.5.17"
+        },
+        "build": {
+            "openclawVersion": "2026.5.17"
+        }
+    },
+    "scripts": {
+        "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:openclaw --external:openclaw/* --outfile=dist/index.js",
+        "test": "bun test",
+        "manifest": "openclaw plugins build --root . --entry ./dist/index.js",
+        "manifest:check": "openclaw plugins build --root . --entry ./dist/index.js --check",
+        "validate": "openclaw plugins validate --root . --entry ./dist/index.js",
+        "check": "tsc --noEmit"
+    },
+    "dependencies": {
+        "typebox": "^1.1.38"
+    },
+    "peerDependencies": {
+        "openclaw": ">=2026.5.17"
+    },
+    "devDependencies": {
+        "@smartclaws/core": "workspace:*",
+        "@smartclaws/sdk": "workspace:*",
+        "@types/node": "^22.0.0",
+        "esbuild": "^0.24.0",
+        "openclaw": ">=2026.5.17",
+        "typescript": "^6.0.0"
     }
-  },
-  "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:openclaw --external:openclaw/* --outfile=dist/index.js",
-    "test": "bun test",
-    "manifest": "openclaw plugins build --root . --entry ./dist/index.js",
-    "manifest:check": "openclaw plugins build --root . --entry ./dist/index.js --check",
-    "validate": "openclaw plugins validate --root . --entry ./dist/index.js",
-    "check": "tsc --noEmit"
-  },
-  "dependencies": {
-    "typebox": "^1.1.38"
-  },
-  "peerDependencies": {
-    "openclaw": ">=2026.5.17"
-  },
-  "devDependencies": {
-    "@smartclaws/core": "workspace:*",
-    "@smartclaws/sdk": "workspace:*",
-    "@types/node": "^22.0.0",
-    "esbuild": "^0.24.0",
-    "openclaw": ">=2026.5.17",
-    "typescript": "^6.0.0"
-  }
 }

@@ -1,36 +1,36 @@
 {
-  "id": "nearai-verify",
-  "name": "NEAR AI Verify",
-  "description": "Verify NEAR AI Cloud completions against TEE attestation.",
-  "version": "0.1.0",
-  "providers": ["nearai"],
-  "autoEnableWhenConfiguredProviders": ["nearai"],
-  "activation": {
-    "onStartup": true
-  },
-  "setup": {
-    "providers": [
-      {
-        "id": "nearai",
-        "envVars": ["NEAR_AI_API_KEY"]
-      }
-    ]
-  },
-  "commandAliases": [
-    {
-      "name": "nearai-verify",
-      "kind": "runtime-slash"
+    "id": "nearai-verify",
+    "name": "NEAR AI Verify",
+    "description": "Verify NEAR AI Cloud completions against TEE attestation.",
+    "version": "0.1.0",
+    "providers": ["nearai"],
+    "autoEnableWhenConfiguredProviders": ["nearai"],
+    "activation": {
+        "onStartup": true
+    },
+    "setup": {
+        "providers": [
+            {
+                "id": "nearai",
+                "envVars": ["NEAR_AI_API_KEY"]
+            }
+        ]
+    },
+    "commandAliases": [
+        {
+            "name": "nearai-verify",
+            "kind": "runtime-slash"
+        }
+    ],
+    "configSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "enforcement": {
+                "type": "string",
+                "enum": ["observe"],
+                "description": "Verification mode. Only observation mode is supported in this release."
+            }
+        }
     }
-  ],
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "enforcement": {
-        "type": "string",
-        "enum": ["observe"],
-        "description": "Verification mode. Only observation mode is supported in this release."
-      }
-    }
-  }
 }

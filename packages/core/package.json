@@ -1,47 +1,51 @@
 {
-  "name": "@smartclaws/core",
-  "version": "0.3.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "bun": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+    "name": "@smartclaws/core",
+    "version": "0.3.0",
+    "type": "module",
+    "exports": {
+        ".": {
+            "bun": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./envelope": {
+            "bun": "./src/envelope.ts",
+            "types": "./dist/envelope.d.ts",
+            "import": "./dist/envelope.js",
+            "default": "./dist/envelope.js"
+        },
+        "./networks": {
+            "bun": "./src/networks.ts",
+            "types": "./dist/networks.d.ts",
+            "import": "./dist/networks.js",
+            "default": "./dist/networks.js"
+        },
+        "./names": {
+            "bun": "./src/names.ts",
+            "types": "./dist/names.d.ts",
+            "import": "./dist/names.js",
+            "default": "./dist/names.js"
+        },
+        "./types": {
+            "bun": "./src/types.ts",
+            "types": "./dist/types.d.ts",
+            "import": "./dist/types.js",
+            "default": "./dist/types.js"
+        },
+        "./abi/*": "./abi/*"
     },
-    "./envelope": {
-      "bun": "./src/envelope.ts",
-      "types": "./dist/envelope.d.ts",
-      "import": "./dist/envelope.js",
-      "default": "./dist/envelope.js"
+    "files": [
+        "dist",
+        "src",
+        "abi"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "check": "tsc --noEmit"
     },
-    "./networks": {
-      "bun": "./src/networks.ts",
-      "types": "./dist/networks.d.ts",
-      "import": "./dist/networks.js",
-      "default": "./dist/networks.js"
+    "devDependencies": {
+        "typescript": "^6.0.0"
     },
-    "./names": {
-      "bun": "./src/names.ts",
-      "types": "./dist/names.d.ts",
-      "import": "./dist/names.js",
-      "default": "./dist/names.js"
-    },
-    "./types": {
-      "bun": "./src/types.ts",
-      "types": "./dist/types.d.ts",
-      "import": "./dist/types.js",
-      "default": "./dist/types.js"
-    },
-    "./abi/*": "./abi/*"
-  },
-  "files": ["dist", "src", "abi"],
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "check": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "typescript": "^6.0.0"
-  },
-  "license": "LGPL-3.0-or-later"
+    "license": "LGPL-3.0-or-later"
 }

@@ -76,10 +76,10 @@ jobs:
             version_bumped=true
           fi
 
-          should_publish=false
-          if [ "$relevant_changes" = "true" ] && [ "$version_bumped" = "true" ]; then
-            should_publish=true
-          fi
+          # Always validate relevant changes. The publish step checks ClawHub
+          # and skips versions that already exist. Gating here on a Git version
+          # bump would prevent retrying a release whose first attempt failed.
+          should_publish="$relevant_changes"
 
           echo "relevant_changes=$relevant_changes" >> "$GITHUB_OUTPUT"
           echo "version_bumped=$version_bumped" >> "$GITHUB_OUTPUT"
