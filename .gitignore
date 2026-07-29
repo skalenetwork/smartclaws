@@ -9,7 +9,6 @@ build/
 
 # Node.js / Bun
 node_modules/
-bun.lock
 
 # Hardhat / Solidity
 artifacts/
