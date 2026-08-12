@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "tsc -b && vite build",
+        "build": "bun run --cwd ../core build && tsc -b && vite build",
         "preview": "vite preview",
         "check": "tsc --noEmit",
         "lint": "biome check src/",
