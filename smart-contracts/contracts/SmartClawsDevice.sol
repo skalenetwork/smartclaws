@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {ISmartClawsDevice} from "./interfaces/ISmartClawsDevice.sol";
 import {ISmartClawsChannel} from "./interfaces/ISmartClawsChannel.sol";
 import {ISmartClawsDeviceGroup} from "./interfaces/ISmartClawsDeviceGroup.sol";
@@ -12,7 +12,7 @@ import {DeviceRoles} from "./DeviceRoles.sol";
  * @title SmartClawsDevice
  * @notice Represents an individual IoT device. The device owns its two channels
  *         and mediates all publishing through role-gated entry points.
- * @dev Two tiers of authority (AccessControl):
+ * @dev Two tiers of authority (AccessControlEnumerable):
  *        - DEFAULT_ADMIN_ROLE: the managing DeviceGroup. Super-authority; admins
  *          DEVICE_ADMIN_ROLE. Can always re-appoint the device admin to override.
  *        - DEVICE_ADMIN_ROLE: the entity that controls this device. Admins
@@ -25,7 +25,7 @@ import {DeviceRoles} from "./DeviceRoles.sol";
  *      Publishing also requires the managing group to be active, so deactivating
  *      a group makes all of its devices inert in O(1) (no per-device loop).
  */
-contract SmartClawsDevice is AccessControl, ISmartClawsDevice {
+contract SmartClawsDevice is AccessControlEnumerable, ISmartClawsDevice {
     address public immutable override group;
     address public immutable override registry;
     string public override deviceId;

@@ -1,10 +1,12 @@
+import { Cpu, KeyRound, Layers, LayoutDashboard, Rocket, Wrench } from "lucide-react";
 import { Link, useLocation } from "react-router";
-import { LayoutDashboard, Rocket, Wrench, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
     { to: "/overview", label: "Overview", icon: LayoutDashboard },
     { to: "/groups", label: "Groups", icon: Layers },
+    { to: "/agents", label: "Agents", icon: Cpu },
+    { to: "/access", label: "Access", icon: KeyRound },
     { to: "/skills", label: "Skills", icon: Wrench },
     { to: "/setup", label: "Setup", icon: Rocket },
 ];

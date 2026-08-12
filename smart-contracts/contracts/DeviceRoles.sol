@@ -3,10 +3,10 @@ pragma solidity ^0.8.28;
 
 /**
  * @title DeviceRoles
- * @notice Shared AccessControl role identifiers for SmartClawsDevice.
+ * @notice Shared AccessControlEnumerable role identifiers for SmartClawsDevice.
  * @dev Defined in one place so both the device and its managing group reference
  *      the exact same role hashes. DEFAULT_ADMIN_ROLE (0x00) is provided by
- *      OpenZeppelin's AccessControl and is held by the device's group.
+ *      OpenZeppelin's AccessControlEnumerable and is held by the device's group.
  *
  *      Role hierarchy:
  *        DEFAULT_ADMIN_ROLE (group)  admins -> DEVICE_ADMIN_ROLE

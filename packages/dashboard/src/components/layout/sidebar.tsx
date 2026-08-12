@@ -1,14 +1,15 @@
-import { ChevronRight, LayoutDashboard, Rocket, Wrench } from "lucide-react";
+import { ChevronRight, Cpu, KeyRound, LayoutDashboard, Rocket, Wrench } from "lucide-react";
 import { useState } from "react";
+import { Link, useLocation } from "react-router";
 import type { Address } from "viem";
-import { AddressAvatar } from "@/components/shared/address-avatar";
 import logoSvg from "@/assets/logo.svg";
+import { AddressAvatar } from "@/components/shared/address-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAgents } from "@/hooks/use-agents";
 import { useDeviceGroups } from "@/hooks/use-device-groups";
-import { useGroupDetail, type DeviceInfo } from "@/hooks/use-group-detail";
+import { type DeviceInfo, useGroupDetail } from "@/hooks/use-group-detail";
 import { timeAgo } from "@/lib/time-ago";
 import { cn } from "@/lib/utils";
-import { Link, useLocation } from "react-router";
 
 const dotColors = {
     emerald: "bg-emerald-500",
@@ -114,6 +115,58 @@ function SidebarGroup({ address, name }: { address: Address; name: string }) {
     );
 }
 
+function SidebarAgents() {
+    const location = useLocation();
+    const { agents, isLoading } = useAgents();
+
+    if (isLoading) {
+        return (
+            <div className="px-3 space-y-2 py-1">
+                <Skeleton className="h-7 w-28 rounded" />
+                <Skeleton className="h-7 w-24 rounded" />
+            </div>
+        );
+    }
+
+    if (agents.length === 0) {
+        return <span className="text-xs text-muted-foreground/50 px-3">No agents</span>;
+    }
+
+    return (
+        <div className="space-y-0.5">
+            {agents.map((agent) => {
+                const isActive = location.pathname === `/agents/${agent.address}`;
+                const { color, label } = timeAgo(agent.lastMessageTs);
+                return (
+                    <Link
+                        key={agent.address}
+                        to={`/agents/${agent.address}`}
+                        className={cn(
+                            "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                            isActive
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                        )}
+                    >
+                        <AddressAvatar address={agent.address} size={18} kind="agent" />
+                        <span className="truncate flex-1">
+                            {agent.agentId ||
+                                `${agent.address.slice(0, 8)}…${agent.address.slice(-4)}`}
+                        </span>
+                        <span
+                            title={label}
+                            className={cn(
+                                "h-1.5 w-1.5 rounded-full shrink-0 mr-1.5",
+                                dotColors[color],
+                            )}
+                        />
+                    </Link>
+                );
+            })}
+        </div>
+    );
+}
+
 export function Sidebar() {
     const location = useLocation();
     const { groups, isLoading } = useDeviceGroups();
@@ -170,6 +223,35 @@ export function Sidebar() {
                         ))
                     )}
                 </div>
+
+                <SectionLabel>Agents</SectionLabel>
+                <Link
+                    to="/agents"
+                    className={cn(
+                        "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                        location.pathname === "/agents"
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    )}
+                >
+                    <Cpu className="h-4 w-4 shrink-0" />
+                    All Agents
+                </Link>
+                <div className="ml-4 pl-3 border-l border-border/50 py-1">
+                    <SidebarAgents />
+                </div>
+                <Link
+                    to="/access"
+                    className={cn(
+                        "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                        location.pathname === "/access"
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    )}
+                >
+                    <KeyRound className="h-4 w-4 shrink-0" />
+                    Access
+                </Link>
 
                 <SectionLabel>Skills</SectionLabel>
                 <Link

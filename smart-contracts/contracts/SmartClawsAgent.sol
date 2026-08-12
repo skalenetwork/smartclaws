@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ISmartClawsAgent} from "./interfaces/ISmartClawsAgent.sol";
@@ -20,7 +20,7 @@ import {InvalidRegistryAddress} from "./Errors.sol";
  *      `agentId` / `metadata` are mutable-by-nobody descriptors set at creation;
  *      agents are expected to be re-registered rather than edited in place.
  */
-contract SmartClawsAgent is Ownable2Step, AccessControl, ISmartClawsAgent {
+contract SmartClawsAgent is Ownable2Step, AccessControlEnumerable, ISmartClawsAgent {
     /// @notice Agent administrator; manages PUBLISHER_ROLE and SENDER_ROLE.
     bytes32 public constant AGENT_ADMIN_ROLE = keccak256("AGENT_ADMIN_ROLE");
     /// @notice May publish messages to the agent's outgoing channel.
@@ -155,7 +155,7 @@ contract SmartClawsAgent is Ownable2Step, AccessControl, ISmartClawsAgent {
 
     function supportsInterface(
         bytes4 interfaceId
-    ) public view override(AccessControl) returns (bool) {
+    ) public view override(AccessControlEnumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 

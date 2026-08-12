@@ -10,21 +10,28 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useChannelMessages } from "@/hooks/use-channel-messages";
-import { useDeviceDetail } from "@/hooks/use-device-detail";
+import { useAgentDetail } from "@/hooks/use-agent-detail";
+import { timeAgo, timeAgoColors } from "@/lib/time-ago";
+import { cn } from "@/lib/utils";
 
-export function DeviceDetailPage() {
+export function AgentDetailPage() {
     const { address } = useParams<{ address: string }>();
     if (!address) return null;
 
-    // Key forces full remount when navigating between devices
-    return <DeviceDetailContent key={address} address={address} />;
+    // Key forces full remount when navigating between agents
+    return <AgentDetailContent key={address} address={address as Address} />;
 }
 
-function DeviceDetailContent({ address }: { address: string }) {
-    const { incomingChannel, outgoingChannel, deviceId, group, isLoading } = useDeviceDetail(
-        address as Address,
-    );
+function AgentDetailContent({ address }: { address: Address }) {
+    const {
+        agentId,
+        metadata,
+        active,
+        incomingChannel,
+        outgoingChannel,
+        lastMessageTs,
+        isLoading,
+    } = useAgentDetail(address);
     const [activeTab, setActiveTab] = useState("outgoing");
 
     // `access` is not a channel tab, so no address bar is shown for it.
@@ -34,10 +41,6 @@ function DeviceDetailContent({ address }: { address: string }) {
             : activeTab === "incoming"
               ? incomingChannel
               : undefined;
-
-    // Fetch 1 message from outgoing to get device name
-    const { messages: nameMessages } = useChannelMessages(outgoingChannel, 1);
-    const devName = deviceId ?? nameMessages[0]?.envelope?.dev;
 
     if (isLoading) {
         return (
@@ -49,29 +52,53 @@ function DeviceDetailContent({ address }: { address: string }) {
         );
     }
 
+    const freshness = timeAgo(lastMessageTs);
+
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-3">
-                {group && (
-                    <Link
-                        to={`/groups/${group}`}
-                        className="flex items-center justify-center h-7 w-7 rounded-full bg-muted/50 hover:bg-muted text-muted-foreground transition-colors shrink-0"
-                        title="Back to group"
-                    >
-                        <ArrowLeft className="h-3.5 w-3.5" />
-                    </Link>
-                )}
-                <AddressAvatar address={address} size={36} kind="device" />
+                <Link
+                    to="/agents"
+                    className="bg-muted/50 hover:bg-muted text-muted-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors"
+                    title="Back to agents"
+                >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                </Link>
+                <AddressAvatar address={address} size={36} kind="agent" />
                 <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-lg font-semibold">{devName || "Device"}</h1>
-                        <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-                            Device
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h1 className="text-lg font-semibold">{agentId || "Agent"}</h1>
+                        <Badge variant="secondary" className="px-2 py-0.5 text-[10px]">
+                            Agent
                         </Badge>
+                        <Badge
+                            variant={active ? "secondary" : "outline"}
+                            className="px-2 py-0.5 text-[10px]"
+                        >
+                            {active ? "Active" : "Deactivated"}
+                        </Badge>
+                        {lastMessageTs !== undefined && (
+                            <span
+                                className={cn(
+                                    "rounded-full px-2 py-0.5 text-[10px]",
+                                    timeAgoColors[freshness.color],
+                                )}
+                            >
+                                {freshness.label}
+                            </span>
+                        )}
                     </div>
-                    <p className="text-muted-foreground/80 text-xs truncate">{address}</p>
+                    <p className="text-muted-foreground/80 truncate text-xs">{address}</p>
                 </div>
             </div>
+
+            {metadata && (
+                <Card>
+                    <CardContent className="text-muted-foreground py-2.5 text-xs">
+                        {metadata}
+                    </CardContent>
+                </Card>
+            )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <div className="flex items-center justify-between">
@@ -95,10 +122,10 @@ function DeviceDetailContent({ address }: { address: string }) {
 
                 <TabsContent value="outgoing">
                     {outgoingChannel ? (
-                        <ChannelView address={outgoingChannel} />
+                        <ChannelView address={outgoingChannel} variant="compact" />
                     ) : (
                         <Card>
-                            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                            <CardContent className="text-muted-foreground py-12 text-center text-sm">
                                 No outgoing channel configured
                             </CardContent>
                         </Card>
@@ -107,10 +134,10 @@ function DeviceDetailContent({ address }: { address: string }) {
 
                 <TabsContent value="incoming">
                     {incomingChannel ? (
-                        <ChannelView address={incomingChannel} />
+                        <ChannelView address={incomingChannel} variant="compact" />
                     ) : (
                         <Card>
-                            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                            <CardContent className="text-muted-foreground py-12 text-center text-sm">
                                 No incoming channel configured
                             </CardContent>
                         </Card>
@@ -118,7 +145,7 @@ function DeviceDetailContent({ address }: { address: string }) {
                 </TabsContent>
 
                 <TabsContent value="access">
-                    <AccessPanel subject={address as Address} kind="device" />
+                    <AccessPanel subject={address} kind="agent" />
                 </TabsContent>
             </Tabs>
         </div>

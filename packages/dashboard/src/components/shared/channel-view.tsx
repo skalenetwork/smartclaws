@@ -1,7 +1,8 @@
-import { ChevronsDown, ChevronRight, Database, Hash, Loader2, MessageSquare } from "lucide-react";
+import { ChevronRight, ChevronsDown, Database, Hash, Loader2, MessageSquare } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { Address } from "viem";
 import { EmptyState } from "@/components/shared/empty-state";
+import { SensorCharts } from "@/components/shared/sensor-charts";
 import { StatCard } from "@/components/shared/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,8 +14,8 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { useChannelCapacity } from "@/hooks/use-channel-capacity";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
-import { SensorCharts } from "@/components/shared/sensor-charts";
 
 function formatBytes(bytes: bigint): string {
     const n = Number(bytes);
@@ -115,9 +116,16 @@ function highlightJson(json: string): ReactNode[] {
 
 interface ChannelViewProps {
     address: Address;
+    /**
+     * `full` (default) shows sensor charts and the paging pill — useful for
+     * device telemetry. `compact` shows only the capacity/storage/message stats
+     * and the message list, with nothing between them.
+     */
+    variant?: "full" | "compact";
 }
 
-export function ChannelView({ address }: ChannelViewProps) {
+export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
+    const isCompact = variant === "compact";
     const {
         messages,
         messageCount,
@@ -128,6 +136,7 @@ export function ChannelView({ address }: ChannelViewProps) {
         canLoadMore,
         loadMore,
     } = useChannelMessages(address);
+    const { hasPruned } = useChannelCapacity(address);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
     const toggleExpand = (key: string) => {
@@ -193,6 +202,17 @@ export function ChannelView({ address }: ChannelViewProps) {
                                 <p className="text-[10px] text-muted-foreground/60 mt-1">
                                     {totalBytes !== undefined ? formatBytes(totalBytes) : "0 B"} /{" "}
                                     {formatBytes(maxCapacity)}
+                                    {hasPruned !== undefined && (
+                                        <span
+                                            title={
+                                                hasPruned
+                                                    ? "Circular buffer is evicting oldest messages — writes still succeed"
+                                                    : "Nothing evicted yet; full history readable"
+                                            }
+                                        >
+                                            {hasPruned ? " · pruning" : " · full history"}
+                                        </span>
+                                    )}
                                 </p>
                             </div>
                         )}
@@ -206,7 +226,7 @@ export function ChannelView({ address }: ChannelViewProps) {
                 </div>
             </div>
 
-            {messageCount !== undefined && messages.length > 0 && (
+            {!isCompact && messageCount !== undefined && messages.length > 0 && (
                 <div className="flex justify-end">
                     <div className="bg-card inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5">
                         <span className="text-xs text-muted-foreground">
@@ -235,7 +255,7 @@ export function ChannelView({ address }: ChannelViewProps) {
                 </div>
             )}
 
-            <SensorCharts messages={messages} />
+            {!isCompact && <SensorCharts messages={messages} />}
 
             {messages.length === 0 ? (
                 <EmptyState message="No messages in this channel" />
@@ -324,6 +344,35 @@ export function ChannelView({ address }: ChannelViewProps) {
                             })}
                         </TableBody>
                     </Table>
+                    {isCompact && messageCount !== undefined && (
+                        <div className="flex items-center justify-between border-t px-3 py-2">
+                            <span className="text-muted-foreground text-xs">
+                                Showing{" "}
+                                <span className="text-foreground font-medium">
+                                    {messages.length}
+                                </span>
+                                {" / "}
+                                <span className="text-foreground font-medium">
+                                    {messageCount.toString()}
+                                </span>
+                            </span>
+                            {canLoadMore && (
+                                <button
+                                    type="button"
+                                    onClick={loadMore}
+                                    disabled={isLoadingMore}
+                                    className="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors disabled:pointer-events-none disabled:opacity-50"
+                                >
+                                    {isLoadingMore ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <ChevronsDown className="h-3.5 w-3.5" />
+                                    )}
+                                    Load more
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
