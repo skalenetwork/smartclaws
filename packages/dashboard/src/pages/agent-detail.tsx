@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgentDetail } from "@/hooks/use-agent-detail";
+import { useAgentLiveness } from "@/hooks/use-agent-liveness";
 import { timeAgo, timeAgoColors } from "@/lib/time-ago";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,8 @@ function AgentDetailContent({ address }: { address: Address }) {
         lastMessageTs,
         isLoading,
     } = useAgentDetail(address);
+    const { liveness } = useAgentLiveness();
+    const live = liveness[address] ?? {};
     const [activeTab, setActiveTab] = useState("outgoing");
 
     // `access` is not a channel tab, so no address bar is shown for it.
@@ -52,7 +55,8 @@ function AgentDetailContent({ address }: { address: Address }) {
         );
     }
 
-    const freshness = timeAgo(lastMessageTs);
+    // Prefer owner-attributed activity; fall back to the agent audit channel.
+    const freshness = timeAgo(live.lastActivityTs ?? lastMessageTs);
 
     return (
         <div className="space-y-4">
@@ -77,14 +81,20 @@ function AgentDetailContent({ address }: { address: Address }) {
                         >
                             {active ? "Active" : "Deactivated"}
                         </Badge>
-                        {lastMessageTs !== undefined && (
+                        {(live.lastActivityTs ?? lastMessageTs) !== undefined && (
                             <span
+                                title={
+                                    live.source
+                                        ? `last activity via ${live.source}`
+                                        : "last message on agent channel"
+                                }
                                 className={cn(
                                     "rounded-full px-2 py-0.5 text-[10px]",
                                     timeAgoColors[freshness.color],
                                 )}
                             >
                                 {freshness.label}
+                                {live.source ? ` · ${live.source}` : ""}
                             </span>
                         )}
                     </div>

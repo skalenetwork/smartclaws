@@ -5,7 +5,7 @@ import type { Address } from "viem";
 import logoSvg from "@/assets/logo.svg";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAgents } from "@/hooks/use-agents";
+import { useAgentLiveness } from "@/hooks/use-agent-liveness";
 import { useDeviceGroups } from "@/hooks/use-device-groups";
 import { type DeviceInfo, useGroupDetail } from "@/hooks/use-group-detail";
 import { timeAgo } from "@/lib/time-ago";
@@ -117,7 +117,7 @@ function SidebarGroup({ address, name }: { address: Address; name: string }) {
 
 function SidebarAgents() {
     const location = useLocation();
-    const { agents, isLoading } = useAgents();
+    const { agents, liveness, isLoading } = useAgentLiveness();
 
     if (isLoading) {
         return (
@@ -136,7 +136,8 @@ function SidebarAgents() {
         <div className="space-y-0.5">
             {agents.map((agent) => {
                 const isActive = location.pathname === `/agents/${agent.address}`;
-                const { color, label } = timeAgo(agent.lastMessageTs);
+                const live = liveness[agent.address] ?? {};
+                const { color, label } = timeAgo(live.lastActivityTs);
                 return (
                     <Link
                         key={agent.address}
@@ -154,7 +155,7 @@ function SidebarAgents() {
                                 `${agent.address.slice(0, 8)}…${agent.address.slice(-4)}`}
                         </span>
                         <span
-                            title={label}
+                            title={live.source ? `${label} via ${live.source}` : label}
                             className={cn(
                                 "h-1.5 w-1.5 rounded-full shrink-0 mr-1.5",
                                 dotColors[color],

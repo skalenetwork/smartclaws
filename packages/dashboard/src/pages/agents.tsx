@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type AgentInfo, useAgents } from "@/hooks/use-agents";
+import { type AgentLiveness, useAgentLiveness } from "@/hooks/use-agent-liveness";
+import type { AgentInfo } from "@/hooks/use-agents";
 import { timeAgo, timeAgoColors } from "@/lib/time-ago";
 import { cn } from "@/lib/utils";
 
@@ -17,8 +18,11 @@ const dotColors = {
     muted: "bg-muted-foreground/40",
 } as const;
 
-function AgentRow({ agent }: { agent: AgentInfo }) {
-    const freshness = timeAgo(agent.lastMessageTs);
+function AgentRow({ agent, liveness }: { agent: AgentInfo; liveness: AgentLiveness }) {
+    const freshness = timeAgo(liveness.lastActivityTs);
+    const sourceHint = liveness.source
+        ? `last activity ${freshness.label} via ${liveness.source}`
+        : "no attributable activity found";
 
     return (
         <Link to={`/agents/${agent.address}`} className="block">
@@ -44,17 +48,24 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
                         )}
                     </div>
 
-                    <span
-                        className={cn(
-                            "hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] sm:inline",
-                            timeAgoColors[freshness.color],
+                    <div className="hidden shrink-0 text-right sm:block">
+                        <span
+                            className={cn(
+                                "rounded-full px-2 py-0.5 text-[10px]",
+                                timeAgoColors[freshness.color],
+                            )}
+                        >
+                            {freshness.label}
+                        </span>
+                        {liveness.source && (
+                            <p className="text-muted-foreground/60 mt-0.5 text-[10px]">
+                                via {liveness.source}
+                            </p>
                         )}
-                    >
-                        {freshness.label}
-                    </span>
+                    </div>
 
                     <span
-                        title={`last message ${freshness.label}`}
+                        title={sourceHint}
                         className={cn(
                             "h-1.5 w-1.5 shrink-0 rounded-full",
                             dotColors[freshness.color],
@@ -67,7 +78,9 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
 }
 
 export function AgentsPage() {
-    const { agents, activeCount, totalCount, isLoading } = useAgents();
+    const { agents, liveness, isLoading } = useAgentLiveness();
+    const activeCount = agents.filter((a) => a.active === true).length;
+    const totalCount = agents.length;
 
     if (isLoading && agents.length === 0) {
         return (
@@ -95,7 +108,11 @@ export function AgentsPage() {
             ) : (
                 <div className="space-y-2">
                     {agents.map((agent) => (
-                        <AgentRow key={agent.address} agent={agent} />
+                        <AgentRow
+                            key={agent.address}
+                            agent={agent}
+                            liveness={liveness[agent.address] ?? {}}
+                        />
                     ))}
                 </div>
             )}
