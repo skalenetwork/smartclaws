@@ -1,13 +1,16 @@
 import { expect } from "chai";
 import { ethers as ethersLib } from "ethers";
+import { anyValue } from "@nomicfoundation/hardhat-ethers-chai-matchers/withArgs";
 import type { SmartClaws } from "../types/ethers-contracts/index.js";
 import {
     ONE_MB,
     loadFixture,
     deploySystemFixture,
     createChannel,
+    createEncryptedChannel,
     createDeviceGroup,
     createAgent,
+    createEncryptedAgent,
     getAddressFromReceipt,
 } from "./helpers/deploy.js";
 
@@ -24,6 +27,7 @@ describe("SmartClaws", function () {
         registry = fx.registry;
         factories = [
             fx.channelFactory,
+            fx.encryptedChannelFactory,
             fx.deviceFactory,
             fx.deviceGroupFactory,
             fx.agentFactory,
@@ -35,13 +39,21 @@ describe("SmartClaws", function () {
     describe("Deployment", function () {
         it("should store the factory addresses", async function () {
             expect(await registry.channelFactory()).to.equal(factories[0]);
-            expect(await registry.deviceFactory()).to.equal(factories[1]);
-            expect(await registry.deviceGroupFactory()).to.equal(factories[2]);
-            expect(await registry.agentFactory()).to.equal(factories[3]);
-            expect(await registry.publicKeyRegistryFactory()).to.equal(factories[4]);
+            expect(await registry.encryptedChannelFactory()).to.equal(factories[1]);
+            expect(await registry.deviceFactory()).to.equal(factories[2]);
+            expect(await registry.deviceGroupFactory()).to.equal(factories[3]);
+            expect(await registry.agentFactory()).to.equal(factories[4]);
+            expect(await registry.publicKeyRegistryFactory()).to.equal(factories[5]);
         });
 
-        const slots = ["channel", "device", "deviceGroup", "agent", "publicKeyRegistry"];
+        const slots = [
+            "channel",
+            "encryptedChannel",
+            "device",
+            "deviceGroup",
+            "agent",
+            "publicKeyRegistry",
+        ];
         slots.forEach((label, index) => {
             it(`should reject a zero ${label} factory`, async function () {
                 const SmartClawsFactory = await ethers.getContractFactory("SmartClaws");
@@ -67,11 +79,10 @@ describe("SmartClaws", function () {
             expect(await channel.registry()).to.equal(await registry.getAddress());
         });
 
-        it("should emit ChannelCreated", async function () {
-            await expect(registry.createChannel(owner.address, ONE_MB)).to.emit(
-                registry,
-                "ChannelCreated",
-            );
+        it("should emit ChannelCreated with encrypted=false", async function () {
+            await expect(registry.createChannel(owner.address, ONE_MB))
+                .to.emit(registry, "ChannelCreated")
+                .withArgs(anyValue, owner.address, false);
         });
 
         it("should track multiple channels", async function () {
@@ -118,6 +129,33 @@ describe("SmartClaws", function () {
             await expect(
                 registry.connect(other).deleteChannel(await channel.getAddress()),
             ).to.be.revertedWithCustomError(registry, "NotChannelOwner");
+        });
+    });
+
+    describe("Encrypted channels", function () {
+        it("should create and register a BITE-encrypted channel", async function () {
+            const channel = await createEncryptedChannel(ethers, registry, owner.address, ONE_MB);
+            const channelAddr = await channel.getAddress();
+
+            expect(await registry.isRegisteredChannel(channelAddr)).to.equal(true);
+            expect(await registry.getChannelCount()).to.equal(1);
+            expect(await registry.getChannels()).to.deep.equal([channelAddr]);
+            expect(await channel.isEncrypted()).to.equal(true);
+            expect(await channel.owner()).to.equal(owner.address);
+            expect(await channel.registry()).to.equal(await registry.getAddress());
+            expect(await channel.publicKeyRegistry()).to.equal(await registry.publicKeyRegistry());
+        });
+
+        it("should emit ChannelCreated with encrypted=true", async function () {
+            await expect(registry.createEncryptedChannel(owner.address, ONE_MB))
+                .to.emit(registry, "ChannelCreated")
+                .withArgs(anyValue, owner.address, true);
+        });
+
+        it("should track plain and encrypted channels in the same registry", async function () {
+            await createChannel(ethers, registry, owner.address, ONE_MB);
+            await createEncryptedChannel(ethers, registry, owner.address, ONE_MB);
+            expect(await registry.getChannelCount()).to.equal(2);
         });
     });
 
@@ -191,6 +229,105 @@ describe("SmartClaws", function () {
         });
     });
 
+    describe("Device groups with encrypted devices", function () {
+        const DEVICE_CAPACITY = 1024;
+
+        it("should expose both factories on every group", async function () {
+            const group = await createDeviceGroup(ethers, registry, owner);
+            expect(await group.channelFactory()).to.equal(await registry.channelFactory());
+            expect(await group.encryptedChannelFactory()).to.equal(
+                await registry.encryptedChannelFactory(),
+            );
+        });
+
+        it("should let one group register both plain and encrypted devices", async function () {
+            const group = await createDeviceGroup(ethers, registry, owner);
+
+            const plainTx = await group
+                .connect(owner)
+                .registerDevice("plain-1", owner.address, DEVICE_CAPACITY);
+            const plainAddr = getAddressFromReceipt(
+                group,
+                await plainTx.wait(),
+                "DeviceRegistered",
+                "device",
+            );
+
+            const encTx = await group
+                .connect(owner)
+                .registerEncryptedDevice("enc-1", owner.address, DEVICE_CAPACITY, {
+                    gasLimit: 16_000_000,
+                });
+            const encAddr = getAddressFromReceipt(
+                group,
+                await encTx.wait(),
+                "DeviceRegistered",
+                "device",
+            );
+
+            expect(await group.getDevices()).to.deep.equal([plainAddr]);
+            expect(await group.getEncryptedDevices()).to.deep.equal([encAddr]);
+            expect(await group.getDeviceCount()).to.equal(1);
+            expect(await group.getEncryptedDeviceCount()).to.equal(1);
+            expect(await group.isRegisteredDevice(plainAddr)).to.equal(true);
+            expect(await group.isRegisteredDevice(encAddr)).to.equal(true);
+
+            const plainDevice = await ethers.getContractAt("SmartClawsDevice", plainAddr);
+            const plainIncoming = await ethers.getContractAt(
+                "SmartClawsChannel",
+                await plainDevice.getIncomingMessagesChannel(),
+            );
+            expect(await plainIncoming.isEncrypted()).to.equal(false);
+
+            const encDevice = await ethers.getContractAt("SmartClawsDevice", encAddr);
+            const encIncoming = await ethers.getContractAt(
+                "SmartClawsChannelEncrypted",
+                await encDevice.getIncomingMessagesChannel(),
+            );
+            const encOutgoing = await ethers.getContractAt(
+                "SmartClawsChannelEncrypted",
+                await encDevice.getOutgoingMessagesChannel(),
+            );
+            expect(await encIncoming.isEncrypted()).to.equal(true);
+            expect(await encOutgoing.isEncrypted()).to.equal(true);
+        });
+
+        it("should emit DeviceRegistered with encrypted=true", async function () {
+            const group = await createDeviceGroup(ethers, registry, owner);
+            await expect(
+                group
+                    .connect(owner)
+                    .registerEncryptedDevice("enc-1", owner.address, DEVICE_CAPACITY, {
+                        gasLimit: 16_000_000,
+                    }),
+            )
+                .to.emit(group, "DeviceRegistered")
+                .withArgs(anyValue, "enc-1", true);
+        });
+
+        it("should unregister an encrypted device from its own set", async function () {
+            const group = await createDeviceGroup(ethers, registry, owner);
+            const encTx = await group
+                .connect(owner)
+                .registerEncryptedDevice("enc-1", owner.address, DEVICE_CAPACITY, {
+                    gasLimit: 16_000_000,
+                });
+            const encAddr = getAddressFromReceipt(
+                group,
+                await encTx.wait(),
+                "DeviceRegistered",
+                "device",
+            );
+
+            await expect(group.connect(owner).unregisterDevice(encAddr))
+                .to.emit(group, "DeviceUnregistered")
+                .withArgs(encAddr);
+
+            expect(await group.isRegisteredDevice(encAddr)).to.equal(false);
+            expect(await group.getEncryptedDeviceCount()).to.equal(0);
+        });
+    });
+
     describe("Agents", function () {
         it("should register an agent owned by the caller with two channels", async function () {
             const agent = await createAgent(ethers, registry, owner, ONE_MB);
@@ -207,11 +344,10 @@ describe("SmartClaws", function () {
             expect(incoming).to.not.equal(ethersLib.ZeroAddress);
         });
 
-        it("should emit AgentRegistered", async function () {
-            await expect(registry.registerAgent("a", "m", ONE_MB)).to.emit(
-                registry,
-                "AgentRegistered",
-            );
+        it("should emit AgentRegistered with encrypted=false", async function () {
+            await expect(registry.registerAgent("a", "m", ONE_MB))
+                .to.emit(registry, "AgentRegistered")
+                .withArgs(anyValue, "a", "m", false);
         });
 
         it("should store the agent creation timestamp", async function () {
@@ -271,6 +407,37 @@ describe("SmartClaws", function () {
             await expect(
                 registry.connect(other).unregisterAgent(await agent.getAddress()),
             ).to.be.revertedWithCustomError(registry, "NotAgentOwner");
+        });
+    });
+
+    describe("Encrypted agents", function () {
+        const AGENT_CAPACITY = 1024;
+
+        it("should register an agent with two encrypted channels", async function () {
+            const agent = await createEncryptedAgent(ethers, registry, owner, AGENT_CAPACITY);
+            const agentAddr = await agent.getAddress();
+
+            expect(await registry.isRegisteredAgent(agentAddr)).to.equal(true);
+            const incoming = await ethers.getContractAt(
+                "SmartClawsChannelEncrypted",
+                await agent.getIncomingMessagesChannel(),
+            );
+            const outgoing = await ethers.getContractAt(
+                "SmartClawsChannelEncrypted",
+                await agent.getOutgoingMessagesChannel(),
+            );
+            expect(await incoming.isEncrypted()).to.equal(true);
+            expect(await outgoing.isEncrypted()).to.equal(true);
+        });
+
+        it("should emit AgentRegistered with encrypted=true", async function () {
+            await expect(
+                registry.registerEncryptedAgent("enc-agent", "metadata", AGENT_CAPACITY, {
+                    gasLimit: 16_000_000,
+                }),
+            )
+                .to.emit(registry, "AgentRegistered")
+                .withArgs(anyValue, "enc-agent", "metadata", true);
         });
     });
 

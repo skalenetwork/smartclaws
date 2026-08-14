@@ -1,7 +1,14 @@
 import { expect } from "chai";
 import { ethers as ethersLib } from "ethers";
+import { anyValue } from "@nomicfoundation/hardhat-ethers-chai-matchers/withArgs";
 import type { SmartClaws, SmartClawsDeviceGroup } from "../types/ethers-contracts/index.js";
-import { ROLES, loadFixture, deployDeviceGroupFixture, registerDevice } from "./helpers/deploy.js";
+import {
+    ROLES,
+    loadFixture,
+    deployDeviceGroupFixture,
+    registerDevice,
+    registerEncryptedDevice,
+} from "./helpers/deploy.js";
 
 const CAPACITY = 1024;
 
@@ -65,7 +72,9 @@ describe("SmartClawsDeviceGroup", function () {
         it("should register a device and track it", async function () {
             const tx = await group.registerDevice("dev-1", deviceAdmin.address, CAPACITY);
             const receipt = await tx.wait();
-            await expect(tx).to.emit(group, "DeviceRegistered");
+            await expect(tx)
+                .to.emit(group, "DeviceRegistered")
+                .withArgs(anyValue, "dev-1", false);
 
             expect(await group.getDeviceCount()).to.equal(1);
             const [deviceAddr] = await group.getDevices();
@@ -150,6 +159,42 @@ describe("SmartClawsDeviceGroup", function () {
             await registry.connect(owner).unregisterDeviceGroup(await group.getAddress());
             await expect(
                 group.registerDevice("dev-1", deviceAdmin.address, CAPACITY),
+            ).to.be.revertedWithCustomError(group, "GroupInactive");
+        });
+    });
+
+    describe("registerEncryptedDevice", function () {
+        it("should register an encrypted device and track it separately from plain devices", async function () {
+            const { device, incoming, outgoing } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "enc-1",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            const deviceAddr = await device.getAddress();
+
+            expect(await group.getEncryptedDeviceCount()).to.equal(1);
+            expect(await group.getDeviceCount()).to.equal(0);
+            expect(await group.getEncryptedDevices()).to.deep.equal([deviceAddr]);
+            expect(await group.isRegisteredDevice(deviceAddr)).to.equal(true);
+            expect(await incoming.isEncrypted()).to.equal(true);
+            expect(await outgoing.isEncrypted()).to.equal(true);
+        });
+
+        it("should reject registration from a non-owner", async function () {
+            await expect(
+                group
+                    .connect(other)
+                    .registerEncryptedDevice("enc-1", deviceAdmin.address, CAPACITY),
+            ).to.be.revertedWithCustomError(group, "OwnableUnauthorizedAccount");
+        });
+
+        it("should reject registration after the group is deactivated", async function () {
+            await registry.connect(owner).unregisterDeviceGroup(await group.getAddress());
+            await expect(
+                group.registerEncryptedDevice("enc-1", deviceAdmin.address, CAPACITY),
             ).to.be.revertedWithCustomError(group, "GroupInactive");
         });
     });
@@ -280,6 +325,36 @@ describe("SmartClawsDeviceGroup", function () {
             await expect(
                 group.connect(other).unregisterDevice(await device.getAddress()),
             ).to.be.revertedWithCustomError(group, "OwnableUnauthorizedAccount");
+        });
+
+        it("should only remove the encrypted device from the encrypted set, leaving plain devices untouched", async function () {
+            const { device: plainDevice } = await registerDevice(
+                ethers,
+                group,
+                owner,
+                "dev-plain",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            const { device: encDevice } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "dev-enc",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            const plainAddr = await plainDevice.getAddress();
+            const encAddr = await encDevice.getAddress();
+
+            await expect(group.unregisterDevice(encAddr))
+                .to.emit(group, "DeviceUnregistered")
+                .withArgs(encAddr);
+
+            expect(await group.isRegisteredDevice(encAddr)).to.equal(false);
+            expect(await group.getEncryptedDeviceCount()).to.equal(0);
+            expect(await group.isRegisteredDevice(plainAddr)).to.equal(true);
+            expect(await group.getDevices()).to.deep.equal([plainAddr]);
         });
     });
 

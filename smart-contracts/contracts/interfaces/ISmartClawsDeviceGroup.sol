@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 interface ISmartClawsDeviceGroup {
-    event DeviceRegistered(address indexed device, string deviceId);
+    /// @param encrypted True when both of the device's channels are BITE-encrypted.
+    event DeviceRegistered(address indexed device, string deviceId, bool indexed encrypted);
     event DeviceUnregistered(address indexed device);
     event GroupDeactivated(address indexed group);
     event SkillsUpdated(string skills);
@@ -18,6 +19,11 @@ interface ISmartClawsDeviceGroup {
     function active() external view returns (bool);
 
     function registerDevice(
+        string calldata deviceId,
+        address deviceAdmin,
+        uint256 channelCapacity
+    ) external returns (address device);
+    function registerEncryptedDevice(
         string calldata deviceId,
         address deviceAdmin,
         uint256 channelCapacity
@@ -39,4 +45,10 @@ interface ISmartClawsDeviceGroup {
     function getDevices() external view returns (address[] memory);
     function getDevices(uint256 offset, uint256 limit) external view returns (address[] memory);
     function getDeviceCount() external view returns (uint256);
+    function getEncryptedDevices() external view returns (address[] memory);
+    function getEncryptedDevices(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory);
+    function getEncryptedDeviceCount() external view returns (uint256);
 }

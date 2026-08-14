@@ -22,6 +22,7 @@ contract DeviceGroupFactory is IDeviceGroupFactory {
         string calldata skills,
         address registry,
         IChannelFactory channelFactory,
+        IChannelFactory encryptedChannelFactory,
         IDeviceFactory deviceFactory
     ) external override returns (ISmartClawsDeviceGroup deviceGroup) {
         deviceGroup = new SmartClawsDeviceGroup(
@@ -30,6 +31,7 @@ contract DeviceGroupFactory is IDeviceGroupFactory {
             skills,
             registry,
             channelFactory,
+            encryptedChannelFactory,
             deviceFactory
         );
     }

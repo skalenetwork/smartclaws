@@ -79,6 +79,7 @@ export function getAddressFromReceipt(
 export interface DeployedSystem {
     registry: SmartClaws;
     channelFactory: string;
+    encryptedChannelFactory: string;
     deviceFactory: string;
     deviceGroupFactory: string;
     agentFactory: string;
@@ -98,6 +99,7 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
     };
 
     const channelFactory = await deployOne("ChannelFactory");
+    const encryptedChannelFactory = await deployOne("EncryptedChannelFactory");
     const deviceFactory = await deployOne("DeviceFactory");
     const deviceGroupFactory = await deployOne("DeviceGroupFactory");
     const agentFactory = await deployOne("AgentFactory");
@@ -106,6 +108,7 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
     const SmartClawsFactory = await ethers.getContractFactory("SmartClaws");
     const registry: SmartClaws = await SmartClawsFactory.deploy(
         channelFactory,
+        encryptedChannelFactory,
         deviceFactory,
         deviceGroupFactory,
         agentFactory,
@@ -116,6 +119,7 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
     return {
         registry,
         channelFactory,
+        encryptedChannelFactory,
         deviceFactory,
         deviceGroupFactory,
         agentFactory,
@@ -134,6 +138,19 @@ export async function createChannel(
     const receipt = await tx.wait();
     const address = getAddressFromReceipt(registry, receipt, "ChannelCreated", "channel");
     return ethers.getContractAt("SmartClawsChannel", address);
+}
+
+/** Creates a BITE-encrypted channel through the registry and returns its contract instance. */
+export async function createEncryptedChannel(
+    ethers: any,
+    registry: SmartClaws,
+    ownerAddr: string,
+    capacity: number | bigint,
+): Promise<any> {
+    const tx = await registry.createEncryptedChannel(ownerAddr, capacity);
+    const receipt = await tx.wait();
+    const address = getAddressFromReceipt(registry, receipt, "ChannelCreated", "channel");
+    return ethers.getContractAt("SmartClawsChannelEncrypted", address);
 }
 
 /** Registers a device group through the registry and returns its instance. */
@@ -165,6 +182,23 @@ export async function createAgent(
     metadata = "metadata",
 ): Promise<SmartClawsAgent> {
     const tx = await registry.connect(signer).registerAgent(agentId, metadata, capacity);
+    const receipt = await tx.wait();
+    const address = getAddressFromReceipt(registry, receipt, "AgentRegistered", "agent");
+    return ethers.getContractAt("SmartClawsAgent", address);
+}
+
+/** Registers an agent backed by encrypted channels through the registry and returns its instance. */
+export async function createEncryptedAgent(
+    ethers: any,
+    registry: SmartClaws,
+    signer: any,
+    capacity: number | bigint,
+    agentId = "agent-1",
+    metadata = "metadata",
+): Promise<SmartClawsAgent> {
+    const tx = await registry
+        .connect(signer)
+        .registerEncryptedAgent(agentId, metadata, capacity, { gasLimit: 16_000_000 });
     const receipt = await tx.wait();
     const address = getAddressFromReceipt(registry, receipt, "AgentRegistered", "agent");
     return ethers.getContractAt("SmartClawsAgent", address);
@@ -203,6 +237,38 @@ export async function registerDevice(
             "SmartClawsChannel",
             await device.getOutgoingMessagesChannel(),
         ),
+    };
+}
+
+/**
+ * Registers a BITE-encrypted device in a group and returns the device plus its
+ * two encrypted channels.
+ */
+export async function registerEncryptedDevice(
+    ethers: any,
+    group: SmartClawsDeviceGroup,
+    signer: any,
+    deviceId: string,
+    deviceAdmin: string,
+    capacity: number | bigint,
+): Promise<RegisteredDevice> {
+    const tx = await group
+        .connect(signer)
+        .registerEncryptedDevice(deviceId, deviceAdmin, capacity, { gasLimit: 16_000_000 });
+    const receipt = await tx.wait();
+    const deviceAddr = getAddressFromReceipt(group, receipt, "DeviceRegistered", "device");
+    const device = await ethers.getContractAt("SmartClawsDevice", deviceAddr);
+
+    return {
+        device,
+        incoming: await ethers.getContractAt(
+            "SmartClawsChannelEncrypted",
+            await device.getIncomingMessagesChannel(),
+        ) as any,
+        outgoing: await ethers.getContractAt(
+            "SmartClawsChannelEncrypted",
+            await device.getOutgoingMessagesChannel(),
+        ) as any,
     };
 }
 

@@ -20,14 +20,6 @@ async function main() {
     const verificationGroupSkills = "Deployment-time verification sample";
     const verificationDeviceId = "verification-device";
 
-    const channelFactoryKind =
-        (process.env.SMARTCLAWS_CHANNEL_FACTORY ?? "plain").toLowerCase() === "encrypted"
-            ? "encrypted"
-            : "plain";
-    const channelFactoryContract =
-        channelFactoryKind === "encrypted" ? "EncryptedChannelFactory" : "ChannelFactory";
-    console.log("Channel factory mode:", channelFactoryKind);
-
     // --- Deploy factories ---
     // SmartClaws delegates all contract creation to these factories, so they must
     // be deployed first and their addresses passed into the registry constructor.
@@ -40,7 +32,8 @@ async function main() {
         return address;
     };
 
-    const channelFactory = await deployFactory(channelFactoryContract);
+    const channelFactory = await deployFactory("ChannelFactory");
+    const encryptedChannelFactory = await deployFactory("EncryptedChannelFactory");
     const deviceFactory = await deployFactory("DeviceFactory");
     const deviceGroupFactory = await deployFactory("DeviceGroupFactory");
     const agentFactory = await deployFactory("AgentFactory");
@@ -50,6 +43,7 @@ async function main() {
     const SmartClaws = await ethers.getContractFactory("SmartClaws");
     const registry = await SmartClaws.deploy(
         channelFactory,
+        encryptedChannelFactory,
         deviceFactory,
         deviceGroupFactory,
         agentFactory,
@@ -150,25 +144,26 @@ async function main() {
     console.log("\nWaiting for Blockscout to index contracts...");
     await new Promise((r) => setTimeout(r, 10_000));
 
-    const channelContract =
-        channelFactoryKind === "encrypted"
-            ? "contracts/SmartClawsChannelEncrypted.sol:SmartClawsChannelEncrypted"
-            : "contracts/SmartClawsChannel.sol:SmartClawsChannel";
-    const channelConstructorArgs =
-        channelFactoryKind === "encrypted"
-            ? [deployer.address, verificationCapacity, registryAddress, publicKeyRegistryAddress]
-            : [deployer.address, verificationCapacity, registryAddress];
-    const ownedChannelConstructorArgs = (owner: string) =>
-        channelFactoryKind === "encrypted"
-            ? [owner, verificationCapacity, registryAddress, publicKeyRegistryAddress]
-            : [owner, verificationCapacity, registryAddress];
+    const channelContract = "contracts/SmartClawsChannel.sol:SmartClawsChannel";
+    const channelConstructorArgs = [deployer.address, verificationCapacity, registryAddress];
+    const ownedChannelConstructorArgs = (owner: string) => [
+        owner,
+        verificationCapacity,
+        registryAddress,
+    ];
 
     const verificationTargets: VerificationTarget[] = [
         {
-            label: channelFactoryContract,
+            label: "ChannelFactory",
             address: channelFactory,
             constructorArgs: [],
-            contract: `contracts/factories/${channelFactoryContract}.sol:${channelFactoryContract}`,
+            contract: "contracts/factories/ChannelFactory.sol:ChannelFactory",
+        },
+        {
+            label: "EncryptedChannelFactory",
+            address: encryptedChannelFactory,
+            constructorArgs: [],
+            contract: "contracts/factories/EncryptedChannelFactory.sol:EncryptedChannelFactory",
         },
         {
             label: "DeviceFactory",
@@ -200,6 +195,7 @@ async function main() {
             address: registryAddress,
             constructorArgs: [
                 channelFactory,
+                encryptedChannelFactory,
                 deviceFactory,
                 deviceGroupFactory,
                 agentFactory,
@@ -214,7 +210,7 @@ async function main() {
             contract: "contracts/PublicKeyRegistry.sol:PublicKeyRegistry",
         },
         {
-            label: channelFactoryKind === "encrypted" ? "Encrypted channel" : "Channel",
+            label: "Channel",
             address: channelAddress,
             constructorArgs: channelConstructorArgs,
             contract: channelContract,
@@ -253,6 +249,7 @@ async function main() {
                 verificationGroupSkills,
                 registryAddress,
                 channelFactory,
+                encryptedChannelFactory,
                 deviceFactory,
             ],
             contract: "contracts/SmartClawsDeviceGroup.sol:SmartClawsDeviceGroup",

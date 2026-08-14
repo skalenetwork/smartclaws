@@ -26,15 +26,18 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
 
     address public immutable override registry;
     IChannelFactory public immutable channelFactory;
+    IChannelFactory public immutable encryptedChannelFactory;
     IDeviceFactory public immutable deviceFactory;
     string public override groupName;
     string public override skills;
     uint256 public immutable override createdAt;
     bool public override active = true;
 
-    // Currently-registered devices. Decommissioned devices are removed (their
-    // history lives in events; the device/channel contracts persist on-chain).
+    // Currently-registered devices, split by which channel factory provisioned
+    // them. Decommissioned devices are removed (their history lives in events;
+    // the device/channel contracts persist on-chain).
     EnumerableSet.AddressSet private _devices;
+    EnumerableSet.AddressSet private _encryptedDevices;
 
     modifier onlyRegistry() {
         require(msg.sender == registry, Unauthorized());
@@ -47,6 +50,7 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
         string memory skills_,
         address registry_,
         IChannelFactory channelFactory_,
+        IChannelFactory encryptedChannelFactory_,
         IDeviceFactory deviceFactory_
     ) Ownable(initialOwner) {
         require(registry_ != address(0), OwnableInvalidOwner(address(0)));
@@ -56,6 +60,7 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
         createdAt = block.timestamp;
         registry = registry_;
         channelFactory = channelFactory_;
+        encryptedChannelFactory = encryptedChannelFactory_;
         deviceFactory = deviceFactory_;
     }
 
@@ -84,16 +89,23 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
         address deviceAdmin,
         uint256 channelCapacity
     ) external override onlyOwner returns (address device) {
-        require(active, GroupInactive());
+        return _registerDevice(channelFactory, _devices, deviceId, deviceAdmin, channelCapacity);
+    }
 
-        address admin = deviceAdmin == address(0) ? address(this) : deviceAdmin;
-        device = address(
-            deviceFactory.createDevice(address(this), admin, registry, channelFactory, channelCapacity, deviceId)
-        );
-
-        assert(_devices.add(device));
-
-        emit DeviceRegistered(device, deviceId);
+    /**
+     * @notice Registers a new device whose channels are BITE-encrypted.
+     * @param deviceId Human-readable device identifier (stored in event only).
+     * @param deviceAdmin Per-device administrator, or address(0) for group-only control.
+     * @param channelCapacity Byte capacity for both incoming and outgoing channels.
+     * @return device Address of the newly deployed SmartClawsDevice contract.
+     */
+    function registerEncryptedDevice(
+        string calldata deviceId,
+        address deviceAdmin,
+        uint256 channelCapacity
+    ) external override onlyOwner returns (address device) {
+        return
+            _registerDevice(encryptedChannelFactory, _encryptedDevices, deviceId, deviceAdmin, channelCapacity);
     }
 
     /**
@@ -104,7 +116,9 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
     function unregisterDevice(address device) external override onlyOwner {
         _requireRegistered(device);
         ISmartClawsDevice(device).deactivate();
-        assert(_devices.remove(device));
+        if (!_devices.remove(device)) {
+            assert(_encryptedDevices.remove(device));
+        }
         emit DeviceUnregistered(device);
     }
 
@@ -156,7 +170,7 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
     // --- View Functions ---
 
     function isRegisteredDevice(address device) external view override returns (bool) {
-        return _devices.contains(device);
+        return _devices.contains(device) || _encryptedDevices.contains(device);
     }
 
     function getDevices() external view override returns (address[] memory) {
@@ -174,7 +188,50 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
         return _devices.length();
     }
 
+    function getEncryptedDevices() external view override returns (address[] memory) {
+        return _encryptedDevices.values();
+    }
+
+    function getEncryptedDevices(
+        uint256 offset,
+        uint256 limit
+    ) external view override returns (address[] memory) {
+        return _encryptedDevices.slice(offset, limit);
+    }
+
+    function getEncryptedDeviceCount() external view override returns (uint256) {
+        return _encryptedDevices.length();
+    }
+
     function _requireRegistered(address device) private view {
-        require(_devices.contains(device), DeviceNotRegistered(device));
+        require(
+            _devices.contains(device) || _encryptedDevices.contains(device),
+            DeviceNotRegistered(device)
+        );
+    }
+
+    function _registerDevice(
+        IChannelFactory factory,
+        EnumerableSet.AddressSet storage devices,
+        string calldata deviceId,
+        address deviceAdmin,
+        uint256 channelCapacity
+    ) private returns (address device) {
+        require(active, GroupInactive());
+
+        address admin = deviceAdmin == address(0) ? address(this) : deviceAdmin;
+        device = address(
+            deviceFactory.createDevice(address(this), admin, registry, factory, channelCapacity, deviceId)
+        );
+
+        assert(devices.add(device));
+
+        // Derived from the factory that built the channels, so the event can
+        // never disagree with the device that was actually registered.
+        emit DeviceRegistered(
+            device,
+            deviceId,
+            address(factory) == address(encryptedChannelFactory)
+        );
     }
 }
