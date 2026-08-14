@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {IPublicKeyRegistry} from "./IPublicKeyRegistry.sol";
+import {IPublicKeyRegistryFactory} from "../factories/interfaces/IPublicKeyRegistryFactory.sol";
+
 interface ISmartClaws {
     event ChannelCreated(address indexed channel, address indexed owner);
     event ChannelDeleted(address indexed channel);
@@ -15,6 +18,9 @@ interface ISmartClaws {
     error NotGroupOwner(address group, address caller);
     error AgentNotRegistered(address agent);
     error NotAgentOwner(address agent, address caller);
+
+    function publicKeyRegistry() external view returns (IPublicKeyRegistry);
+    function publicKeyRegistryFactory() external view returns (IPublicKeyRegistryFactory);
 
     function createChannel(address ownerAddress, uint256 maxCapacityBytes) external returns (address channel);
     function deleteChannel(address channelAddress) external;

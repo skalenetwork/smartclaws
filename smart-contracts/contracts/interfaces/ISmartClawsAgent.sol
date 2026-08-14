@@ -8,7 +8,13 @@ interface ISmartClawsAgent {
         address indexed channel,
         address indexed publisher
     );
+    event AgentOutboundScheduled(
+        address indexed agent,
+        address indexed channel,
+        address indexed publisher
+    );
     event AgentInboundPublished(address indexed agent, address indexed channel, address indexed sender);
+    event AgentInboundScheduled(address indexed agent, address indexed channel, address indexed sender);
 
     error Unauthorized();
     error AlreadyInactive();
@@ -19,8 +25,12 @@ interface ISmartClawsAgent {
     function createdAt() external view returns (uint256);
     function active() external view returns (bool);
 
-    function publishOutbound(bytes calldata payload) external;
-    function publishInbound(bytes calldata payload) external;
+    function publishOutbound(bytes calldata payload) external payable;
+    function publishInbound(bytes calldata payload) external payable;
+    function addIncomingReader(address reader) external;
+    function removeIncomingReader(address reader) external;
+    function addOutgoingReader(address reader) external;
+    function removeOutgoingReader(address reader) external;
     function deactivate() external;
     function pause() external;
     function unpause() external;

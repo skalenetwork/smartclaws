@@ -24,7 +24,10 @@ interface ISmartClawsChannel {
     error CannotModifyOwnerAsPublisher();
     error BatchTooLarge(uint256 requested, uint256 available);
     error ZeroCapacity();
+    error NativeValueNotAccepted(uint256 value);
+    error EncryptedOperationUnsupported();
 
+    function isEncrypted() external pure returns (bool);
     function registry() external view returns (address);
     function maxCapacityBytes() external view returns (uint256);
     function totalBytes() external view returns (uint256);
@@ -36,7 +39,7 @@ interface ISmartClawsChannel {
     function pause() external;
     function unpause() external;
     function prune(uint256 maxMessages) external returns (uint256 pruned);
-    function publishMessage(bytes calldata payload) external;
+    function publishMessage(bytes calldata payload) external payable;
     function addPublisher(address publisher) external;
     function removePublisher(address publisher) external;
 

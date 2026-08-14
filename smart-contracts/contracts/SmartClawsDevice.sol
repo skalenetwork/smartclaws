@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {ISmartClawsDevice} from "./interfaces/ISmartClawsDevice.sol";
 import {ISmartClawsChannel} from "./interfaces/ISmartClawsChannel.sol";
+import {ISmartClawsChannelEncrypted} from "./interfaces/ISmartClawsChannelEncrypted.sol";
 import {ISmartClawsDeviceGroup} from "./interfaces/ISmartClawsDeviceGroup.sol";
 import {IChannelFactory} from "./factories/interfaces/IChannelFactory.sol";
 import {DeviceRoles} from "./DeviceRoles.sol";
@@ -82,8 +83,12 @@ contract SmartClawsDevice is AccessControlEnumerable, ISmartClawsDevice {
      */
     function publishTelemetry(
         bytes calldata payload
-    ) external override whenGroupActive onlyRole(DeviceRoles.PUBLISHER_ROLE) {
-        outgoingChannel.publishMessage(payload);
+    ) external payable override whenGroupActive onlyRole(DeviceRoles.PUBLISHER_ROLE) {
+        if (_publishMessage(outgoingChannel, payload)) {
+            emit DeviceTelemetryPublished(address(this), address(outgoingChannel), msg.sender);
+        } else {
+            emit DeviceTelemetryScheduled(address(this), address(outgoingChannel), msg.sender);
+        }
     }
 
     /**
@@ -92,8 +97,28 @@ contract SmartClawsDevice is AccessControlEnumerable, ISmartClawsDevice {
      */
     function publishCommand(
         bytes calldata payload
-    ) external override whenGroupActive onlyRole(DeviceRoles.MASTER_ROLE) {
-        incomingChannel.publishMessage(payload);
+    ) external payable override whenGroupActive onlyRole(DeviceRoles.MASTER_ROLE) {
+        if (_publishMessage(incomingChannel, payload)) {
+            emit DeviceCommandPublished(address(this), address(incomingChannel), msg.sender);
+        } else {
+            emit DeviceCommandScheduled(address(this), address(incomingChannel), msg.sender);
+        }
+    }
+
+    function addIncomingReader(address reader) external override onlyRole(DeviceRoles.DEVICE_ADMIN_ROLE) {
+        _encryptedChannel(incomingChannel).addReader(reader);
+    }
+
+    function removeIncomingReader(address reader) external override onlyRole(DeviceRoles.DEVICE_ADMIN_ROLE) {
+        _encryptedChannel(incomingChannel).removeReader(reader);
+    }
+
+    function addOutgoingReader(address reader) external override onlyRole(DeviceRoles.DEVICE_ADMIN_ROLE) {
+        _encryptedChannel(outgoingChannel).addReader(reader);
+    }
+
+    function removeOutgoingReader(address reader) external override onlyRole(DeviceRoles.DEVICE_ADMIN_ROLE) {
+        _encryptedChannel(outgoingChannel).removeReader(reader);
     }
 
     /**
@@ -140,5 +165,29 @@ contract SmartClawsDevice is AccessControlEnumerable, ISmartClawsDevice {
 
     function getOutgoingMessagesChannel() external view override returns (address) {
         return address(outgoingChannel);
+    }
+
+    function _publishMessage(ISmartClawsChannel channel, bytes calldata payload) private returns (bool publishedNow) {
+        if (channel.isEncrypted()) {
+            ISmartClawsChannelEncrypted(address(channel)).publishMessageFor{value: msg.value}(
+                payload,
+                msg.sender
+            );
+            return false;
+        } else {
+            require(
+                msg.value == 0,
+                ISmartClawsChannel.NativeValueNotAccepted(msg.value)
+            );
+            channel.publishMessage(payload);
+            return true;
+        }
+    }
+
+    function _encryptedChannel(
+        ISmartClawsChannel channel
+    ) private pure returns (ISmartClawsChannelEncrypted encryptedChannel) {
+        require(channel.isEncrypted(), ISmartClawsChannel.EncryptedOperationUnsupported());
+        return ISmartClawsChannelEncrypted(address(channel));
     }
 }

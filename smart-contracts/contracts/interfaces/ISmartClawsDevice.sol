@@ -4,6 +4,27 @@ pragma solidity ^0.8.28;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 interface ISmartClawsDevice is IAccessControl {
+    event DeviceTelemetryPublished(
+        address indexed device,
+        address indexed channel,
+        address indexed publisher
+    );
+    event DeviceTelemetryScheduled(
+        address indexed device,
+        address indexed channel,
+        address indexed publisher
+    );
+    event DeviceCommandPublished(
+        address indexed device,
+        address indexed channel,
+        address indexed publisher
+    );
+    event DeviceCommandScheduled(
+        address indexed device,
+        address indexed channel,
+        address indexed publisher
+    );
+
     error ZeroAddress();
     error GroupInactive();
 
@@ -12,8 +33,12 @@ interface ISmartClawsDevice is IAccessControl {
     function deviceId() external view returns (string memory);
     function createdAt() external view returns (uint256);
 
-    function publishTelemetry(bytes calldata payload) external;
-    function publishCommand(bytes calldata payload) external;
+    function publishTelemetry(bytes calldata payload) external payable;
+    function publishCommand(bytes calldata payload) external payable;
+    function addIncomingReader(address reader) external;
+    function removeIncomingReader(address reader) external;
+    function addOutgoingReader(address reader) external;
+    function removeOutgoingReader(address reader) external;
     function deactivate() external;
     function pause() external;
     function unpause() external;

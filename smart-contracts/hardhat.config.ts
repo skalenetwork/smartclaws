@@ -11,7 +11,7 @@ export default defineConfig({
                 enabled: true,
                 runs: 200,
             },
-            evmVersion: "shanghai",
+            evmVersion: "istanbul",
         },
     },
     chainDescriptors: {

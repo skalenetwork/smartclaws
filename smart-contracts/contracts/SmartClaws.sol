@@ -8,10 +8,12 @@ import {ISmartClaws} from "./interfaces/ISmartClaws.sol";
 import {ISmartClawsChannel} from "./interfaces/ISmartClawsChannel.sol";
 import {ISmartClawsDeviceGroup} from "./interfaces/ISmartClawsDeviceGroup.sol";
 import {ISmartClawsAgent} from "./interfaces/ISmartClawsAgent.sol";
+import {IPublicKeyRegistry} from "./interfaces/IPublicKeyRegistry.sol";
 import {IChannelFactory} from "./factories/interfaces/IChannelFactory.sol";
 import {IDeviceFactory} from "./factories/interfaces/IDeviceFactory.sol";
 import {IDeviceGroupFactory} from "./factories/interfaces/IDeviceGroupFactory.sol";
 import {IAgentFactory} from "./factories/interfaces/IAgentFactory.sol";
+import {IPublicKeyRegistryFactory} from "./factories/interfaces/IPublicKeyRegistryFactory.sol";
 import {InvalidFactoryAddress} from "./Errors.sol";
 
 /**
@@ -30,6 +32,8 @@ contract SmartClaws is ISmartClaws {
     IDeviceFactory public immutable deviceFactory;
     IDeviceGroupFactory public immutable deviceGroupFactory;
     IAgentFactory public immutable agentFactory;
+    IPublicKeyRegistryFactory public immutable override publicKeyRegistryFactory;
+    IPublicKeyRegistry public immutable override publicKeyRegistry;
 
     EnumerableSet.AddressSet private _channels;
     EnumerableSet.AddressSet private _deviceGroups;
@@ -39,17 +43,21 @@ contract SmartClaws is ISmartClaws {
         IChannelFactory channelFactory_,
         IDeviceFactory deviceFactory_,
         IDeviceGroupFactory deviceGroupFactory_,
-        IAgentFactory agentFactory_
+        IAgentFactory agentFactory_,
+        IPublicKeyRegistryFactory publicKeyRegistryFactory_
     ) {
         require(address(channelFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(deviceFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(deviceGroupFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(agentFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(publicKeyRegistryFactory_) != address(0), InvalidFactoryAddress(address(0)));
 
         channelFactory = channelFactory_;
         deviceFactory = deviceFactory_;
         deviceGroupFactory = deviceGroupFactory_;
         agentFactory = agentFactory_;
+        publicKeyRegistryFactory = publicKeyRegistryFactory_;
+        publicKeyRegistry = publicKeyRegistryFactory_.createPublicKeyRegistry();
     }
 
     // --- Channel Management ---

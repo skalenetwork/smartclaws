@@ -22,19 +22,26 @@ describe("SmartClaws", function () {
         const fx = await loadFixture(deploySystemFixture);
         ethers = fx.ethers;
         registry = fx.registry;
-        factories = [fx.channelFactory, fx.deviceFactory, fx.deviceGroupFactory, fx.agentFactory];
+        factories = [
+            fx.channelFactory,
+            fx.deviceFactory,
+            fx.deviceGroupFactory,
+            fx.agentFactory,
+            fx.publicKeyRegistryFactory,
+        ];
         [owner, other] = fx.signers;
     });
 
     describe("Deployment", function () {
-        it("should store the four factory addresses", async function () {
+        it("should store the factory addresses", async function () {
             expect(await registry.channelFactory()).to.equal(factories[0]);
             expect(await registry.deviceFactory()).to.equal(factories[1]);
             expect(await registry.deviceGroupFactory()).to.equal(factories[2]);
             expect(await registry.agentFactory()).to.equal(factories[3]);
+            expect(await registry.publicKeyRegistryFactory()).to.equal(factories[4]);
         });
 
-        const slots = ["channel", "device", "deviceGroup", "agent"];
+        const slots = ["channel", "device", "deviceGroup", "agent", "publicKeyRegistry"];
         slots.forEach((label, index) => {
             it(`should reject a zero ${label} factory`, async function () {
                 const SmartClawsFactory = await ethers.getContractFactory("SmartClaws");

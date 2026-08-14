@@ -105,6 +105,11 @@ describe("SmartClawsAgent", function () {
             expect(await outgoing.getMessageCount()).to.equal(1);
         });
 
+        it("should not emit AgentOutboundScheduled for plaintext channels", async function () {
+            const payload = ethersLib.toUtf8Bytes("telemetry");
+            await expect(agent.publishOutbound(payload)).to.not.emit(agent, "AgentOutboundScheduled");
+        });
+
         it("should reject outgoing publishing from a non-publisher", async function () {
             await expect(
                 agent.connect(other).publishOutbound(ethersLib.toUtf8Bytes("x")),
@@ -119,6 +124,13 @@ describe("SmartClawsAgent", function () {
                 .withArgs(await agent.getAddress(), await incoming.getAddress(), sender.address)
                 .and.to.emit(incoming, "MessagePublished");
             expect(await incoming.getMessageCount()).to.equal(1);
+        });
+
+        it("should not emit AgentInboundScheduled for plaintext channels", async function () {
+            await agent.grantRole(AGENT_ROLES.SENDER, sender.address);
+            await expect(
+                agent.connect(sender).publishInbound(ethersLib.toUtf8Bytes("work")),
+            ).to.not.emit(agent, "AgentInboundScheduled");
         });
 
         it("should reject incoming publishing from a non-sender", async function () {

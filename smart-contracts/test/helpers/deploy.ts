@@ -82,10 +82,11 @@ export interface DeployedSystem {
     deviceFactory: string;
     deviceGroupFactory: string;
     agentFactory: string;
+    publicKeyRegistryFactory: string;
 }
 
 /**
- * Deploys the four factories and a SmartClaws registry wired to them.
+ * Deploys the factories and a SmartClaws registry wired to them.
  * Single source of truth for protocol deployment.
  */
 export async function deploySystem(ethers: any): Promise<DeployedSystem> {
@@ -100,6 +101,7 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
     const deviceFactory = await deployOne("DeviceFactory");
     const deviceGroupFactory = await deployOne("DeviceGroupFactory");
     const agentFactory = await deployOne("AgentFactory");
+    const publicKeyRegistryFactory = await deployOne("PublicKeyRegistryFactory");
 
     const SmartClawsFactory = await ethers.getContractFactory("SmartClaws");
     const registry: SmartClaws = await SmartClawsFactory.deploy(
@@ -107,10 +109,18 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
         deviceFactory,
         deviceGroupFactory,
         agentFactory,
+        publicKeyRegistryFactory,
     );
     await registry.waitForDeployment();
 
-    return { registry, channelFactory, deviceFactory, deviceGroupFactory, agentFactory };
+    return {
+        registry,
+        channelFactory,
+        deviceFactory,
+        deviceGroupFactory,
+        agentFactory,
+        publicKeyRegistryFactory,
+    };
 }
 
 /** Creates a channel through the registry and returns its contract instance. */
