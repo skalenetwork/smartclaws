@@ -93,10 +93,20 @@ async function deployEncryptedTightCapacityFixture() {
 describe("SmartClawsChannelEncrypted", function () {
     it("quotes callback gas from fixed and size-dependent components", async function () {
         const { channel } = await loadFixture(deployEncryptedChannelFixture);
+        const [publishBase, publishPerByte, readBase, readPerByte, readPerMessage] =
+            await Promise.all([
+                channel.PUBLISH_CALLBACK_BASE_GAS(),
+                channel.PUBLISH_CALLBACK_GAS_PER_BYTE(),
+                channel.READ_CALLBACK_BASE_GAS(),
+                channel.READ_CALLBACK_GAS_PER_BYTE(),
+                channel.READ_CALLBACK_GAS_PER_MESSAGE(),
+            ]);
 
-        expect(await channel.getPublishCallbackGas(400)).to.equal(150_000n + 400n * 800n);
+        expect(await channel.getPublishCallbackGas(400)).to.equal(
+            publishBase + 400n * publishPerByte,
+        );
         expect(await channel.getReadCallbackGas(800, 2)).to.equal(
-            150_000n + 800n * 100n + 2n * 30_000n,
+            readBase + 800n * readPerByte + 2n * readPerMessage,
         );
     });
 
@@ -187,21 +197,72 @@ describe("SmartClawsChannelEncrypted", function () {
         expect(await channel.getMessageCount()).to.equal(0);
     });
 
-    it("pays existing refund residue to the first successful callback recipient", async function () {
-        const { channel, owner, other, bite, networkHelpers, encrypt, publish } =
+    it("pays post-callback refund residue to the previous successful callback recipient", async function () {
+        const { channel, owner, publisher, other, bite, networkHelpers, encrypt, publish } =
             await loadFixture(deployEncryptedChannelFixture);
-        const encryptedPayload = await encrypt("successful after residue");
-        await publish(owner, encryptedPayload);
+        await channel.addPublisher(publisher.address);
+
+        await publish(owner, await encrypt("first callback"));
+        await bite.connect(other).sendCallback();
+        expect(await channel.hasToRefund()).to.equal(true);
 
         const residue = 12_345n;
         await networkHelpers.setBalance(await channel.getAddress(), residue);
         const balanceBefore = await channel.runner.provider.getBalance(owner.address);
+
+        await publish(publisher, await encrypt("second callback", publisher.address));
         await bite.connect(other).sendCallback();
 
         expect(await channel.runner.provider.getBalance(owner.address)).to.equal(
             balanceBefore + residue,
         );
-        expect(await channel.hasToRefund()).to.equal(false);
+        expect(await channel.hasToRefund()).to.equal(true);
+    });
+
+    it("pops the previous recipient even when no refund balance has arrived", async function () {
+        const { channel, owner, publisher, other, bite, networkHelpers, encrypt, publish } =
+            await loadFixture(deployEncryptedChannelFixture);
+        await channel.addPublisher(publisher.address);
+
+        await publish(owner, await encrypt("first callback"));
+        await bite.connect(other).sendCallback();
+
+        await publish(publisher, await encrypt("second callback", publisher.address));
+        await bite.connect(other).sendCallback();
+
+        const residue = 12_345n;
+        await networkHelpers.setBalance(await channel.getAddress(), residue);
+        const publisherBalanceBefore = await channel.runner.provider.getBalance(publisher.address);
+
+        await publish(owner, await encrypt("third callback"));
+        await bite.connect(other).sendCallback();
+
+        expect(await channel.runner.provider.getBalance(publisher.address)).to.equal(
+            publisherBalanceBefore + residue,
+        );
+    });
+
+    it("burns a refund when the queued recipient rejects native tokens", async function () {
+        const { ethers, channel, owner, bite, networkHelpers, encrypt, publish } =
+            await loadFixture(deployEncryptedChannelFixture);
+        const rejector = await (await ethers.getContractFactory("RejectNativeReceiver")).deploy();
+        await rejector.waitForDeployment();
+        const rejectorAddress = await rejector.getAddress();
+
+        await publish(owner, await encrypt("reject refund", rejectorAddress), rejectorAddress);
+        await bite.sendCallback();
+
+        const residue = 12_345n;
+        await networkHelpers.setBalance(await channel.getAddress(), residue);
+        const burnedBefore = await ethers.provider.getBalance(ethersLib.ZeroAddress);
+
+        await publish(owner, await encrypt("next callback"));
+        await expect(bite.sendCallback()).to.emit(channel, "MessagePublished");
+
+        expect(await channel.runner.provider.getBalance(await channel.getAddress())).to.equal(0);
+        expect(await ethers.provider.getBalance(ethersLib.ZeroAddress)).to.equal(
+            burnedBefore + residue,
+        );
     });
 
     it("keeps publishMessageFor owner-only and sends its refund to the named wallet", async function () {
@@ -215,9 +276,13 @@ describe("SmartClawsChannelEncrypted", function () {
         ).to.be.revertedWithCustomError(channel, "OwnableUnauthorizedAccount");
 
         await publish(owner, encryptedPayload, publisher.address);
+        await bite.sendCallback();
+
         const residue = 4_321n;
         await networkHelpers.setBalance(await channel.getAddress(), residue);
         const balanceBefore = await channel.runner.provider.getBalance(publisher.address);
+
+        await publish(owner, await encrypt("next callback"));
         await bite.sendCallback();
         expect(await channel.runner.provider.getBalance(publisher.address)).to.equal(
             balanceBefore + residue,

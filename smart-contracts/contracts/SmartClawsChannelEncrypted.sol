@@ -38,9 +38,9 @@ contract SmartClawsChannelEncrypted is Ownable, Pausable, IBiteSupplicant, ISmar
     uint256 public constant MAX_READ_BATCH = 10;
     uint256 public constant PUBLISH_CALLBACK_BASE_GAS = 150_000;
     uint256 public constant PUBLISH_CALLBACK_GAS_PER_BYTE = 800;
-    uint256 public constant READ_CALLBACK_BASE_GAS = 150_000;
-    uint256 public constant READ_CALLBACK_GAS_PER_BYTE = 100;
-    uint256 public constant READ_CALLBACK_GAS_PER_MESSAGE = 30_000;
+    uint256 public constant READ_CALLBACK_BASE_GAS = 55_000;
+    uint256 public constant READ_CALLBACK_GAS_PER_BYTE = 65;
+    uint256 public constant READ_CALLBACK_GAS_PER_MESSAGE = 50_000;
     uint8 private constant PUBLISH_ACTION = 0;
     uint8 private constant READ_ACTION = 1;
 
@@ -114,8 +114,10 @@ contract SmartClawsChannelEncrypted is Ownable, Pausable, IBiteSupplicant, ISmar
             revert InvalidCallbackArguments();
         }
 
-        _enqueue(abi.decode(plaintextArguments[2], (address)));
+        // The protocol credits this callback's unused gas only after it returns.
+        // Settle the previous payer first, then retain this payer for the next callback.
         _refundPreviousPayer();
+        _enqueue(abi.decode(plaintextArguments[2], (address)));
     }
 
     /**
@@ -537,14 +539,17 @@ contract SmartClawsChannelEncrypted is Ownable, Pausable, IBiteSupplicant, ISmar
     }
 
     function _refundPreviousPayer() private {
+        if (toRefund.empty()) return;
+
+        // Always advance the queue. A zero balance means refunds are unavailable,
+        // not that this payer should remain and receive a later callback's refund.
+        address recipient = _dequeue();
         uint256 refund = address(this).balance;
         if (refund == 0) return;
 
-        address recipient = _dequeue();
         (bool sent,) = payable(recipient).call{value: refund, gas: 2300}("");
         if (!sent) {
-            (bool burned,) = payable(address(0)).call{value: refund, gas: 2300}("");
-            assert(burned);
+            payable(address(0)).sendValue(refund);
         }
     }
 }

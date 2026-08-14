@@ -44,14 +44,14 @@ precompiles (`@skalenetwork/bite-solidity`) instead of storing plaintext payload
 
 ### Accepted design tradeoffs
 
-- **Refund queue is best-effort, not per-CTX**: callback gas residue (the protocol's
-  transaction-less leftover-gas refund) is paid out FIFO to queued payers rather than tracked
-  per-CTX. If a callback reverts (e.g. a role was revoked between submission and callback), that
-  payer is never queued, so a later refund can be paid out to a different, unrelated payer instead.
-  The submitter of a reverted CTX has no on-chain recovery path for that fee. This is accepted as
-  a known limitation rather than fixed, since correlating refunds to individual CTXs would require
-  tracking amounts per `ctxSender` and add meaningful complexity for a griefing-only edge case (no
-  funds are lost from the system, only misdirected between users).
+- **Refund queue is best-effort, not per-CTX**: the protocol deposits each callback's unused gas
+  into the channel only after that callback completes. Each successful callback therefore settles
+  and removes the previous successful callback's payer before queuing its own payer. The queue
+  advances even when the channel balance is zero, so it remains bounded while protocol refunds are
+  unavailable and begins paying automatically once they are enabled. If a recipient rejects the
+  native-token transfer, the refund is sent to `address(0)` so it cannot block later callbacks.
+  Reverted callbacks never queue their payer, so later refunds can still be paid to an unrelated
+  payer; the submitter of a reverted CTX has no on-chain recovery path for that fee.
 - **No retry/cancel path for a reverted publish**: if `_completePublish` reverts in the callback
   (revoked publisher, paused/disabled channel, capacity exceeded), the message is dropped and the
   CTX cannot be resubmitted (the `ctxSender`'s key is not recoverable). Callers are expected to
