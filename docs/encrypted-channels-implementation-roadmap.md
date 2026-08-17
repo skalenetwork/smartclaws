@@ -9,30 +9,53 @@ into dependency-aware implementation tracks. Its scope follows that survey:
 
 ## Status (2026-08-17)
 
-Done and verified: **Wave 0**, **Track 1**, **Track 2**, **Track 3A**, **Track 6**, and the
-deploy-script half of **DEPLOY**. Gates at time of writing: 182 contract tests, 134 lint files,
-six type-checks, and 67/7/18/20 across the SDK, plugin, CLI-unit and CLI-integration lanes.
+Done and verified: **Wave 0**, **Track 1**, **Track 2**, **Track 3A**, **3B**, **3C**,
+**Track 4**, **Track 5**, **Track 6**, and **DEPLOY** — which has now been run for real against
+SKALE base-testnet; its addresses are in [`prompts/00-DEPLOYMENT.md`](./prompts/00-DEPLOYMENT.md).
+Gates at time of writing: 182 contract tests, 139 lint files, six type-checks, and
+118/25/59 across the SDK, plugin and CLI lanes (the CLI number includes integration).
 
 Wave 0 decisions, now settled and implemented:
 
 1. `SmartClawsDeviceGroup` **gained** the reader passthroughs (see propagation §11.2).
 2. The split device sets **stay**; consumers merge them (see propagation §11.4).
 
-Next, in order:
+**Only Track 7 has not been started.** Nothing under `skills/` or `dev/` mentions encryption or
+disclosure, and `docs/encrypted-channels.md` does not exist — see that track for the full list.
 
-- **Track 3B** (`contracts.ts`, discovery, readers) — unblocked; the only remaining SDK
-  prerequisite for 3C. The legacy-registry fix below belongs here.
-- **DEPLOY, run for real** — `deploy.ts` now creates encrypted samples but has never been
-  executed against SKALE. This gates the live lane, which is the only lane that proves anything.
-- **Track 3C**, then **4 + 5** in parallel, then **7**.
+Before Track 7 begins, the surface it documents has to be finished, because a skill or a bridge
+script written against a moving surface has to be rewritten:
+
+- **Public-key ownership is never verified** (see below). This is the one correctness gap left.
+- **Version scripts omit the SDK and the plugin** (Track 7, release section).
+- Three small SDK/plugin defects listed under "Deferred, small" below.
 
 Carried forward, owned by no track:
 
-- Wire 3A into `index.ts` and `Config` — deliberately deferred so parallel agents would not
-  collide on those files.
-- Key rotation: `registerPublicKey` silently overwrites, so a rotation between `requestMessages`
-  and its callback makes that disclosure permanently undecryptable and the fee spent.
+- **Public-key ownership is never proven, and a mismatch is only discovered after paying.**
+  `PublicKeyRegistry.registerPublicKey` validates that the point is on secp256k1 and nothing more:
+  it does not check the key belongs to `msg.sender`, and it overwrites any previous key silently.
+  `SmartClawsChannelEncrypted.requestMessages` snapshots the caller's key at request time and the
+  callback encrypts to that snapshot, while `discloseMessages` decrypts with the local wallet's
+  private key. So if the registered key does not match the local wallet — a wrong key registered
+  by mistake, or a rotation whose old private key is gone — the fee is spent, the callback
+  succeeds, and the payload comes back undecryptable. Because ECIES here has no MAC, the failure
+  surfaces as `InvalidDecryptedEnvelopeError` ("not a valid envelope"), which reads like data
+  corruption rather than a wrong key. `discloseMessages` already reads the registry to check
+  registration; comparing that key against `publicKeyFromPrivateKey(wallet.privateKey)` is free
+  and turns a paid silent failure into an unpaid, accurate error.
 - Spend budget/telemetry for paid reads.
+
+### Deferred, small
+
+- `hydrateDevice`/`hydrateAgent` derive the entity's kind from the **incoming** channel, then
+  `rememberChannelEncrypted` both channels with it. The outgoing channel's kind is therefore cached
+  from a value never read from it, and that cache decides whether publish attaches native value.
+  Both channels are created together with the same kind today, so it holds — but as an assumption,
+  not a read, and being wrong means a revert on every publish.
+- `getDeviceReaderStatus`/`getAgentReaderStatus` gate on the **incoming** channel only and return
+  `false, false` when it is plain, which reports "not a reader" rather than "not applicable".
+- `smartclaws_wallet_info` loops entities sequentially, so reader status costs ~3N round-trips.
 
 ### Corrections this document needs
 
@@ -44,9 +67,10 @@ Carried forward, owned by no track:
   classifier, and a latent bug where `resolveChannelEncrypted` called `isEncrypted()` on channels
   that predate it. `networks.ts` rolls over to the new registry, and pre-v3 configs fail with a
   "re-run init" message instead of being migrated onto a dead address.
-- **DEPLOY is mis-sequenced.** It is drawn as a leaf feeding only RELEASE, but the live lane
-  cannot run until it lands, so following the graph literally means writing every consumer blind.
-  Treat it as an early track.
+- ~~**DEPLOY is mis-sequenced.**~~ **Acted on.** It is drawn as a leaf feeding only RELEASE, but
+  the live lane cannot run until it lands, so following the graph literally means writing every
+  consumer blind. It was pulled forward and run early; the graph below still shows the original,
+  wrong position and is kept only as a record of the initial plan.
 - **ECIES here is unauthenticated** (no MAC). "Decrypted, but the plaintext is not a valid
   envelope" is therefore an expected error class, not a bug — see `InvalidDecryptedEnvelopeError`.
 
@@ -210,10 +234,10 @@ interface GroupFile {
 Add `isIncomingReader?` and `isOutgoingReader?` to entity capabilities. Public-key
 status belongs on wallet/encryption status, rather than being repeated on every entity.
 
-Acceptance:
+Acceptance (amended 2026-08-17 — migration was replaced by a hard version gate):
 
-- Config v1 and v2 migrate to v3 without losing attachments or wallet identity.
-- Old entity JSON remains readable.
+- A pre-v3 config fails with `CONFIG_VERSION_UNSUPPORTED` and is never silently repaired.
+  `init` backs the HOME up, re-creates it, and restores only the wallet.
 - Fresh hydration always persists authoritative encryption state.
 - Mixed groups have deduplicated addresses and correct total/breakdown counts.
 
@@ -325,10 +349,17 @@ Commands and behavior:
 - `device reader add|remove|list --side incoming|outgoing`
 - `agent reader add|remove|list --side incoming|outgoing`
 - `key register|show|remove`
-- `init --bite-rpc-url`
+- ~~`init --bite-rpc-url`~~ — removed with `Config.biteRpcUrl`; see decision 2 above.
 - `init --encrypted` for entities created during that invocation
 - publish `--wait`/`--no-wait`, with waiting as the default
 - read `--disclose`, with `--decrypt` as an optional alias
+
+Two flag conventions were settled while this track landed and are now load-bearing:
+`--channel` is *always* an address and `--side` is *always* one half of an entity's channel pair;
+and `read`/`publish` reach any entity channel by name via `--device`/`--agent`/`--channel`, exactly
+one of which is required. `publish --device-channel telemetry|command` is a deliberate exception —
+it selects the contract method, and those enforce different roles. See
+[`prompts/03-track-4-cli.md`](./prompts/03-track-4-cli.md).
 
 Do not automatically register a public key for an unfunded new wallet. Present
 `smartclaws key register` as a post-funding action.
@@ -409,19 +440,29 @@ reader graph.
 
 ### Documentation and release
 
-- Update `README.md`, `ARCHITECTURE.html`, and the plugin README.
+- Update `README.md` and `ARCHITECTURE.html` — both contain **zero** occurrences of "encrypt"
+  today. The plugin README is already done.
 - Add a user-facing `docs/encrypted-channels.md`.
 - Record resolved decisions and completion status in the propagation document.
-- Update `.github/copilot-instructions.md`, which currently describes four tools.
-- Fix version scripts so the SDK and plugin participate.
-- Preserve existing user registry addresses during config migration; moving to the new
-  encrypted deployment must be deliberate.
+- ~~Update `.github/copilot-instructions.md`, which currently describes four tools.~~ **Done** —
+  it already lists wallet info, read, disclose, publish and notify.
+- **Fix version scripts so the SDK and plugin participate.** `scripts/version-check.mjs` and
+  `scripts/version-bump.mjs` both list core, cli, dashboard, smart-contracts and `pyproject.toml`
+  only. `packages/sdk/package.json`, `packages/openclaw-plugin/package.json` and
+  `packages/openclaw-plugin/openclaw.plugin.json` are in neither. All three read `0.3.0` because
+  they were set by hand, so `version:check` passes today and proves nothing; the next
+  `version:bump` leaves all three behind and silently breaks the manifest/package version
+  equality Track 5 was told to maintain.
+- ~~Preserve existing user registry addresses during config migration.~~ **Void** — superseded by
+  dropping backward compatibility. There is no migration and only one registry.
 
 ## Testing strategy
 
 Three lanes are required because each proves a different property:
 
 ### Unit lane
+
+**Landed** across the SDK, CLI and plugin suites.
 
 Use an injected encryption provider to prove:
 
@@ -434,6 +475,9 @@ Use an injected encryption provider to prove:
 
 ### Contract-flow lane
 
+**Landed** — `contracts/mocks/BiteMocks.sol`, `SmartClawsChannelEncrypted.test.ts` and
+`SmartClawsEncryptedSchedulingEvents.light.test.ts`, inside the 182-test contract suite.
+
 Install the Solidity BITE precompile shims on Anvil and use `TestBiteMock` to prove:
 
 - origin schedules without storing;
@@ -443,6 +487,11 @@ Install the Solidity BITE precompile shims on Anvil and use `TestBiteMock` to pr
 - insufficient fee, revocation, pause, unauthorized callback, and batch limits.
 
 ### Live-BITE lane
+
+**Not started, and it is the only lane that can prove any of the following.** The deployment
+exists and free reads against it have been exercised, but no encrypted publish and no disclosure
+have ever run: publish, CTX correlation and disclosure are proven only against fakes. It costs
+real sFUEL, so it is the operator's call to authorize.
 
 Run an opt-in or protected-network smoke test for:
 
@@ -462,8 +511,9 @@ of confidentiality or real AAD interoperability.
 - The repository is now at a later clean commit, not `830bb04` plus an unstaged tree.
 - Adding the indexed registration flag changes event topic hashes. Stale ABIs and old
   indexer filters do not decode the new events.
-- `deploy.ts` already deploys all six factories and `PublicKeyRegistry`; it lacks only
-  representative encrypted entities and their verification targets.
+- ~~`deploy.ts` lacks representative encrypted entities and their verification targets.~~
+  **Resolved and executed** — it deploys all six factories, `PublicKeyRegistry`, and the encrypted
+  samples now live on base-testnet.
 - Current SDK device registration passes the wallet as device admin; the claim that the
   CLI sometimes passes zero is stale.
 - Anvil precompile installation alone is insufficient for SDK/CLI end-to-end coverage.

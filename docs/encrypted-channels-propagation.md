@@ -15,12 +15,15 @@ each item says **what** is affected and **what has to change**, not the order or
 > The stale four-argument deploy in `packages/cli/tests/setup.ts` (§9) is fixed, so the
 > integration lane is green against the regenerated ABIs.
 >
-> Also landed since: §2 (core types + Config v3), the encryption/CTX/keys half of §3,
-> §6 in observer-only form, and §11.3 (`deploy.ts` now creates and verifies encrypted samples,
-> though it has not yet been run against SKALE).
+> Also landed since: §2 (core types + Config v3), **all of §3** (encryption/CTX/keys, then
+> contracts/discovery/readers, then publish/disclosure), **§4 (CLI)**, **§5 (plugin)**,
+> §6 in observer-only form, and §11.3 — `deploy.ts` creates and verifies encrypted samples and
+> **has now been run against SKALE base-testnet**; the addresses are in
+> [`prompts/00-DEPLOYMENT.md`](./prompts/00-DEPLOYMENT.md).
 >
-> Still outstanding: §3's contracts/discovery/readers and publish/disclosure work, §4 (CLI),
-> §5 (plugin), §7 (skills), §8 (dev scripts), and §10 (docs).
+> Still outstanding: **§7 (skills), §8 (dev scripts) and §10 (docs)** — none of which has been
+> started; nothing under `skills/` or `dev/` mentions encryption or disclosure. Plus the
+> live-BITE lane, which has never run.
 >
 > **Backward compatibility was dropped on 2026-08-17.** Pre-encryption registries are unsupported,
 > `biteRpcUrl` was removed, pre-v3 configs are not migrated, and `encrypted` is a required field.

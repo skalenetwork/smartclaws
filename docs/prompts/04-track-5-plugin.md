@@ -1,5 +1,7 @@
 # Track 5 — OpenClaw plugin
 
+> **LANDED 2026-08-17.** Kept as the specification of what was built, not as work to do.
+
 **Blocked on Track 3C.** Runs in parallel with Track 4 (CLI) — they share no files.
 **Read [`00-DEPLOYMENT.md`](./00-DEPLOYMENT.md) first** — shared addresses, rules and gates. Spec: roadmap "Track 5", propagation §5.
 
