@@ -132,6 +132,25 @@ export function setupOverrides(pc: PluginConfig) {
     };
 }
 
+/** Plugin-level overrides that currently differ from persisted HOME config. */
+export function pluginShadowedFields(
+    pc: PluginConfig,
+    persisted: { network: string; rpcUrl: string; chainId: number; contractAddress: string } | null,
+): string[] {
+    if (!persisted) return [];
+    const fields: string[] = [];
+    if (pc.network !== undefined && pc.network !== persisted.network) fields.push("network");
+    if (pc.rpcUrl !== undefined && pc.rpcUrl !== persisted.rpcUrl) fields.push("rpcUrl");
+    if (pc.chainId !== undefined && pc.chainId !== persisted.chainId) fields.push("chainId");
+    if (
+        pc.registryAddress !== undefined &&
+        pc.registryAddress.toLowerCase() !== persisted.contractAddress.toLowerCase()
+    ) {
+        fields.push("registryAddress");
+    }
+    return fields;
+}
+
 /**
  * Resolve a SmartClaws `Config` from plugin config. Prefers an existing
  * HOME config file, then applies plugin-config overrides. Never mutates

@@ -157,6 +157,61 @@ export const discoverAgentsPage = mock(async () => ({
 }));
 export const listDeviceReaders = mock(async () => []);
 export const listAgentReaders = mock(async () => []);
+export const initializeHome = mock(() => ({
+    walletAddress: WALLET.address,
+    network: "base-testnet",
+    networkKey: "base-testnet",
+    registry: "0x0000000000000000000000000000000000000001",
+    chainId: 324705682,
+    rpcUrl: "https://example.invalid",
+    mode: "controller",
+    fingerprint: "init-fp",
+    generated: true as const,
+}));
+export const updateHomeConfig = mock(() => ({
+    before: {
+        network: "base-testnet",
+        chainId: 1,
+        rpcUrl: "https://old.invalid",
+        registryAddress: "0x0000000000000000000000000000000000000001",
+        mode: "controller",
+        walletAddress: WALLET.address,
+    },
+    after: {
+        network: "base-testnet",
+        chainId: 31337,
+        rpcUrl: "http://127.0.0.1:8545",
+        registryAddress: "0x0000000000000000000000000000000000000001",
+        mode: "controller",
+        walletAddress: WALLET.address,
+    },
+    fingerprint: "cfg-fp",
+}));
+export const attachHomeEntities = mock(async () => ({
+    group: {
+        name: "home",
+        groupAddress: "0x0000000000000000000000000000000000000011",
+        owner: WALLET.address,
+        skills: "",
+        deviceCount: 0,
+    },
+    agent: null,
+    devices: [],
+    fingerprint: "att-fp",
+}));
+export const resetHomeChecked = mock(() => ({
+    reason: "deployment-change",
+    backupName: "backup-20260101-000000Z",
+    walletAddress: WALLET.address,
+    walletPreserved: true,
+    fingerprint: "rst-fp",
+}));
+export const syncLocalCacheBounded = mock(async () => ({
+    groupCount: 1,
+    deviceCount: 2,
+    agentCount: 0,
+    complete: true as const,
+}));
 
 // Shared across plugin test files: bun's module mocks are process-wide.
 mock.module("@smartclaws/sdk", () => ({
@@ -198,6 +253,11 @@ mock.module("@smartclaws/sdk", () => ({
     discoverAgentsPage,
     listDeviceReaders,
     listAgentReaders,
+    initializeHome,
+    updateHomeConfig,
+    attachHomeEntities,
+    resetHomeChecked,
+    syncLocalCacheBounded,
     resolveAgent,
     resolveDevice,
     resolveChannel,

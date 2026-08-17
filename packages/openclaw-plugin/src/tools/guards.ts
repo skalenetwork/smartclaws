@@ -27,6 +27,13 @@ export async function mapPool<T, R>(
     return results;
 }
 
+export function requireConfirm(confirm: boolean | undefined, action: string): void {
+    if (confirm === true) return;
+    throw new SmartClawsError("INVALID_TARGET", `${action} requires confirm: true.`, {
+        confirm: confirm ?? false,
+    });
+}
+
 export function requireExactlyOneTarget(present: Record<string, unknown>, labels: string[]): void {
     const set = labels.filter((label) => present[label] !== undefined && present[label] !== "");
     if (set.length !== 1) {

@@ -54,6 +54,11 @@
   "contracts": {
     "tools": [
       "smartclaws_setup_status",
+      "smartclaws_initialize",
+      "smartclaws_configure",
+      "smartclaws_attach",
+      "smartclaws_sync",
+      "smartclaws_home_reset",
       "smartclaws_wallet_info",
       "smartclaws_list_local",
       "smartclaws_discover",
@@ -67,6 +72,21 @@
     ]
   },
   "toolMetadata": {
+    "smartclaws_initialize": {
+      "optional": true
+    },
+    "smartclaws_configure": {
+      "optional": true
+    },
+    "smartclaws_attach": {
+      "optional": true
+    },
+    "smartclaws_sync": {
+      "optional": true
+    },
+    "smartclaws_home_reset": {
+      "optional": true
+    },
     "smartclaws_disclose": {
       "optional": true
     },
