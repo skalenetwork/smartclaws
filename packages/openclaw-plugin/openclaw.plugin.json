@@ -78,6 +78,9 @@
       "smartclaws_reader_grant",
       "smartclaws_reader_revoke",
       "smartclaws_backup_list",
+      "smartclaws_backup_create",
+      "smartclaws_backup_clean",
+      "smartclaws_backup_restore",
       "smartclaws_disclose",
       "smartclaws_publish",
       "smartclaws_notify"
@@ -133,6 +136,15 @@
       "optional": true
     },
     "smartclaws_reader_revoke": {
+      "optional": true
+    },
+    "smartclaws_backup_create": {
+      "optional": true
+    },
+    "smartclaws_backup_clean": {
+      "optional": true
+    },
+    "smartclaws_backup_restore": {
       "optional": true
     },
     "smartclaws_disclose": {

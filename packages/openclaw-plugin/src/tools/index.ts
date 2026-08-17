@@ -1,6 +1,6 @@
 import { accessTool } from "./access.js";
 import { attachTool } from "./attach.js";
-import { backupListTool } from "./backups.js";
+import { backupCleanTool, backupCreateTool, backupListTool, backupRestoreTool } from "./backups.js";
 import { configureTool, homeResetTool } from "./configure.js";
 import { discloseTool } from "./disclose.js";
 import { discoverTool } from "./discover.js";
@@ -53,6 +53,9 @@ export function smartClawsTools(tool: SmartClawsToolFactory) {
         readerGrantTool(tool),
         readerRevokeTool(tool),
         backupListTool(tool),
+        backupCreateTool(tool),
+        backupCleanTool(tool),
+        backupRestoreTool(tool),
         discloseTool(tool),
         publishTool(tool),
         notifyTool(tool),

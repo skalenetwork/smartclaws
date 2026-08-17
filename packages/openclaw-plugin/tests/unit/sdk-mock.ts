@@ -374,6 +374,35 @@ export const removeRegisteredPublicKey = mock(async () => ({
     matchesViewKey: false,
     registered: false,
 }));
+export const createBackup = mock(() => ({
+    name: "backup-20260101-000000Z",
+    path: "/secret/path/backup-20260101-000000Z",
+    fileCount: 4,
+}));
+export const presentCreatedBackup = mock(() => ({
+    name: "backup-20260101-000000Z",
+    fileCount: 4,
+    fingerprint: "dd".repeat(8),
+    containsSigningKey: true as const,
+}));
+export const previewBackupCleanup = mock(() => ({
+    candidates: [
+        {
+            name: "backup-old",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            sizeBytes: 12,
+            fingerprint: "ee".repeat(8),
+        },
+    ],
+    candidateFingerprint: "ff".repeat(8),
+}));
+export const executeBackupCleanup = mock(() => ({ removed: ["backup-old"] }));
+export const restoreBackupChecked = mock(() => ({
+    restored: "backup-20260101-000000Z",
+    safetyBackup: "backup-safety",
+    walletAddress: WALLET.address,
+    fingerprint: "home-fp",
+}));
 
 // Shared across plugin test files: bun's module mocks are process-wide.
 mock.module("@smartclaws/sdk", () => {
@@ -452,6 +481,11 @@ mock.module("@smartclaws/sdk", () => {
         forgetViewKeyChecked,
         registerActiveViewKey,
         removeRegisteredPublicKey,
+        createBackup,
+        presentCreatedBackup,
+        previewBackupCleanup,
+        executeBackupCleanup,
+        restoreBackupChecked,
         resolveAgent,
         resolveDevice,
         resolveChannel,

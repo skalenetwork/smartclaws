@@ -6,6 +6,7 @@ import { loadWallet } from "@smartclaws/sdk";
 import { parseEther } from "viem";
 import { deployRegistry, publicClient, walletClient } from "../../../cli/tests/setup.ts";
 import { attachTool } from "../../src/tools/attach.ts";
+import { backupCreateTool, backupListTool } from "../../src/tools/backups.ts";
 import { configureTool } from "../../src/tools/configure.ts";
 import { discoverTool } from "../../src/tools/discover.ts";
 import { initializeTool } from "../../src/tools/initialize.ts";
@@ -167,5 +168,17 @@ describe.skipIf(!ready)("plugin anvil flow", () => {
             account: other,
         })) as { status: string };
         expect(revoked.status).toBe("confirmed");
+
+        const backup = (await run(backupCreateTool)) as {
+            name: string;
+            containsSigningKey: boolean;
+        };
+        expect(backup.containsSigningKey).toBe(true);
+        expect(JSON.stringify(backup)).not.toContain(home);
+        const listed = (await run(backupListTool)) as {
+            backups: Array<{ name: string; path?: string }>;
+        };
+        expect(listed.backups.some((item) => item.name === backup.name)).toBe(true);
+        expect(listed.backups[0]).not.toHaveProperty("path");
     });
 });
