@@ -61,7 +61,53 @@ Live channels from `00-DEPLOYMENT.md` are free to read. **Do not spend funds wit
 operator** — publishing or disclosing on the live deployment costs real sFUEL. If you want a live
 run, stop and ask, stating the cost and target.
 
+## Addendum — added mid-track, after the SDK changed under you
+
+`resolveChannel` gained two things in commit `d062e09`. **Run `bun run build:packages` before
+type-checking**, or the CLI will read a stale `.d.ts` and appear to compile against the old shape.
+
+```ts
+resolveChannel({ device?, agent?, channel?, side? }, homeDir?)
+  -> { channelAddress, side, device?, deviceAddress?, agent?, agentAddress? }
+```
+
+- `agent` is a new target, resolved from the local record like `device`.
+- `side` is `"incoming" | "outgoing"`, defaulting to `"outgoing"`. Existing calls are unchanged.
+- Passing `side` together with `channel` throws `INVALID_TARGET` — an address already names one
+  channel, so a side there could only be silently ignored.
+
+Previously only a device's outgoing channel was reachable by name. A device's incoming commands and
+both of an agent's channels required a raw address, which mattered most for the encrypted case:
+commands on an encrypted incoming channel are ciphertext, so disclosure is the only way to read
+them, and disclosure was the one path that could not name that channel.
+
+### What to add
+
+1. `read` takes `--agent <name>` alongside `--device` and `--channel`, and a side selector. Both
+   the free read and `--disclose` must accept the same targeting — the incoming side is precisely
+   where disclosure earns its cost.
+2. Surface the `INVALID_TARGET` from a side-plus-address combination as a clean CLI error, not an
+   unhandled throw.
+3. Print which side was read, so output for `--device sensor-1` and `--device sensor-1 --side
+   incoming` is not indistinguishable.
+
+### The flag-naming collision — decide this deliberately
+
+`--channel` currently means two different things in this CLI:
+
+- `read --channel <address>` — a channel **address**
+- `device reader add --channel outgoing` — a channel **side**
+
+Adding a side to `read` forces the issue. Pick one word for the side and use it everywhere;
+`--side incoming|outgoing` is the natural choice, since `--channel` meaning "side" is the outlier.
+That means renaming the flag on the `device reader` / `agent reader` commands too. If you keep
+`--channel` for the side instead, `read` needs a different word for the address, which is worse.
+Either way, do not ship two meanings for one flag name.
+
+The SDK's `ReaderChannelSide` is now an alias of `ChannelSide`, so both spellings type-check
+identically and this is purely a CLI surface decision.
+
 ## Report
 
-Files changed, the exact output strings for encrypted publish in both wait modes, and gate results
-verbatim.
+Files changed, the exact output strings for encrypted publish in both wait modes, the flag naming
+you chose for the side and what you renamed to get there, and gate results verbatim.
