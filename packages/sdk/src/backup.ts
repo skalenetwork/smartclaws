@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
     chmodSync,
     cpSync,
@@ -158,6 +159,8 @@ export interface BackupInfo {
     /** Backup creation time (epoch ms), from the directory mtime. */
     createdAt: number;
     sizeBytes: number;
+    /** Digest of relative paths, file modes, and file contents. */
+    contentDigest: string;
 }
 
 export interface BackupResult {
@@ -188,6 +191,30 @@ function dirSize(dir: string): { bytes: number; files: number } {
         }
     }
     return { bytes, files };
+}
+
+function directoryContentDigest(dir: string): string {
+    const hash = createHash("sha256");
+    const walk = (current: string, relative: string): void => {
+        const entries = readdirSync(current, { withFileTypes: true }).sort((left, right) =>
+            left.name.localeCompare(right.name),
+        );
+        for (const entry of entries) {
+            const entryRelative = relative ? `${relative}/${entry.name}` : entry.name;
+            const full = join(current, entry.name);
+            if (entry.isDirectory()) {
+                hash.update(`directory\0${entryRelative}\0`);
+                walk(full, entryRelative);
+            } else if (entry.isFile()) {
+                const stat = statSync(full);
+                hash.update(`file\0${entryRelative}\0${stat.mode & 0o777}\0${stat.size}\0`);
+                hash.update(readFileSync(full));
+                hash.update("\0");
+            }
+        }
+    };
+    walk(dir, "");
+    return hash.digest("hex");
 }
 
 export interface HomeResetResult {
@@ -271,6 +298,7 @@ export function listBackups(homeDir?: string): BackupInfo[] {
                 path,
                 createdAt: statSync(path).mtimeMs,
                 sizeBytes: dirSize(path).bytes,
+                contentDigest: directoryContentDigest(path),
             };
         })
         .sort((a, b) => b.createdAt - a.createdAt);
@@ -311,7 +339,12 @@ export function presentCreatedBackup(
         fileCount: result.fileCount,
         fingerprint: listed
             ? backupFingerprint(listed)
-            : backupFingerprint({ name: result.name, createdAt: 0, sizeBytes: 0 }),
+            : backupFingerprint({
+                  name: result.name,
+                  createdAt: 0,
+                  sizeBytes: 0,
+                  contentDigest: "",
+              }),
         containsSigningKey: true,
     };
 }

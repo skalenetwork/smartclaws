@@ -115,18 +115,20 @@ export function backupFingerprint(info: {
     name: string;
     createdAt: number;
     sizeBytes: number;
+    contentDigest: string;
 }): string {
     return sha256Hex(
         canonical({
             name: info.name,
             createdAt: Math.round(info.createdAt),
             sizeBytes: info.sizeBytes,
+            contentDigest: info.contentDigest,
         }),
     );
 }
 
 export function candidateSetFingerprint(
-    backups: Array<{ name: string; createdAt: number; sizeBytes: number }>,
+    backups: Array<{ name: string; createdAt: number; sizeBytes: number; contentDigest: string }>,
 ): string {
     const fingerprints = [...backups]
         .sort((left, right) => left.name.localeCompare(right.name))

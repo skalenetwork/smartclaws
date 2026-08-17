@@ -240,6 +240,30 @@ describe("backup", () => {
         expect(JSON.stringify(presented)).not.toContain(tempDir);
     });
 
+    test("backup fingerprint changes after a same-size content replacement", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
+        seedHome(tempDir);
+        const snapshot = createBackup(tempDir);
+        const before = listPresentedBackups(tempDir)[0];
+        const walletPath = join(snapshot.path, "wallets", "default.json");
+        const original = readFileSync(walletPath, "utf-8");
+        const replaced = original.replace("deadbeef", "feedface");
+        expect(replaced.length).toBe(original.length);
+        writeFileSync(walletPath, replaced);
+
+        const after = listPresentedBackups(tempDir)[0];
+        expect(after.sizeBytes).toBe(before.sizeBytes);
+        expect(after.fingerprint).not.toBe(before.fingerprint);
+        expect(() =>
+            restoreBackupChecked({
+                homeDir: tempDir,
+                name: snapshot.name,
+                expectedHomeFingerprint: homeFingerprint(tempDir),
+                expectedBackupFingerprint: before.fingerprint,
+            }),
+        ).toThrow(/contents changed/i);
+    });
+
     test("cleanup execute refuses a changed candidate set and deletes only named backups", async () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
         seedHome(tempDir);
