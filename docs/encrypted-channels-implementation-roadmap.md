@@ -7,6 +7,59 @@ into dependency-aware implementation tracks. Its scope follows that survey:
 - contract changes only where they affect the downstream compatibility boundary;
 - `open-claw-setups/` and the stale Python stub remain excluded.
 
+## Status (2026-08-17)
+
+Done and verified: **Wave 0**, **Track 1**, **Track 2**, **Track 3A**, **Track 6**, and the
+deploy-script half of **DEPLOY**. Gates at time of writing: 182 contract tests, 134 lint files,
+six type-checks, and 67/7/18/20 across the SDK, plugin, CLI-unit and CLI-integration lanes.
+
+Wave 0 decisions, now settled and implemented:
+
+1. `SmartClawsDeviceGroup` **gained** the reader passthroughs (see propagation §11.2).
+2. The split device sets **stay**; consumers merge them (see propagation §11.4).
+
+Next, in order:
+
+- **Track 3B** (`contracts.ts`, discovery, readers) — unblocked; the only remaining SDK
+  prerequisite for 3C. The legacy-registry fix below belongs here.
+- **DEPLOY, run for real** — `deploy.ts` now creates encrypted samples but has never been
+  executed against SKALE. This gates the live lane, which is the only lane that proves anything.
+- **Track 3C**, then **4 + 5** in parallel, then **7**.
+
+Carried forward, owned by no track:
+
+- Wire 3A into `index.ts` and `Config` — deliberately deferred so parallel agents would not
+  collide on those files.
+- Key rotation: `registerPublicKey` silently overwrites, so a rotation between `requestMessages`
+  and its callback makes that disclosure permanently undecryptable and the fee spent.
+- Spend budget/telemetry for paid reads.
+
+### Corrections this document needs
+
+- **The legacy-registry contradiction.** Track 7 says preserve the user's registry address on
+  migration, while Track 3B queries both device sets and decision 3 resolves `publicKeyRegistry()`.
+  The deployed registry predates both and answers neither, so a preserved config plus the new SDK
+  reverts on ordinary discovery. Migration currently preserves the address and marks the hazard
+  with `TODO(legacy-registry):`; **3B must add explicit legacy tolerance or force the move.**
+- **DEPLOY is mis-sequenced.** It is drawn as a leaf feeding only RELEASE, but the live lane
+  cannot run until it lands, so following the graph literally means writing every consumer blind.
+  Treat it as an early track.
+- **ECIES here is unauthenticated** (no MAC). "Decrypted, but the plaintext is not a valid
+  envelope" is therefore an expected error class, not a bug — see `InvalidDecryptedEnvelopeError`.
+
+### Facts established against a live chain
+
+These cannot be reproduced locally — **BITE has no local simulation** — so they are recorded here
+rather than re-derived. Origin tx `0x25d923aa…c698` on base-testnet:
+
+- `bite_getCraftedCtxs` returns a **flat array of bare 64-char hex strings, with no `0x` prefix**.
+  A parser requiring the prefix matches nothing and reports "no CTX" for every successful publish.
+- The CTX landed in the **very next block, 1s after the origin**, and emitted
+  `MessagePublished(address,uint256)`. The retry default is set from this measurement.
+- Registering an encrypted entity deploys two `SmartClawsChannelEncrypted` instances, which
+  exceeds Hardhat's 2^24 per-transaction cap locally. That cap is *not* the block gas limit and
+  cannot be read from a block; SKALE's ~230M limit is unaffected.
+
 ## Outcome
 
 The work can run in parallel after a short contract and interface freeze.

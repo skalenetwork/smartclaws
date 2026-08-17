@@ -13,8 +13,17 @@ each item says **what** is affected and **what has to change**, not the order or
 > §1 (ABI/artifact plumbing — all seven ABIs exported and committed, with a CI drift check)
 > are implemented. §11.4 is resolved as a decision, not a change: the split device sets stay.
 > The stale four-argument deploy in `packages/cli/tests/setup.ts` (§9) is fixed, so the
-> integration lane is green against the regenerated ABIs. Everything else below is still
-> outstanding.
+> integration lane is green against the regenerated ABIs.
+>
+> Also landed since: §2 (core types + Config v3), the encryption/CTX/keys half of §3,
+> §6 in observer-only form, and §11.3 (`deploy.ts` now creates and verifies encrypted samples,
+> though it has not yet been run against SKALE).
+>
+> Still outstanding: §3's contracts/discovery/readers and publish/disclosure work, §4 (CLI),
+> §5 (plugin), §7 (skills), §8 (dev scripts), and §10 (docs).
+>
+> See the roadmap's Status section for ordering, the open legacy-registry contradiction, and
+> the live-chain facts that cannot be re-derived locally.
 
 ---
 
