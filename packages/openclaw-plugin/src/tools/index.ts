@@ -17,6 +17,13 @@ import { roleGrantTool, roleRevokeTool } from "./roles.js";
 import { setupStatusTool } from "./setup-status.js";
 import { syncTool } from "./sync.js";
 import type { SmartClawsToolFactory } from "./types.js";
+import {
+    viewKeyForgetTool,
+    viewKeyGenerateTool,
+    viewKeyRegisterTool,
+    viewKeyRemoveTool,
+    viewKeyRotateTool,
+} from "./view-keys.js";
 import { walletInfoTool } from "./wallet-info.js";
 
 export function smartClawsTools(tool: SmartClawsToolFactory) {
@@ -32,6 +39,11 @@ export function smartClawsTools(tool: SmartClawsToolFactory) {
         registerAgentTool(tool),
         roleGrantTool(tool),
         roleRevokeTool(tool),
+        viewKeyGenerateTool(tool),
+        viewKeyRotateTool(tool),
+        viewKeyRegisterTool(tool),
+        viewKeyForgetTool(tool),
+        viewKeyRemoveTool(tool),
         walletInfoTool(tool),
         listLocalTool(tool),
         discoverTool(tool),

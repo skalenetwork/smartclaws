@@ -339,6 +339,41 @@ export const assertNotSelfReaderRevocation = mock(
         throw error;
     },
 );
+export const generateViewKeyIfAbsent = mock(() => ({
+    fingerprint: "aa".repeat(8),
+    registrationRequired: true as const,
+    usesSigningKey: false as const,
+}));
+export const rotateViewKeyChecked = mock(() => ({
+    fingerprint: "bb".repeat(8),
+    backupName: "backup-20260101-000000Z",
+    registrationRequired: true as const,
+    abandonedInflightDisclosures: true as const,
+}));
+export const forgetViewKeyChecked = mock(() => ({
+    fingerprint: "cc".repeat(8),
+    backupName: "backup-20260101-000000Z",
+    registrationRequired: true as const,
+    usesSigningKey: true as const,
+}));
+export const registerActiveViewKey = mock(async () => ({
+    registry: "0x00000000000000000000000000000000000000e0",
+    account: WALLET.address,
+    txHash: ORIGIN,
+    status: "success" as const,
+    fingerprint: "aa".repeat(8),
+    matchesViewKey: true,
+    registered: true,
+}));
+export const removeRegisteredPublicKey = mock(async () => ({
+    registry: "0x00000000000000000000000000000000000000e0",
+    account: WALLET.address,
+    txHash: ORIGIN,
+    status: "success" as const,
+    fingerprint: "aa".repeat(8),
+    matchesViewKey: false,
+    registered: false,
+}));
 
 // Shared across plugin test files: bun's module mocks are process-wide.
 mock.module("@smartclaws/sdk", () => {
@@ -412,6 +447,11 @@ mock.module("@smartclaws/sdk", () => {
         revokeAgentReader,
         assertNotSelfLockout,
         assertNotSelfReaderRevocation,
+        generateViewKeyIfAbsent,
+        rotateViewKeyChecked,
+        forgetViewKeyChecked,
+        registerActiveViewKey,
+        removeRegisteredPublicKey,
         resolveAgent,
         resolveDevice,
         resolveChannel,

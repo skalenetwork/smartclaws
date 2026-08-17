@@ -52,6 +52,7 @@ export * from "./services/key-transactions.js";
 export * from "./services/keys.js";
 export * from "./services/readers.js";
 export * from "./services/setup.js";
+export * from "./services/view-key-lifecycle.js";
 // Services (typed params in, structured data out)
 export * from "./services/wallet.js";
 export * from "./wallet.js";

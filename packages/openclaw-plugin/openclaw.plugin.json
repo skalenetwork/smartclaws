@@ -64,6 +64,11 @@
       "smartclaws_register_agent",
       "smartclaws_role_grant",
       "smartclaws_role_revoke",
+      "smartclaws_view_key_generate",
+      "smartclaws_view_key_rotate",
+      "smartclaws_view_key_register",
+      "smartclaws_view_key_forget",
+      "smartclaws_view_key_remove",
       "smartclaws_wallet_info",
       "smartclaws_list_local",
       "smartclaws_discover",
@@ -107,6 +112,21 @@
       "optional": true
     },
     "smartclaws_role_revoke": {
+      "optional": true
+    },
+    "smartclaws_view_key_generate": {
+      "optional": true
+    },
+    "smartclaws_view_key_rotate": {
+      "optional": true
+    },
+    "smartclaws_view_key_register": {
+      "optional": true
+    },
+    "smartclaws_view_key_forget": {
+      "optional": true
+    },
+    "smartclaws_view_key_remove": {
       "optional": true
     },
     "smartclaws_reader_grant": {

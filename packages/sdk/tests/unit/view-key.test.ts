@@ -161,3 +161,34 @@ describe("registration and decryption agree", () => {
         expect(publicKeyMatches(registeredWithSigningKey, viewingPrivateKey(wallet))).toBe(false);
     });
 });
+
+describe("view-key lifecycle helpers", () => {
+    test("generate refuses a second key and rotate requires the current fingerprint", async () => {
+        const { generateViewKeyIfAbsent, rotateViewKeyChecked, forgetViewKeyChecked } =
+            await import("../../src/services/view-key-lifecycle.ts");
+        withHome((home) => {
+            importWallet(generatePrivateKey(), home);
+            const first = generateViewKeyIfAbsent(home);
+            expect(first.registrationRequired).toBe(true);
+            expect(first.fingerprint).toHaveLength(16);
+            expect(() => generateViewKeyIfAbsent(home)).toThrow(/already exists/);
+            expect(() =>
+                rotateViewKeyChecked({
+                    homeDir: home,
+                    expectedCurrentKeyFingerprint: first.fingerprint,
+                    confirmAbandonInflightDisclosures: false,
+                }),
+            ).toThrow(/confirmAbandonInflightDisclosures/);
+            const rotated = rotateViewKeyChecked({
+                homeDir: home,
+                expectedCurrentKeyFingerprint: first.fingerprint,
+                confirmAbandonInflightDisclosures: true,
+            });
+            expect(rotated.fingerprint).not.toBe(first.fingerprint);
+            expect(rotated.backupName).toMatch(/^backup-/);
+            const forgotten = forgetViewKeyChecked(home);
+            expect(forgotten.usesSigningKey).toBe(true);
+            expect(JSON.stringify(forgotten)).not.toContain("privateKey");
+        });
+    });
+});
