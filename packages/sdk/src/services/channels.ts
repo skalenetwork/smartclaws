@@ -169,6 +169,7 @@ export interface ReadResult {
     latest: number;
     from: number;
     to: number;
+    encrypted: boolean;
     messages: ReadMessage[];
 }
 
@@ -214,6 +215,7 @@ export async function readMessages(params: ReadParams, config: Config): Promise<
             latest: 0,
             from: 0,
             to: 0,
+            encrypted,
             messages: [],
         };
     }
@@ -273,6 +275,7 @@ export async function readMessages(params: ReadParams, config: Config): Promise<
         latest: Number(latest),
         from: Number(from),
         to: Number(from + readCount - 1n),
+        encrypted,
         messages,
     };
 }

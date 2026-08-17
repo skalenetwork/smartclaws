@@ -105,4 +105,30 @@ describe("smartclaws_read", () => {
         expect(result.messages[0]?.decodeError).toBeUndefined();
         expect(typeof result.messages[0]?.ciphertextBytes).toBe("number");
     });
+
+    test("rejects an unsafe or oversized limit before reading", async () => {
+        const spec = await loadReadSpec();
+        await expect(
+            spec.execute(
+                { device: "sensor-1", limit: 101 },
+                { smartclawsHome: "/tmp/smartclaws-test" },
+                {},
+            ),
+        ).rejects.toThrow();
+        expect(readMessages).not.toHaveBeenCalled();
+    });
+
+    test("aborts before calling the SDK when the signal is aborted", async () => {
+        const spec = await loadReadSpec();
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+            spec.execute(
+                { device: "sensor-1" },
+                { smartclawsHome: "/tmp/smartclaws-test" },
+                { signal: controller.signal },
+            ),
+        ).rejects.toThrow();
+        expect(readMessages).not.toHaveBeenCalled();
+    });
 });

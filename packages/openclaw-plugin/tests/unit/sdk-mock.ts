@@ -104,10 +104,59 @@ export const getAgentReaderStatus = mock(async () => ({
 export const listDevices = mock(() => []);
 export const listAgents = mock(() => []);
 export const resolveChannel = mock();
-export const resolveAgent = mock();
+export const resolveAgent = mock(async () => ({
+    name: "controller-1",
+    agentContract: "0x00000000000000000000000000000000000000a1",
+    incomingChannel: "0x00000000000000000000000000000000000000c4",
+    outgoingChannel: "0x00000000000000000000000000000000000000c5",
+    encrypted: true,
+}));
+export const resolveDevice = mock(async () => ({
+    name: "sensor-1",
+    deviceContract: "0x00000000000000000000000000000000000000d1",
+    incomingChannel: "0x00000000000000000000000000000000000000c2",
+    outgoingChannel: "0x00000000000000000000000000000000000000c3",
+    encrypted: true,
+}));
 export const loadAgent = mock();
 export const loadConfig = mock(() => CONFIG);
 export const loadWallet = mock(() => WALLET);
+export const getSetupStatus = mock(async () => ({
+    state: "uninitialized",
+    ready: false,
+    home: { exists: false, configVersion: null, staleConfig: false, fingerprint: "abc" },
+    configuration: { persisted: null, pluginOverrides: {}, effective: null, shadowedFields: [] },
+    wallet: null,
+    attachments: { group: null, agent: null, devices: [] },
+    key: null,
+    rpc: { ok: true, error: null, url: null },
+    issues: [],
+}));
+export const listGroups = mock(() => []);
+export const listPresentedBackups = mock(() => []);
+export const discoverGroupsPage = mock(async () => ({
+    total: 0,
+    offset: 0,
+    limit: 50,
+    items: [],
+    nextOffset: null,
+}));
+export const discoverDevicesPage = mock(async () => ({
+    total: 0,
+    offset: 0,
+    limit: 50,
+    items: [],
+    nextOffset: null,
+}));
+export const discoverAgentsPage = mock(async () => ({
+    total: 0,
+    offset: 0,
+    limit: 50,
+    items: [],
+    nextOffset: null,
+}));
+export const listDeviceReaders = mock(async () => []);
+export const listAgentReaders = mock(async () => []);
 
 // Shared across plugin test files: bun's module mocks are process-wide.
 mock.module("@smartclaws/sdk", () => ({
@@ -129,6 +178,7 @@ mock.module("@smartclaws/sdk", () => ({
     loadAgent,
     listDevices,
     listAgents,
+    listGroups,
     publishChannelMessage,
     publishDeviceCommand,
     publishDeviceTelemetry,
@@ -141,7 +191,15 @@ mock.module("@smartclaws/sdk", () => ({
     getViewKeyStatus,
     getDeviceReaderStatus,
     getAgentReaderStatus,
+    getSetupStatus,
+    listPresentedBackups,
+    discoverGroupsPage,
+    discoverDevicesPage,
+    discoverAgentsPage,
+    listDeviceReaders,
+    listAgentReaders,
     resolveAgent,
+    resolveDevice,
     resolveChannel,
 }));
 

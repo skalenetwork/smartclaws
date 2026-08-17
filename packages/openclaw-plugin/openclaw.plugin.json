@@ -1,55 +1,80 @@
 {
-    "id": "smartclaws",
-    "name": "SmartClaws",
-    "description": "Publish and read IoT telemetry on SKALE through SmartClaws.",
-    "version": "0.4.0",
-    "configSchema": {
-        "type": "object",
-        "properties": {
-            "smartclawsHome": {
-                "type": "string",
-                "description": "SmartClaws config directory. Defaults to SMARTCLAWS_HOME or ~/.smartclaws."
-            },
-            "network": {
-                "type": "string",
-                "description": "Default network name. Currently supported: base-testnet."
-            },
-            "rpcUrl": {
-                "type": "string",
-                "description": "Override RPC URL."
-            },
-            "chainId": {
-                "type": "number",
-                "description": "Override chain ID (required with rpcUrl when no network is set)."
-            },
-            "registryAddress": {
-                "type": "string",
-                "description": "Override registry contract address."
-            }
-        }
-    },
-    "activation": {
-        "onStartup": true
-    },
-    "contracts": {
-        "tools": [
-            "smartclaws_wallet_info",
-            "smartclaws_access_check",
-            "smartclaws_read",
-            "smartclaws_disclose",
-            "smartclaws_publish",
-            "smartclaws_notify"
-        ]
-    },
-    "toolMetadata": {
-        "smartclaws_disclose": {
-            "optional": true
-        },
-        "smartclaws_publish": {
-            "optional": true
-        },
-        "smartclaws_notify": {
-            "optional": true
-        }
+  "id": "smartclaws",
+  "name": "SmartClaws",
+  "description": "Publish and read IoT telemetry on SKALE through SmartClaws.",
+  "version": "0.4.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "smartclawsHome": {
+        "type": "string",
+        "description": "SmartClaws config directory. Defaults to SMARTCLAWS_HOME or ~/.smartclaws."
+      },
+      "network": {
+        "type": "string",
+        "description": "Default network name. Currently supported: base-testnet."
+      },
+      "rpcUrl": {
+        "type": "string",
+        "description": "Override RPC URL."
+      },
+      "chainId": {
+        "type": "number",
+        "description": "Override chain ID (required with rpcUrl when no network is set)."
+      },
+      "registryAddress": {
+        "type": "string",
+        "description": "Override registry contract address."
+      },
+      "allowPrivateRpc": {
+        "type": "boolean",
+        "description": "Allow custom RPC URLs that target loopback, private, link-local, or metadata hosts. Default false."
+      },
+      "maxDiscoveryPageSize": {
+        "type": "number",
+        "description": "Maximum discovery page size (hard ceiling 100)."
+      },
+      "maxSyncEntities": {
+        "type": "number",
+        "description": "Maximum entities a sync may hydrate (hard ceiling 1000)."
+      },
+      "maxReadMessages": {
+        "type": "number",
+        "description": "Maximum messages a read may return (hard ceiling 100)."
+      },
+      "maxChannelCapacityBytes": {
+        "type": "string",
+        "description": "Maximum channel capacity for registration, as a decimal string (hard ceiling 16777216)."
+      }
     }
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "smartclaws_setup_status",
+      "smartclaws_wallet_info",
+      "smartclaws_list_local",
+      "smartclaws_discover",
+      "smartclaws_access_check",
+      "smartclaws_read",
+      "smartclaws_reader_list",
+      "smartclaws_backup_list",
+      "smartclaws_disclose",
+      "smartclaws_publish",
+      "smartclaws_notify"
+    ]
+  },
+  "toolMetadata": {
+    "smartclaws_disclose": {
+      "optional": true
+    },
+    "smartclaws_publish": {
+      "optional": true
+    },
+    "smartclaws_notify": {
+      "optional": true
+    }
+  }
 }

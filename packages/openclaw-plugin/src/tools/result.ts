@@ -7,7 +7,7 @@ import type { DiscloseResult, PublishResult } from "@smartclaws/sdk";
  * Publication outcome is `status` alone. This helper never adds `success` and
  * never rewrites `scheduled` into `published`.
  */
-function jsonCompatible(value: unknown): unknown {
+export function jsonCompatible(value: unknown): unknown {
     if (typeof value === "bigint") return value.toString();
     if (Array.isArray(value)) return value.map(jsonCompatible);
     if (value && typeof value === "object") {

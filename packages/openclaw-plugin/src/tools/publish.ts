@@ -8,7 +8,8 @@ import {
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Type } from "typebox";
-import { requireWallet, resolveConfig } from "../plugin-config.js";
+import { requireWallet, resolveConfig, resolvedHome } from "../plugin-config.js";
+import { throwIfAborted } from "./guards.js";
 import { presentPublishResult } from "./result.js";
 import type { SmartClawsToolFactory } from "./types.js";
 
@@ -52,9 +53,10 @@ export function publishTool(tool: SmartClawsToolFactory) {
             ),
         }),
         execute: async (params, config, context) => {
-            context.signal?.throwIfAborted();
+            throwIfAborted(context.signal);
             const cfg = resolveConfig(config);
-            const wallet = requireWallet(config.smartclawsHome);
+            const wallet = requireWallet(config);
+            const home = resolvedHome(config);
             const options = { wait: params.wait ?? true };
 
             if (params.agent) {
@@ -64,7 +66,7 @@ export function publishTool(tool: SmartClawsToolFactory) {
                         "Provide exactly one of `device`, `agent`, or `channel`.",
                     );
                 }
-                const agent = await resolveAgent(params.agent, cfg, wallet, config.smartclawsHome);
+                const agent = await resolveAgent(params.agent, cfg, wallet, home);
                 return presentPublishResult(
                     await publishAgentOutbound(
                         {
@@ -82,7 +84,7 @@ export function publishTool(tool: SmartClawsToolFactory) {
 
             const { channelAddress, device, deviceAddress } = resolveChannel(
                 { device: params.device, channel: params.channel },
-                config.smartclawsHome,
+                home,
             );
             if (params.deviceChannel && !device) {
                 throw new SmartClawsError(

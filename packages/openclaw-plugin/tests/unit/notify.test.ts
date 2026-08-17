@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
     CONFIG,
     encryptedPublished,
-    loadAgent,
     loadConfig,
     loadWallet,
     publishAgentInbound,
+    resolveAgent,
     type ToolSpec,
     toolFactory,
     WALLET,
@@ -19,19 +19,19 @@ async function loadNotifySpec() {
 describe("smartclaws_notify", () => {
     beforeEach(() => {
         publishAgentInbound.mockClear();
-        loadAgent.mockClear();
+        resolveAgent.mockClear();
         loadConfig.mockClear();
         loadWallet.mockClear();
+        resolveAgent.mockResolvedValue({
+            name: "worker-1",
+            agentContract: "0x00000000000000000000000000000000000000a2",
+        });
         publishAgentInbound.mockImplementation(async () =>
             encryptedPublished({ topic: "task.assign", dev: "controller" }),
         );
     });
 
     test("publishes to a named agent's incoming channel and waits by default", async () => {
-        loadAgent.mockReturnValue({
-            name: "worker-1",
-            agentContract: "0x00000000000000000000000000000000000000a2",
-        });
         const spec = await loadNotifySpec();
 
         const result = await spec.execute(
@@ -40,6 +40,12 @@ describe("smartclaws_notify", () => {
             {},
         );
 
+        expect(resolveAgent).toHaveBeenCalledWith(
+            "worker-1",
+            CONFIG,
+            WALLET,
+            "/tmp/smartclaws-test",
+        );
         expect(publishAgentInbound).toHaveBeenCalledWith(
             {
                 agentAddress: "0x00000000000000000000000000000000000000a2",
@@ -60,10 +66,6 @@ describe("smartclaws_notify", () => {
     });
 
     test("wait:false scheduled notify is not rewritten as published", async () => {
-        loadAgent.mockReturnValue({
-            name: "worker-1",
-            agentContract: "0x00000000000000000000000000000000000000a2",
-        });
         publishAgentInbound.mockImplementation(async () =>
             encryptedPublished({
                 topic: "task.assign",
@@ -89,8 +91,11 @@ describe("smartclaws_notify", () => {
         expect(result).not.toHaveProperty("success");
     });
 
-    test("falls back to a raw 0x address when no local record exists", async () => {
-        loadAgent.mockReturnValue(null);
+    test("resolves raw addresses through resolveAgent, not a local-only fallback", async () => {
+        resolveAgent.mockResolvedValue({
+            name: "remote",
+            agentContract: "0x00000000000000000000000000000000000000a3",
+        });
         const spec = await loadNotifySpec();
 
         await spec.execute(
@@ -103,6 +108,12 @@ describe("smartclaws_notify", () => {
             {},
         );
 
+        expect(resolveAgent).toHaveBeenCalledWith(
+            "0x00000000000000000000000000000000000000a3",
+            CONFIG,
+            WALLET,
+            "/tmp/smartclaws-test",
+        );
         expect(publishAgentInbound).toHaveBeenCalledWith(
             {
                 agentAddress: "0x00000000000000000000000000000000000000a3",

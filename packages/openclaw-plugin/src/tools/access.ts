@@ -6,7 +6,16 @@ import {
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Type } from "typebox";
-import { requireWallet, resolveConfig } from "../plugin-config.js";
+import {
+    ACCESS_CONCURRENCY,
+    accessPageLimit,
+    requireWallet,
+    resolveConfig,
+    resolvedHome,
+} from "../plugin-config.js";
+import { mapPool, throwIfAborted } from "./guards.js";
+import { jsonCompatible } from "./result.js";
+import { requireSafeInteger } from "./schemas.js";
 import type { SmartClawsToolFactory } from "./types.js";
 
 interface AccessEntry {
@@ -22,25 +31,35 @@ interface AccessEntry {
 /**
  * Access is a per-entity question, so it lives apart from wallet identity.
  *
- * It used to run inside `smartclaws_wallet_info`, which meant every call to "what is my
- * address and balance" also walked every locally known entity. Splitting it keeps the cheap
- * question cheap and lets this one name a single entity when that is all the caller wants.
+ * Untargeted listing is paginated with bounded concurrency so it cannot fan out
+ * unbounded RPC. Targeted lookup of one device or agent stays a single pair of reads.
  */
 export function accessTool(tool: SmartClawsToolFactory) {
     return tool({
         name: "smartclaws_access_check",
         label: "SmartClaws Access Check",
         description:
-            "Report whether the configured wallet can read a device or agent's incoming and outgoing channels. Plain channels are readable by anyone; encrypted channels depend on the channel's reader list. Omit both arguments to check every locally known entity.",
+            "Report whether the configured wallet can read a device or agent's incoming and outgoing channels. Plain channels are readable by anyone; encrypted channels depend on the channel's reader list. Omit device/agent to page through locally known entities.",
         parameters: Type.Object({
             device: Type.Optional(Type.String({ description: "Device address or local name" })),
             agent: Type.Optional(Type.String({ description: "Agent address or local name" })),
+            offset: Type.Optional(
+                Type.Number({
+                    description: "Page offset when listing all known entities (default 0).",
+                }),
+            ),
+            limit: Type.Optional(
+                Type.Number({
+                    description:
+                        "Page size when listing all known entities (small default, hard-capped).",
+                }),
+            ),
         }),
         execute: async (params, config, context) => {
-            context.signal?.throwIfAborted();
+            throwIfAborted(context.signal);
             const cfg = resolveConfig(config);
-            const wallet = requireWallet(config.smartclawsHome);
-            const home = config.smartclawsHome;
+            const wallet = requireWallet(config);
+            const home = resolvedHome(config);
 
             if (params.device && params.agent) {
                 throw new SmartClawsError(
@@ -52,71 +71,98 @@ export function accessTool(tool: SmartClawsToolFactory) {
 
             const devices = listDevices(home);
             const agents = listAgents(home);
+            const wantedDevices = params.agent
+                ? []
+                : devices.filter(matches(params.device, "deviceContract"));
+            const wantedAgents = params.device
+                ? []
+                : agents.filter(matches(params.agent, "agentContract"));
 
-            const wanted = {
-                devices: params.agent
-                    ? []
-                    : devices.filter(matches(params.device, "deviceContract")),
-                agents: params.device ? [] : agents.filter(matches(params.agent, "agentContract")),
-            };
-            if (params.device && wanted.devices.length === 0) {
+            if (params.device && wantedDevices.length === 0) {
                 throw new SmartClawsError(
                     "DEVICE_NOT_FOUND",
                     `Device '${params.device}' not found.`,
                     {
-                        available: devices.map((d) => d.name),
+                        available: devices.map((device) => device.name),
                     },
                 );
             }
-            if (params.agent && wanted.agents.length === 0) {
+            if (params.agent && wantedAgents.length === 0) {
                 throw new SmartClawsError(
                     "ENTITY_NOT_FOUND",
                     `Agent '${params.agent}' not found.`,
                     {
-                        available: agents.map((a) => a.name),
+                        available: agents.map((agent) => agent.name),
                     },
                 );
             }
 
-            // Entities are independent of each other, so there is no reason to queue them.
-            const entries = await Promise.all([
-                ...wanted.devices.map(async (device): Promise<AccessEntry> => {
-                    const status = await getDeviceReaderStatus(
-                        cfg,
-                        device.deviceContract,
-                        wallet.address,
-                        home,
-                    );
-                    return {
-                        kind: "device",
-                        name: device.name,
-                        encrypted: device.encrypted === true,
-                        incomingChannel: device.incomingChannel,
-                        outgoingChannel: device.outgoingChannel,
-                        canReadIncoming: status.isIncomingReader,
-                        canReadOutgoing: status.isOutgoingReader,
-                    };
-                }),
-                ...wanted.agents.map(async (agent): Promise<AccessEntry> => {
+            const catalog: Array<
+                | { kind: "device"; record: (typeof devices)[number] }
+                | { kind: "agent"; record: (typeof agents)[number] }
+            > = [
+                ...wantedDevices.map((record) => ({ kind: "device" as const, record })),
+                ...wantedAgents.map((record) => ({ kind: "agent" as const, record })),
+            ];
+
+            const targeted = Boolean(params.device || params.agent);
+            const offset = targeted
+                ? 0
+                : (requireSafeInteger(params.offset, "offset", { min: 0 }) ?? 0);
+            const limit = targeted ? catalog.length || 1 : accessPageLimit(config, params.limit);
+            const total = catalog.length;
+            const page = catalog.slice(offset, offset + limit);
+
+            const entries = await mapPool(
+                page,
+                ACCESS_CONCURRENCY,
+                async (item): Promise<AccessEntry> => {
+                    if (item.kind === "device") {
+                        const status = await getDeviceReaderStatus(
+                            cfg,
+                            item.record.deviceContract,
+                            wallet.address,
+                            home,
+                        );
+                        return {
+                            kind: "device",
+                            name: item.record.name,
+                            encrypted: item.record.encrypted === true,
+                            incomingChannel: item.record.incomingChannel,
+                            outgoingChannel: item.record.outgoingChannel,
+                            canReadIncoming: status.isIncomingReader,
+                            canReadOutgoing: status.isOutgoingReader,
+                        };
+                    }
                     const status = await getAgentReaderStatus(
                         cfg,
-                        agent.agentContract,
+                        item.record.agentContract,
                         wallet.address,
                         home,
                     );
                     return {
                         kind: "agent",
-                        name: agent.name,
-                        encrypted: agent.encrypted === true,
-                        incomingChannel: agent.incomingChannel,
-                        outgoingChannel: agent.outgoingChannel,
+                        name: item.record.name,
+                        encrypted: item.record.encrypted === true,
+                        incomingChannel: item.record.incomingChannel,
+                        outgoingChannel: item.record.outgoingChannel,
                         canReadIncoming: status.isIncomingReader,
                         canReadOutgoing: status.isOutgoingReader,
                     };
-                }),
-            ]);
+                },
+                context.signal,
+            );
 
-            return { account: wallet.address, entries };
+            throwIfAborted(context.signal);
+            const next = offset + entries.length;
+            return jsonCompatible({
+                account: wallet.address,
+                total,
+                offset,
+                limit,
+                nextOffset: next < total ? next : null,
+                entries,
+            });
         },
     });
 }

@@ -5,8 +5,10 @@ import {
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Type } from "typebox";
-import { requireWallet, resolveConfig } from "../plugin-config.js";
+import { requireWallet, resolveConfig, resolvedHome } from "../plugin-config.js";
+import { throwIfAborted } from "./guards.js";
 import { presentDiscloseResult } from "./result.js";
+import { requireSafeInteger } from "./schemas.js";
 import type { SmartClawsToolFactory } from "./types.js";
 
 export function discloseTool(tool: SmartClawsToolFactory) {
@@ -36,7 +38,8 @@ export function discloseTool(tool: SmartClawsToolFactory) {
             ),
         }),
         execute: async (params, config, context) => {
-            context.signal?.throwIfAborted();
+            throwIfAborted(context.signal);
+            requireSafeInteger(params.fromOffset, "fromOffset", { min: 0 });
             const count = params.count ?? 1;
             if (!Number.isSafeInteger(count) || count < 1 || count > MAX_DISCLOSE_BATCH) {
                 throw new SmartClawsError(
@@ -47,7 +50,8 @@ export function discloseTool(tool: SmartClawsToolFactory) {
             }
 
             const cfg = resolveConfig(config);
-            const wallet = requireWallet(config.smartclawsHome);
+            const wallet = requireWallet(config);
+            const home = resolvedHome(config);
             const { channelAddress, device, agent, side } = resolveChannel(
                 {
                     device: params.device,
@@ -55,13 +59,15 @@ export function discloseTool(tool: SmartClawsToolFactory) {
                     channel: params.channel,
                     side: params.side,
                 },
-                config.smartclawsHome,
+                home,
             );
+            throwIfAborted(context.signal);
             const result = await discloseMessages(
                 { channelAddress, fromOffset: params.fromOffset, count },
                 cfg,
                 wallet,
             );
+            throwIfAborted(context.signal);
             return {
                 ...presentDiscloseResult(result),
                 device: device ?? null,
