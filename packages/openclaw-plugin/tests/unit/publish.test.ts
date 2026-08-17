@@ -1,73 +1,25 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
-
-const CONFIG = {
-    version: 3,
-    network: "local",
-    chainId: 31337,
-    rpcUrl: "http://127.0.0.1:8545",
-    contractAddress: "0x0000000000000000000000000000000000000001",
-    walletAddress: "0x0000000000000000000000000000000000000002",
-    mode: "controller",
-    deviceGroupAddress: "",
-    attachedGroupAddress: "",
-    attachedAgentAddress: "",
-    attachedDeviceAddresses: [],
-};
-
-const WALLET = {
-    address: "0x0000000000000000000000000000000000000002",
-    privateKey: "0x01",
-};
-
-const publishChannelMessage = mock(async (params) => ({ kind: "channel", ...params }));
-const publishDeviceTelemetry = mock(async (params) => ({ kind: "device", ...params }));
-const publishDeviceCommand = mock(async (params) => ({ kind: "command", ...params }));
-const publishAgentOutbound = mock(async (params) => ({ kind: "agent", ...params }));
-const publishAgentInbound = mock(async (params) => ({ kind: "inbound", ...params }));
-const resolveChannel = mock();
-const resolveAgent = mock();
-const loadAgent = mock();
-const loadConfig = mock(() => CONFIG);
-const loadWallet = mock(() => WALLET);
-
-mock.module("@smartclaws/sdk", () => ({
-    SmartClawsError: class SmartClawsError extends Error {
-        code: string;
-        details?: Record<string, unknown>;
-
-        constructor(code: string, message: string, details?: Record<string, unknown>) {
-            super(message);
-            this.name = "SmartClawsError";
-            this.code = code;
-            this.details = details;
-        }
-    },
-    createDefaultConfig: mock(() => CONFIG),
+import { beforeEach, describe, expect, test } from "bun:test";
+import {
+    CHANNEL,
+    CONFIG,
+    encryptedPublished,
     loadConfig,
     loadWallet,
-    loadAgent,
+    ORIGIN,
+    publishAgentOutbound,
     publishChannelMessage,
     publishDeviceCommand,
     publishDeviceTelemetry,
-    publishAgentOutbound,
-    publishAgentInbound,
     resolveAgent,
     resolveChannel,
-}));
-
-function toolFactory(spec: unknown): unknown {
-    return spec;
-}
+    type ToolSpec,
+    toolFactory,
+    WALLET,
+} from "./sdk-mock.ts";
 
 async function loadPublishSpec() {
     const { publishTool } = await import("../../src/tools/publish.ts");
-    return publishTool(toolFactory as never) as {
-        execute: (
-            params: Record<string, unknown>,
-            config: Record<string, unknown>,
-            context: { signal?: AbortSignal },
-        ) => Promise<unknown>;
-    };
+    return publishTool(toolFactory as never) as ToolSpec;
 }
 
 describe("smartclaws_publish", () => {
@@ -80,11 +32,19 @@ describe("smartclaws_publish", () => {
         resolveAgent.mockClear();
         loadConfig.mockClear();
         loadWallet.mockClear();
+        publishDeviceTelemetry.mockImplementation(async () => encryptedPublished());
+        publishDeviceCommand.mockImplementation(async () =>
+            encryptedPublished({ topic: "command.switch.set" }),
+        );
+        publishAgentOutbound.mockImplementation(async () =>
+            encryptedPublished({ topic: "decision.log", dev: "controller-1" }),
+        );
+        publishChannelMessage.mockImplementation(async () => encryptedPublished());
     });
 
-    test("publishes device targets through SmartClawsDevice.publishTelemetry", async () => {
+    test("publishes device targets through SmartClawsDevice.publishTelemetry and waits by default", async () => {
         resolveChannel.mockReturnValue({
-            channelAddress: "0x00000000000000000000000000000000000000c1",
+            channelAddress: CHANNEL,
             device: "sensor-1",
             deviceAddress: "0x00000000000000000000000000000000000000d1",
         });
@@ -109,9 +69,80 @@ describe("smartclaws_publish", () => {
             },
             CONFIG,
             WALLET,
+            { wait: true },
         );
         expect(publishChannelMessage).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ kind: "device" });
+        expect(result).toMatchObject({
+            status: "published",
+            encrypted: true,
+            confirmedOffset: 9,
+            callbackDeposit: "1066800",
+        });
+        expect(result).not.toHaveProperty("success");
+    });
+
+    test("wait:false is passed through; scheduled is not rewritten as published", async () => {
+        resolveChannel.mockReturnValue({
+            channelAddress: CHANNEL,
+            device: "sensor-1",
+            deviceAddress: "0x00000000000000000000000000000000000000d1",
+        });
+        publishDeviceTelemetry.mockImplementation(async () =>
+            encryptedPublished({
+                status: "scheduled",
+                confirmedOffset: undefined,
+                ctxHashes: undefined,
+            }),
+        );
+        const spec = await loadPublishSpec();
+
+        const result = (await spec.execute(
+            { device: "sensor-1", topic: "telemetry.pm", payload: { pm25: 12 }, wait: false },
+            { smartclawsHome: "/tmp/smartclaws-test" },
+            {},
+        )) as Record<string, unknown>;
+
+        expect(publishDeviceTelemetry).toHaveBeenCalledWith(expect.anything(), CONFIG, WALLET, {
+            wait: false,
+        });
+        expect(result.status).toBe("scheduled");
+        expect(result.status).not.toBe("published");
+        expect(result).not.toHaveProperty("confirmedOffset");
+        expect(result).not.toHaveProperty("success");
+    });
+
+    test("CTX timeout stays scheduled and is never rewritten as success", async () => {
+        resolveChannel.mockReturnValue({ channelAddress: CHANNEL });
+        publishChannelMessage.mockImplementation(async () =>
+            encryptedPublished({
+                status: "scheduled",
+                confirmedOffset: undefined,
+                ctxHashes: undefined,
+            }),
+        );
+        const spec = await loadPublishSpec();
+
+        const result = (await spec.execute(
+            {
+                channel: CHANNEL,
+                topic: "telemetry.pm",
+                payload: {},
+                from: "controller",
+            },
+            { smartclawsHome: "/tmp/smartclaws-test" },
+            {},
+        )) as Record<string, unknown>;
+
+        expect(result).toEqual({
+            channel: CHANNEL,
+            topic: "telemetry.pm",
+            dev: "sensor-1",
+            txHash: ORIGIN,
+            status: "scheduled",
+            encrypted: true,
+            callbackDeposit: "1066800",
+        });
+        expect(result.status).not.toBe("published");
     });
 
     test("publishes device commands through SmartClawsDevice.publishCommand", async () => {
@@ -143,20 +174,21 @@ describe("smartclaws_publish", () => {
             },
             CONFIG,
             WALLET,
+            { wait: true },
         );
         expect(publishDeviceTelemetry).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ kind: "command" });
+        expect(result).toMatchObject({ status: "published", encrypted: true });
     });
 
     test("keeps direct channel targets on channel publishing", async () => {
         resolveChannel.mockReturnValue({
-            channelAddress: "0x00000000000000000000000000000000000000c1",
+            channelAddress: CHANNEL,
         });
         const spec = await loadPublishSpec();
 
         await spec.execute(
             {
-                channel: "0x00000000000000000000000000000000000000c1",
+                channel: CHANNEL,
                 topic: "command.switch.set",
                 payload: { on: true },
                 from: "controller",
@@ -167,13 +199,14 @@ describe("smartclaws_publish", () => {
 
         expect(publishChannelMessage).toHaveBeenCalledWith(
             {
-                channelAddress: "0x00000000000000000000000000000000000000c1",
+                channelAddress: CHANNEL,
                 topic: "command.switch.set",
                 payload: { on: true },
                 from: "controller",
             },
             CONFIG,
             WALLET,
+            { wait: true },
         );
         expect(publishDeviceTelemetry).not.toHaveBeenCalled();
     });
@@ -206,9 +239,10 @@ describe("smartclaws_publish", () => {
             },
             CONFIG,
             WALLET,
+            { wait: true },
         );
         expect(resolveChannel).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ kind: "agent" });
+        expect(result).toMatchObject({ status: "published", encrypted: true });
     });
 
     test("resolves raw agent addresses before outbound publishing", async () => {
@@ -243,6 +277,7 @@ describe("smartclaws_publish", () => {
             },
             CONFIG,
             WALLET,
+            { wait: true },
         );
     });
 });

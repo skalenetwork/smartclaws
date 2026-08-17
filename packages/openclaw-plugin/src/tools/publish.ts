@@ -9,6 +9,7 @@ import {
 } from "@smartclaws/sdk";
 import { Type } from "typebox";
 import { requireWallet, resolveConfig } from "../plugin-config.js";
+import { presentPublishResult } from "./result.js";
 import type { SmartClawsToolFactory } from "./types.js";
 
 export function publishTool(tool: SmartClawsToolFactory) {
@@ -16,7 +17,7 @@ export function publishTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_publish",
         label: "SmartClaws Publish",
         description:
-            "Publish an envelope to a device's outgoing channel, your agent's outgoing channel (e.g. a decision log), or a direct channel address. Signs a transaction and returns its hash.",
+            "Publish an envelope to a device's outgoing channel, your agent's outgoing channel (e.g. a decision log), or a direct channel address. Auto-detects plain vs encrypted. Encrypted publishes wait for CTX confirmation by default and return PublishState (`published` | `scheduled` | `origin-reverted` | `ctx-reverted`), callback deposit, and CTX hashes. `scheduled` means the origin tx was accepted, not that the message is stored — never treat it as published.",
         optional: true,
         parameters: Type.Object({
             device: Type.Optional(Type.String({ description: "Local device name to publish as." })),
@@ -43,11 +44,18 @@ export function publishTool(tool: SmartClawsToolFactory) {
                         "Envelope `dev` identity when using `channel` (default: controller).",
                 }),
             ),
+            wait: Type.Optional(
+                Type.Boolean({
+                    description:
+                        "Wait for CTX confirmation on encrypted publishes (default true). A timeout remains status=scheduled and is never rewritten as published.",
+                }),
+            ),
         }),
         execute: async (params, config, context) => {
             context.signal?.throwIfAborted();
             const cfg = resolveConfig(config);
             const wallet = requireWallet(config.smartclawsHome);
+            const options = { wait: params.wait ?? true };
 
             if (params.agent) {
                 if (params.device || params.channel) {
@@ -57,15 +65,18 @@ export function publishTool(tool: SmartClawsToolFactory) {
                     );
                 }
                 const agent = await resolveAgent(params.agent, cfg, wallet, config.smartclawsHome);
-                return await publishAgentOutbound(
-                    {
-                        agentAddress: agent.agentContract as `0x${string}`,
-                        topic: params.topic,
-                        payload: params.payload,
-                        from: params.from ?? agent.name,
-                    },
-                    cfg,
-                    wallet,
+                return presentPublishResult(
+                    await publishAgentOutbound(
+                        {
+                            agentAddress: agent.agentContract as `0x${string}`,
+                            topic: params.topic,
+                            payload: params.payload,
+                            from: params.from ?? agent.name,
+                        },
+                        cfg,
+                        wallet,
+                        options,
+                    ),
                 );
             }
 
@@ -89,29 +100,43 @@ export function publishTool(tool: SmartClawsToolFactory) {
                     );
                 }
                 if (params.deviceChannel === "command") {
-                    return await publishDeviceCommand(
+                    return presentPublishResult(
+                        await publishDeviceCommand(
+                            {
+                                deviceAddress,
+                                topic: params.topic,
+                                payload: params.payload,
+                                from: params.from ?? device,
+                            },
+                            cfg,
+                            wallet,
+                            options,
+                        ),
+                    );
+                }
+                return presentPublishResult(
+                    await publishDeviceTelemetry(
                         {
                             deviceAddress,
                             topic: params.topic,
                             payload: params.payload,
-                            from: params.from ?? device,
+                            from: device,
                         },
                         cfg,
                         wallet,
-                    );
-                }
-                return await publishDeviceTelemetry(
-                    { deviceAddress, topic: params.topic, payload: params.payload, from: device },
-                    cfg,
-                    wallet,
+                        options,
+                    ),
                 );
             }
 
             const from = params.from ?? "controller";
-            return await publishChannelMessage(
-                { channelAddress, topic: params.topic, payload: params.payload, from },
-                cfg,
-                wallet,
+            return presentPublishResult(
+                await publishChannelMessage(
+                    { channelAddress, topic: params.topic, payload: params.payload, from },
+                    cfg,
+                    wallet,
+                    options,
+                ),
             );
         },
     });
