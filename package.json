@@ -1,6 +1,6 @@
 {
     "private": true,
-    "version": "0.4.0",
+    "version": "0.5.0",
     "workspaces": [
         "packages/*",
         "smart-contracts"
@@ -17,6 +17,7 @@
         "test:contracts": "cd smart-contracts && bun test",
         "test:cli": "cd packages/cli && bun test",
         "test:sdk": "cd packages/sdk && bun test",
+        "test:plugin": "cd packages/openclaw-plugin && bun test",
         "test:nearai-plugin": "cd packages/nearai-verify-plugin && bun test",
         "lint": "biome check packages/cli/src packages/sdk/src packages/dashboard/src packages/openclaw-plugin/src packages/nearai-verify-plugin/src packages/nearai-verify-plugin/tests",
         "build:core": "cd packages/core && bun run build",

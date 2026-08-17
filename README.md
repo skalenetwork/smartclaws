@@ -45,7 +45,7 @@ Messages use a compact envelope shape:
 | `packages/core/` | Shared TypeScript types, envelope encoding, names, network config, and ABI JSON. |
 | `packages/sdk/` | TypeScript SDK for config, wallets, discovery, reads, publishes, role grants, and backups. |
 | `packages/cli/` | `smartclaws` command-line binary built on the SDK. |
-| `packages/openclaw-plugin/` | OpenClaw tools: wallet info, read, publish, notify. |
+| `packages/openclaw-plugin/` | OpenClaw tools for setup, identity, publish/read/disclose, authority, keys, and recovery. |
 | `packages/dashboard/` | Frontend dashboard package. |
 | `skills/` | Device contracts and operational OpenClaw skills. |
 | `open-claw-setups/` | Example full agent workspaces/templates. |
@@ -163,26 +163,28 @@ openclaw plugins inspect smartclaws --runtime
 ```
 
 Restart or reload the OpenClaw Gateway after installing or updating the plugin.
-Configure it with a SmartClaws home and network:
+The plugin can initialize a generated-wallet HOME without the CLI. Start with
+`smartclaws_setup_status`, then `smartclaws_initialize` on a named network.
+Private-key import is not a model-visible tool.
+
+Plugin config (operator-owned; agent tools mutate HOME config only):
 
 ```jsonc
 {
   "smartclawsHome": "~/.smartclaws",
-  "network": "base-testnet"
+  "network": "base-testnet",
+  "allowPrivateRpc": false
 }
 ```
 
-The plugin exposes four tools:
+Custom RPC overrides are privileged (HTTP(S) only; private/loopback/metadata
+hosts require `allowPrivateRpc`). See `packages/openclaw-plugin/README.md` for
+the full tool inventory, optional-tool policy, and permission recipes.
 
-| Tool | Purpose |
-| --- | --- |
-| `smartclaws_wallet_info` | Read configured wallet address and balance. |
-| `smartclaws_read` | Read and decode messages from device or channel targets. |
-| `smartclaws_publish` | Publish device telemetry, agent outbound logs, or direct channel envelopes. |
-| `smartclaws_notify` | Publish to another agent's incoming channel. |
-
-Write tools are optional and must be explicitly enabled in the OpenClaw
-configuration before an agent can call them.
+Read-only diagnostics are non-optional. Write tools (`initialize`, register,
+publish, disclose, roles, keys, backups, …) are optional and must be
+explicitly enabled in OpenClaw tool policy. `scheduled` is never `published`.
+Skills under `skills/` are deferred until this tool contract is released.
 
 ## Skills
 
