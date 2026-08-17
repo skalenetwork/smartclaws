@@ -16,7 +16,7 @@ import {
 } from "../../src/services/discovery.js";
 
 const CONFIG: Config = {
-    version: 2,
+    version: 3,
     network: "base-testnet",
     chainId: 31337,
     rpcUrl: "http://127.0.0.1:0",

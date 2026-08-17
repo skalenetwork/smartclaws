@@ -69,7 +69,7 @@ describe("init command", () => {
 
         const config = JSON.parse(readFileSync(join(tempDir, "config.json"), "utf-8"));
         const wallet = JSON.parse(readFileSync(join(tempDir, "wallets", "default.json"), "utf-8"));
-        expect(config.version).toBe(2);
+        expect(config.version).toBe(3);
         expect(config.mode).toBe("controller");
         expect(config.walletAddress).toBe(wallet.address);
     });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 const CONFIG = {
-    version: 2,
+    version: 3,
     network: "local",
     chainId: 31337,
     rpcUrl: "http://127.0.0.1:8545",

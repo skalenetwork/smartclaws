@@ -5,6 +5,8 @@ export interface EntityCapabilities {
     isAgentOwner?: boolean;
     isDeviceAdmin?: boolean;
     isPublisher?: boolean;
+    isIncomingReader?: boolean;
+    isOutgoingReader?: boolean;
     isMaster?: boolean;
     /** Agent AGENT_ADMIN_ROLE: administers the agent's publisher/sender roles. */
     isAgentAdmin?: boolean;
@@ -13,10 +15,13 @@ export interface EntityCapabilities {
 }
 
 export interface Config {
-    version: 2;
+    /** Always 3 in memory: `migrateConfig` upgrades v1/v2 on load, so nothing downstream
+     *  has to branch on version. Older versions exist only as on-disk JSON. */
+    version: 3;
     network: string;
     chainId: number;
     rpcUrl: string;
+    biteRpcUrl?: string;
     contractAddress: string;
     walletAddress: string;
     mode: SmartClawsMode;
@@ -46,8 +51,14 @@ export interface GroupFile {
     skills: string;
     createdAt: number;
     owner: string;
+    /** Total number of plain and encrypted devices, not the legacy plain-only count. */
     deviceCount: number;
+    /** Canonical deduplicated list containing both plain and encrypted devices. */
     devices: string[];
+    plainDevices?: string[];
+    plainDeviceCount?: number;
+    encryptedDevices?: string[];
+    encryptedDeviceCount?: number;
     capabilities?: EntityCapabilities;
 }
 
@@ -58,6 +69,8 @@ export interface DeviceFile {
     createdAt?: number;
     incomingChannel: string;
     outgoingChannel: string;
+    /** Missing on legacy records means unknown and must never be treated as plaintext. */
+    encrypted?: boolean;
     capabilities?: EntityCapabilities;
 }
 
@@ -70,5 +83,7 @@ export interface AgentFile {
     outgoingChannel: string;
     owner?: string;
     createdAt?: number;
+    /** Missing on legacy records means unknown and must never be treated as plaintext. */
+    encrypted?: boolean;
     capabilities?: EntityCapabilities;
 }

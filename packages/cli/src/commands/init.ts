@@ -215,7 +215,7 @@ function buildConfig(
         existing ??
         createDefaultConfig(network.name, rpcUrl, chainId, contractAddress, mode, walletAddress);
 
-    config.version = 2;
+    config.version = 3;
     config.network = network.name;
     config.rpcUrl = rpcUrl;
     config.chainId = chainId;

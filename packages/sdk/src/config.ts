@@ -9,7 +9,7 @@ export type { Config, SmartClawsMode };
 const DEFAULT_MODE: SmartClawsMode = "controller";
 
 const DEFAULT_CONFIG: Config = {
-    version: 2,
+    version: 3,
     network: "",
     chainId: 0,
     rpcUrl: "",
@@ -42,10 +42,16 @@ export function ensureConfigDir(homeDir?: string): void {
 
 function migrateConfig(raw: unknown): Config {
     const maybe = raw as Partial<Config> & Partial<LegacyConfigV1>;
+    if (maybe.version === 3) return maybe as Config;
+
+    // TODO(legacy-registry): Preserve contractAddress verbatim for user safety, even though
+    // the current legacy registry lacks publicKeyRegistry() and encrypted-device discovery;
+    // discovery must identify that deployment before making calls that would revert.
     if (maybe.version === 2) {
         return {
             ...DEFAULT_CONFIG,
             ...maybe,
+            version: 3,
             attachedDeviceAddresses: Array.isArray(maybe.attachedDeviceAddresses)
                 ? maybe.attachedDeviceAddresses
                 : [],
@@ -55,13 +61,22 @@ function migrateConfig(raw: unknown): Config {
     const legacy = maybe as LegacyConfigV1;
     return {
         ...DEFAULT_CONFIG,
+        ...legacy,
+        version: 3,
         network: legacy.network ?? "",
         chainId: legacy.chainId ?? 0,
         rpcUrl: legacy.rpcUrl ?? "",
         contractAddress: legacy.contractAddress ?? "",
         deviceGroupAddress: legacy.deviceGroupAddress ?? "",
-        attachedGroupAddress: legacy.deviceGroupAddress ?? "",
+        attachedGroupAddress: maybe.attachedGroupAddress ?? legacy.deviceGroupAddress ?? "",
+        attachedDeviceAddresses: Array.isArray(maybe.attachedDeviceAddresses)
+            ? maybe.attachedDeviceAddresses
+            : [],
     };
+}
+
+export function resolveBiteRpcUrl(config: Pick<Config, "biteRpcUrl" | "rpcUrl">): string {
+    return config.biteRpcUrl || config.rpcUrl;
 }
 
 export function loadConfig(homeDir?: string): Config | null {
@@ -74,7 +89,7 @@ export function saveConfig(config: Config, homeDir?: string): void {
     ensureConfigDir(homeDir);
     writeFileSync(
         getConfigPath(homeDir),
-        `${JSON.stringify({ ...DEFAULT_CONFIG, ...config }, null, 2)}\n`,
+        `${JSON.stringify({ ...DEFAULT_CONFIG, ...config, version: 3 }, null, 2)}\n`,
     );
 }
 
