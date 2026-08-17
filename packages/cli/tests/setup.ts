@@ -14,6 +14,8 @@ import AgentFactoryArtifact from "../../../smart-contracts/artifacts/contracts/f
 import ChannelFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/ChannelFactory.sol/ChannelFactory.json";
 import DeviceFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/DeviceFactory.sol/DeviceFactory.json";
 import DeviceGroupFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/DeviceGroupFactory.sol/DeviceGroupFactory.json";
+import EncryptedChannelFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/EncryptedChannelFactory.sol/EncryptedChannelFactory.json";
+import PublicKeyRegistryFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/PublicKeyRegistryFactory.sol/PublicKeyRegistryFactory.json";
 
 const ANVIL_PRIVATE_KEY =
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
@@ -47,16 +49,32 @@ async function deployArtifact(
 
 export async function deployRegistry(): Promise<Address> {
     const channelFactory = await deployArtifact(ChannelFactoryArtifact, "ChannelFactory");
+    const encryptedChannelFactory = await deployArtifact(
+        EncryptedChannelFactoryArtifact,
+        "EncryptedChannelFactory",
+    );
     const deviceFactory = await deployArtifact(DeviceFactoryArtifact, "DeviceFactory");
     const deviceGroupFactory = await deployArtifact(
         DeviceGroupFactoryArtifact,
         "DeviceGroupFactory",
     );
     const agentFactory = await deployArtifact(AgentFactoryArtifact, "AgentFactory");
+    const publicKeyRegistryFactory = await deployArtifact(
+        PublicKeyRegistryFactoryArtifact,
+        "PublicKeyRegistryFactory",
+    );
+    // Argument order mirrors the SmartClaws constructor exactly.
     const hash = await walletClient.deployContract({
         abi: SmartClawsArtifact.abi,
         bytecode: SmartClawsArtifact.bytecode as `0x${string}`,
-        args: [channelFactory, deviceFactory, deviceGroupFactory, agentFactory],
+        args: [
+            channelFactory,
+            encryptedChannelFactory,
+            deviceFactory,
+            deviceGroupFactory,
+            agentFactory,
+            publicKeyRegistryFactory,
+        ],
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     if (!receipt.contractAddress) throw new Error("Registry deployment failed");

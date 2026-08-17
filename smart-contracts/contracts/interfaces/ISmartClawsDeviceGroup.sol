@@ -39,6 +39,12 @@ interface ISmartClawsDeviceGroup {
     function grantMaster(address device, address account) external;
     function revokeMaster(address device, address account) external;
 
+    // Reader passthroughs (owner-gated) onto a registered encrypted device.
+    function addIncomingReader(address device, address reader) external;
+    function removeIncomingReader(address device, address reader) external;
+    function addOutgoingReader(address device, address reader) external;
+    function removeOutgoingReader(address device, address reader) external;
+
     function deactivate() external;
 
     function isRegisteredDevice(address device) external view returns (bool);

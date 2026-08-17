@@ -8,8 +8,12 @@ each item says **what** is affected and **what has to change**, not the order or
 `open-claw-setups/` is deliberately excluded. `python/` is a stale experimental stub
 (`python/src/smartclaws/cli/main.py` is 10 lines) — no action assumed.
 
-> **Already applied since the first draft of this document:** §11.1 (encrypted flag on the
-> registration events) is implemented — see the box in §11. Everything else below is still
+> **Already applied since the first draft of this document:**
+> §11.1 (encrypted flag on the registration events), §11.2 (group reader passthroughs), and
+> §1 (ABI/artifact plumbing — all seven ABIs exported and committed, with a CI drift check)
+> are implemented. §11.4 is resolved as a decision, not a change: the split device sets stay.
+> The stale four-argument deploy in `packages/cli/tests/setup.ts` (§9) is fixed, so the
+> integration lane is green against the regenerated ABIs. Everything else below is still
 > outstanding.
 
 ---
@@ -376,20 +380,27 @@ Listed because two of them would **significantly reduce** the downstream work ab
    they all look events up by name and pluck a named arg. Tests pin both polarities on all
    three events (`withArgs(anyValue, …, false/true)`), mutation-checked.
    Still needed downstream: regenerate the ABIs (§1) before anything can see it.
-2. **`deviceAdmin = address(0)` devices can't get readers.** The group becomes DEVICE_ADMIN,
-   but `SmartClawsDeviceGroup` has no `addReader`/`removeReader` passthrough (it has
-   `grantPublisher`/`grantMaster`/`grantDeviceAdmin` only). Recoverable — the group can
-   `grantDeviceAdmin` to an EOA — but it's a sharp edge for the exact default the CLI uses
-   in some paths.
+2. ~~**`deviceAdmin = address(0)` devices can't get readers.**~~ — **DONE.**
+   `SmartClawsDeviceGroup` now has owner-gated `addIncomingReader` / `removeIncomingReader` /
+   `addOutgoingReader` / `removeOutgoingReader` passthroughs alongside the role passthroughs.
+   They delegate to the device's own reader functions, so they succeed only while the group
+   actually holds `DEVICE_ADMIN_ROLE` (the `deviceAdmin == 0` case, or after self-appointing
+   via `grantDeviceAdmin`), and plain devices still revert with `EncryptedOperationUnsupported`
+   from the device's `_encryptedChannel` guard. Tests pin all six paths: group-admin success,
+   external-admin rejection, self-appoint override, plain-device rejection, non-owner, and
+   unregistered device.
 3. **`scripts/deploy.ts` never deploys an encrypted instance.** It creates a plain channel,
    agent, group, and device. So `SmartClawsChannelEncrypted` bytecode is never seeded or
    verified on Blockscout, and the encrypted agent/device/channel paths are untested at
    deploy time. The verification target list also hardcodes `channelFactory` for the
    sample device/agent.
-4. **Split device sets force double queries.** `getDevices()` + `getEncryptedDevices()`
-   with no combined view means every consumer (SDK, dashboard, CLI) does two paginated
-   reads and merges. A combined `getAllDevices()` or a per-device kind getter would
-   collapse a lot of §3/§6 work.
+4. **Split device sets force double queries.** — **DECIDED: keep the two sets.**
+   `getDevices()` + `getEncryptedDevices()` stay as they are and consumers merge them.
+   A combined getter returning bare addresses would still force a per-channel
+   `isEncrypted()` call, so it saves a query round but not the detection; querying the two
+   sets in parallel instead hands the caller the channel kind as free provenance, which is
+   what hydration actually needs. Consumers must dedupe and report a total plus a breakdown
+   (§2 `GroupFile`).
 
 ---
 

@@ -158,6 +158,34 @@ contract SmartClawsDeviceGroup is Ownable2Step, ISmartClawsDeviceGroup {
         ISmartClawsDevice(device).revokeRole(DeviceRoles.MASTER_ROLE, account);
     }
 
+    // --- Reader passthroughs (DEVICE_ADMIN actions, owner-gated) ---
+    // Reader ACLs live on the encrypted channels, not in AccessControl. Like the
+    // role passthroughs these succeed only while the group holds DEVICE_ADMIN_ROLE
+    // (the deviceAdmin == 0 case, or after re-appointing itself). Without them a
+    // group-administered encrypted device could not be granted readers at all
+    // without first handing DEVICE_ADMIN to an EOA. Plain devices revert in the
+    // device's own `_encryptedChannel` guard.
+
+    function addIncomingReader(address device, address reader) external override onlyOwner {
+        _requireRegistered(device);
+        ISmartClawsDevice(device).addIncomingReader(reader);
+    }
+
+    function removeIncomingReader(address device, address reader) external override onlyOwner {
+        _requireRegistered(device);
+        ISmartClawsDevice(device).removeIncomingReader(reader);
+    }
+
+    function addOutgoingReader(address device, address reader) external override onlyOwner {
+        _requireRegistered(device);
+        ISmartClawsDevice(device).addOutgoingReader(reader);
+    }
+
+    function removeOutgoingReader(address device, address reader) external override onlyOwner {
+        _requireRegistered(device);
+        ISmartClawsDevice(device).removeOutgoingReader(reader);
+    }
+
     /**
      * @notice Deactivates the group. Called by the registry during unregistration.
      */

@@ -46,6 +46,11 @@ jobs:
         working-directory: smart-contracts
         run: bash scripts/export-abi.sh
 
+      # The committed ABIs are the contract every TS package builds against, so a
+      # fresh compile+export must reproduce them byte for byte.
+      - name: Check committed ABIs are current
+        run: git diff --exit-code -- packages/core/abi
+
       - name: Install workspace deps
         run: bun install
 
