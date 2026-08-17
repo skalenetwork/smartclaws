@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactNode } from "react";
-import { Copy, Check } from "lucide-react";
+import { Check, Copy } from "lucide-react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,7 @@ export function MessageBubble({
     const isPrimary = variant === "primary";
 
     return (
+        // biome-ignore lint/a11y/noStaticElementInteractions: the nested copy button remains the semantic action; the bubble click is a larger convenience target
         <div
             ref={ref}
             className={cn(
@@ -50,6 +51,13 @@ export function MessageBubble({
                 className,
             )}
             onClick={handleCopy}
+            onKeyDown={(event) => {
+                if (clickable && (event.key === "Enter" || event.key === " ")) {
+                    event.preventDefault();
+                    handleCopy();
+                }
+            }}
+            tabIndex={clickable ? 0 : undefined}
         >
             <div className="flex items-center gap-2">
                 <span className="flex-1">{children}</span>

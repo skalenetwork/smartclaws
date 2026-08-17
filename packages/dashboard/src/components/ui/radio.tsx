@@ -83,9 +83,12 @@ const RadioIcon = forwardRef<RadioIconHandle, RadioIconProps>(
                 className={cn(className)}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
+                role="img"
+                aria-label="Radio"
                 {...props}
             >
                 <svg
+                    aria-hidden="true"
                     fill="none"
                     height={size}
                     stroke="currentColor"

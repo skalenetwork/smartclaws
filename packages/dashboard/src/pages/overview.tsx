@@ -1,7 +1,7 @@
+import { StatCard } from "@/components/shared/stat-card";
 import { BoxIcon } from "@/components/ui/box";
 import { CpuIcon } from "@/components/ui/cpu";
 import { RadioIcon } from "@/components/ui/radio";
-import { StatCard } from "@/components/shared/stat-card";
 import { useRegistryStats } from "@/hooks/use-registry-stats";
 
 export function OverviewPage() {
