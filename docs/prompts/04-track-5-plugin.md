@@ -1,6 +1,10 @@
 # Track 5 — OpenClaw plugin
 
 > **LANDED 2026-08-17.** Kept as the specification of what was built, not as work to do.
+> One amendment since: reader status was specified as part of `smartclaws_wallet_info`, which
+> made an O(1) identity question walk every locally known entity. It lives in a separate
+> `smartclaws_access_check` tool; `wallet_info` keeps wallet-scoped facts and reports whether
+> the registered key is the one the wallet can decrypt with.
 
 **Blocked on Track 3C.** Runs in parallel with Track 4 (CLI) — they share no files.
 **Read [`00-DEPLOYMENT.md`](./00-DEPLOYMENT.md) first** — shared addresses, rules and gates. Spec: roadmap "Track 5", propagation §5.

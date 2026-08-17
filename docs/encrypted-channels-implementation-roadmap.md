@@ -23,39 +23,47 @@ Wave 0 decisions, now settled and implemented:
 **Only Track 7 has not been started.** Nothing under `skills/` or `dev/` mentions encryption or
 disclosure, and `docs/encrypted-channels.md` does not exist — see that track for the full list.
 
-Before Track 7 begins, the surface it documents has to be finished, because a skill or a bridge
-script written against a moving surface has to be rewritten:
+The surface Track 7 documents was finished first, so a skill or a bridge script is not written
+against something still moving. That pre-work is done:
 
-- **Public-key ownership is never verified** (see below). This is the one correctness gap left.
-- **Version scripts omit the SDK and the plugin** (Track 7, release section).
-- Three small SDK/plugin defects listed under "Deferred, small" below.
+- **Viewing keys are separable from signing keys** — see below.
+- **The version gate covers the SDK, the plugin package and the plugin manifest.** It listed
+  none of the three before, and because their versions were set by hand it passed anyway.
+- **Channel kind is never cached unread**, and read access is answered per channel.
 
 Carried forward, owned by no track:
 
-- **Public-key ownership is never proven, and a mismatch is only discovered after paying.**
-  `PublicKeyRegistry.registerPublicKey` validates that the point is on secp256k1 and nothing more:
-  it does not check the key belongs to `msg.sender`, and it overwrites any previous key silently.
-  `SmartClawsChannelEncrypted.requestMessages` snapshots the caller's key at request time and the
-  callback encrypts to that snapshot, while `discloseMessages` decrypts with the local wallet's
-  private key. So if the registered key does not match the local wallet — a wrong key registered
-  by mistake, or a rotation whose old private key is gone — the fee is spent, the callback
-  succeeds, and the payload comes back undecryptable. Because ECIES here has no MAC, the failure
-  surfaces as `InvalidDecryptedEnvelopeError` ("not a valid envelope"), which reads like data
-  corruption rather than a wrong key. `discloseMessages` already reads the registry to check
-  registration; comparing that key against `publicKeyFromPrivateKey(wallet.privateKey)` is free
-  and turns a paid silent failure into an unpaid, accurate error.
 - Spend budget/telemetry for paid reads.
 
-### Deferred, small
+### Viewing keys
 
-- `hydrateDevice`/`hydrateAgent` derive the entity's kind from the **incoming** channel, then
-  `rememberChannelEncrypted` both channels with it. The outgoing channel's kind is therefore cached
-  from a value never read from it, and that cache decides whether publish attaches native value.
-  Both channels are created together with the same kind today, so it holds — but as an assumption,
-  not a read, and being wrong means a revert on every publish.
-- `getDeviceReaderStatus`/`getAgentReaderStatus` gate on the **incoming** channel only and return
-  `false, false` when it is plain, which reports "not a reader" rather than "not applicable".
-- `smartclaws_wallet_info` loops entities sequentially, so reader status costs ~3N round-trips.
+`PublicKeyRegistry` stores whatever public key an account registers and never proves ownership,
+which is what makes viewing separable from signing. The SDK did not allow it: registration
+derived the key from `wallet.privateKey`, disclosure decrypted with `wallet.privateKey`, and
+`WalletFile` had nowhere else to put one. That forced two things nobody chose — delegating read
+access meant handing over the key that spends funds, and rotating meant a new address, so every
+reader ACL grant silently stopped matching.
+
+`WalletFile.viewPrivateKey` is now optional and both paths route through `viewingPrivateKey()`,
+which falls back to the signing key. `key generate|import|forget` manage it; `key register`
+registers whichever key is active.
+
+A registered key that does not match the local one is **recoverable — register the right key and
+request again.** It is worth surfacing anyway because nothing on the paid path can detect it:
+`requestMessages` snapshots whatever is registered, and unauthenticated ECIES makes a wrong key
+look like `InvalidDecryptedEnvelopeError`, i.e. corrupt data rather than a wrong key. So the fee
+is spent before the mistake is visible. `key show` and `smartclaws_wallet_info` report it
+directly; that is documentation and diagnostics, not a defect to fix in the contracts.
+
+### Settled while finishing the checkpoint
+
+- Hydration never writes a channel kind it did not read. Without provenance both channels are
+  read and compared (`CHANNEL_KIND_MISMATCH` if they differ); with provenance the record is
+  filled without touching the chain and the cache is left for `resolveChannelEncrypted`.
+- Read access is per channel: a plain channel has no reader list, so the answer is **yes**, not
+  "not a reader".
+- Reader status left `smartclaws_wallet_info` for `smartclaws_access_check`, which runs entities
+  concurrently and can name one. `wallet_info` keeps wallet-scoped facts only.
 
 ### Corrections this document needs
 
@@ -348,7 +356,7 @@ Commands and behavior:
 - `agent register --encrypted`
 - `device reader add|remove|list --side incoming|outgoing`
 - `agent reader add|remove|list --side incoming|outgoing`
-- `key register|show|remove`
+- `key register|show|remove`, plus `key generate|import|forget` for the viewing key
 - ~~`init --bite-rpc-url`~~ — removed with `Config.biteRpcUrl`; see decision 2 above.
 - `init --encrypted` for entities created during that invocation
 - publish `--wait`/`--no-wait`, with waiting as the default
@@ -387,7 +395,9 @@ Plan:
 - Add optional `smartclaws_disclose`, which signs, pays, waits, and decrypts.
 - Make publish and notify wait by default.
 - A timeout remains `scheduled/unknown`; it is never rewritten as success.
-- Extend wallet info with public-key readiness and reader status for known channels.
+- Extend wallet info with public-key readiness. **Amended:** reader status was specified here
+  too, and that was wrong — it made an O(1) identity question walk every known entity. It lives
+  in `smartclaws_access_check` instead.
 - Mark the disclosure tool optional in the manifest.
 - Bump plugin `0.2.0` to `0.3.0` and keep manifest/package versions equal.
 
@@ -446,13 +456,11 @@ reader graph.
 - Record resolved decisions and completion status in the propagation document.
 - ~~Update `.github/copilot-instructions.md`, which currently describes four tools.~~ **Done** —
   it already lists wallet info, read, disclose, publish and notify.
-- **Fix version scripts so the SDK and plugin participate.** `scripts/version-check.mjs` and
-  `scripts/version-bump.mjs` both list core, cli, dashboard, smart-contracts and `pyproject.toml`
-  only. `packages/sdk/package.json`, `packages/openclaw-plugin/package.json` and
-  `packages/openclaw-plugin/openclaw.plugin.json` are in neither. All three read `0.3.0` because
-  they were set by hand, so `version:check` passes today and proves nothing; the next
-  `version:bump` leaves all three behind and silently breaks the manifest/package version
-  equality Track 5 was told to maintain.
+- ~~Fix version scripts so the SDK and plugin participate.~~ **Done.** Both scripts now cover
+  `packages/sdk/package.json`, `packages/openclaw-plugin/package.json` and
+  `packages/openclaw-plugin/openclaw.plugin.json`; verified by bumping a scratch copy and
+  re-checking. `packages/nearai-verify-plugin` stays out deliberately — it is versioned
+  independently and is not part of this release train.
 - ~~Preserve existing user registry addresses during config migration.~~ **Void** — superseded by
   dropping backward compatibility. There is no migration and only one registry.
 
