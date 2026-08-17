@@ -212,10 +212,53 @@ export const syncLocalCacheBounded = mock(async () => ({
     agentCount: 0,
     complete: true as const,
 }));
+export const homeFingerprint = mock(() => "home-fp");
+export const resolveGroup = mock(async () => ({
+    name: "home",
+    groupAddress: "0x0000000000000000000000000000000000000011",
+    owner: WALLET.address,
+    skills: "",
+    deviceCount: 0,
+}));
+export const registerGroupWithResult = mock(async () => ({
+    entity: {
+        name: "home",
+        groupAddress: "0x0000000000000000000000000000000000000011",
+        owner: WALLET.address,
+        skills: "",
+        deviceCount: 0,
+    },
+    txHash: ORIGIN,
+    receiptStatus: "success" as const,
+}));
+export const registerDeviceWithResult = mock(async () => ({
+    entity: {
+        name: "sensor-1",
+        deviceContract: "0x00000000000000000000000000000000000000d1",
+        groupAddress: "0x0000000000000000000000000000000000000011",
+        incomingChannel: "0x00000000000000000000000000000000000000c2",
+        outgoingChannel: "0x00000000000000000000000000000000000000c3",
+        encrypted: false,
+    },
+    txHash: ORIGIN,
+    receiptStatus: "success" as const,
+}));
+export const registerAgentWithResult = mock(async () => ({
+    entity: {
+        name: "controller-1",
+        agentContract: "0x00000000000000000000000000000000000000a1",
+        owner: WALLET.address,
+        incomingChannel: "0x00000000000000000000000000000000000000c4",
+        outgoingChannel: "0x00000000000000000000000000000000000000c5",
+        encrypted: false,
+    },
+    txHash: ORIGIN,
+    receiptStatus: "success" as const,
+}));
 
 // Shared across plugin test files: bun's module mocks are process-wide.
-mock.module("@smartclaws/sdk", () => ({
-    SmartClawsError: class SmartClawsError extends Error {
+mock.module("@smartclaws/sdk", () => {
+    class SmartClawsError extends Error {
         code: string;
         details?: Record<string, unknown>;
 
@@ -225,43 +268,61 @@ mock.module("@smartclaws/sdk", () => ({
             this.code = code;
             this.details = details;
         }
-    },
-    MAX_DISCLOSE_BATCH: 10,
-    createDefaultConfig: mock(() => CONFIG),
-    loadConfig,
-    loadWallet,
-    loadAgent,
-    listDevices,
-    listAgents,
-    listGroups,
-    publishChannelMessage,
-    publishDeviceCommand,
-    publishDeviceTelemetry,
-    publishAgentOutbound,
-    publishAgentInbound,
-    discloseMessages,
-    readMessages,
-    getWalletInfo,
-    hasPublicKeyWithConfig,
-    getViewKeyStatus,
-    getDeviceReaderStatus,
-    getAgentReaderStatus,
-    getSetupStatus,
-    listPresentedBackups,
-    discoverGroupsPage,
-    discoverDevicesPage,
-    discoverAgentsPage,
-    listDeviceReaders,
-    listAgentReaders,
-    initializeHome,
-    updateHomeConfig,
-    attachHomeEntities,
-    resetHomeChecked,
-    syncLocalCacheBounded,
-    resolveAgent,
-    resolveDevice,
-    resolveChannel,
-}));
+    }
+    return {
+        SmartClawsError,
+        localSaveFailed: (txHash: string, publicData: Record<string, unknown>, cause: unknown) =>
+            new SmartClawsError(
+                "LOCAL_STATE_SAVE_FAILED",
+                "On-chain registration confirmed, but local state could not be saved. Do not retry registration; attach the confirmed entity instead.",
+                {
+                    txHash,
+                    ...publicData,
+                    cause: cause instanceof Error ? cause.message : String(cause),
+                },
+            ),
+        MAX_DISCLOSE_BATCH: 10,
+        createDefaultConfig: mock(() => CONFIG),
+        loadConfig,
+        loadWallet,
+        loadAgent,
+        listDevices,
+        listAgents,
+        listGroups,
+        publishChannelMessage,
+        publishDeviceCommand,
+        publishDeviceTelemetry,
+        publishAgentOutbound,
+        publishAgentInbound,
+        discloseMessages,
+        readMessages,
+        getWalletInfo,
+        hasPublicKeyWithConfig,
+        getViewKeyStatus,
+        getDeviceReaderStatus,
+        getAgentReaderStatus,
+        getSetupStatus,
+        listPresentedBackups,
+        discoverGroupsPage,
+        discoverDevicesPage,
+        discoverAgentsPage,
+        listDeviceReaders,
+        listAgentReaders,
+        initializeHome,
+        updateHomeConfig,
+        attachHomeEntities,
+        resetHomeChecked,
+        syncLocalCacheBounded,
+        homeFingerprint,
+        resolveGroup,
+        registerGroupWithResult,
+        registerDeviceWithResult,
+        registerAgentWithResult,
+        resolveAgent,
+        resolveDevice,
+        resolveChannel,
+    };
+});
 
 export function toolFactory(spec: unknown): unknown {
     return spec;

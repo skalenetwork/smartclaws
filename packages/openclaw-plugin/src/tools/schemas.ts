@@ -41,3 +41,35 @@ export function parseDecimalBigint(value: string, label: string): bigint {
     }
     return BigInt(value);
 }
+
+export const DEFAULT_CHANNEL_CAPACITY = 1_048_576n;
+
+export function parseChannelCapacity(
+    value: string | undefined,
+    max: bigint,
+    label = "capacityBytes",
+): bigint {
+    const parsed = parseDecimalBigint(value ?? DEFAULT_CHANNEL_CAPACITY.toString(), label);
+    if (parsed < 1n) {
+        throw new SmartClawsError("INVALID_RANGE", `${label} must be at least 1.`, {
+            value: parsed.toString(),
+        });
+    }
+    if (parsed > max) {
+        throw new SmartClawsError("INVALID_RANGE", `${label} cannot exceed ${max.toString()}.`, {
+            value: parsed.toString(),
+            max: max.toString(),
+        });
+    }
+    return parsed;
+}
+
+export function requireNonEmptyName(name: string, label = "name"): string {
+    const trimmed = name.trim();
+    if (!trimmed) {
+        throw new SmartClawsError("INVALID_TARGET", `${label} is required and must be stable.`, {
+            name,
+        });
+    }
+    return trimmed;
+}

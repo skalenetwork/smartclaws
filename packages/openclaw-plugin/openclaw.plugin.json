@@ -59,6 +59,9 @@
       "smartclaws_attach",
       "smartclaws_sync",
       "smartclaws_home_reset",
+      "smartclaws_register_group",
+      "smartclaws_register_device",
+      "smartclaws_register_agent",
       "smartclaws_wallet_info",
       "smartclaws_list_local",
       "smartclaws_discover",
@@ -85,6 +88,15 @@
       "optional": true
     },
     "smartclaws_home_reset": {
+      "optional": true
+    },
+    "smartclaws_register_group": {
+      "optional": true
+    },
+    "smartclaws_register_device": {
+      "optional": true
+    },
+    "smartclaws_register_agent": {
       "optional": true
     },
     "smartclaws_disclose": {

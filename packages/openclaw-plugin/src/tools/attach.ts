@@ -1,4 +1,4 @@
-import { attachHomeEntities } from "@smartclaws/sdk";
+import { attachHomeEntities, homeFingerprint, loadConfig, localSaveFailed } from "@smartclaws/sdk";
 import { Type } from "typebox";
 import { resolvedHome } from "../plugin-config.js";
 import { throwIfAborted } from "./guards.js";
@@ -91,4 +91,36 @@ export function attachTool(tool: SmartClawsToolFactory) {
             });
         },
     });
+}
+
+/** After a confirmed registration, attach locally. Never retry the chain write if this fails. */
+export async function attachAfterConfirmedRegistration(input: {
+    homeDir: string;
+    kind: "group" | "device" | "agent";
+    address: string;
+    txHash: `0x${string}`;
+}): Promise<{ fingerprint: string; attached: true }> {
+    try {
+        const config = loadConfig(input.homeDir);
+        if (!config) {
+            throw localSaveFailed(
+                input.txHash,
+                { kind: input.kind, address: input.address },
+                "HOME config missing after registration",
+            );
+        }
+        const result = await attachHomeEntities({
+            homeDir: input.homeDir,
+            expectedFingerprint: homeFingerprint(input.homeDir),
+            group: input.kind === "group" ? input.address : undefined,
+            agent: input.kind === "agent" ? input.address : undefined,
+            devices:
+                input.kind === "device"
+                    ? [...new Set([...config.attachedDeviceAddresses, input.address])]
+                    : undefined,
+        });
+        return { fingerprint: result.fingerprint, attached: true };
+    } catch (error) {
+        throw localSaveFailed(input.txHash, { kind: input.kind, address: input.address }, error);
+    }
 }

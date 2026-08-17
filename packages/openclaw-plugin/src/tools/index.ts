@@ -10,6 +10,9 @@ import { notifyTool } from "./notify.js";
 import { publishTool } from "./publish.js";
 import { readTool } from "./read.js";
 import { readerListTool } from "./readers.js";
+import { registerAgentTool } from "./register-agent.js";
+import { registerDeviceTool } from "./register-device.js";
+import { registerGroupTool } from "./register-group.js";
 import { setupStatusTool } from "./setup-status.js";
 import { syncTool } from "./sync.js";
 import type { SmartClawsToolFactory } from "./types.js";
@@ -23,6 +26,9 @@ export function smartClawsTools(tool: SmartClawsToolFactory) {
         attachTool(tool),
         syncTool(tool),
         homeResetTool(tool),
+        registerGroupTool(tool),
+        registerDeviceTool(tool),
+        registerAgentTool(tool),
         walletInfoTool(tool),
         listLocalTool(tool),
         discoverTool(tool),
