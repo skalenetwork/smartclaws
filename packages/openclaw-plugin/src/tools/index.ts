@@ -9,10 +9,11 @@ import { listLocalTool } from "./list-local.js";
 import { notifyTool } from "./notify.js";
 import { publishTool } from "./publish.js";
 import { readTool } from "./read.js";
-import { readerListTool } from "./readers.js";
+import { readerGrantTool, readerListTool, readerRevokeTool } from "./readers.js";
 import { registerAgentTool } from "./register-agent.js";
 import { registerDeviceTool } from "./register-device.js";
 import { registerGroupTool } from "./register-group.js";
+import { roleGrantTool, roleRevokeTool } from "./roles.js";
 import { setupStatusTool } from "./setup-status.js";
 import { syncTool } from "./sync.js";
 import type { SmartClawsToolFactory } from "./types.js";
@@ -29,12 +30,16 @@ export function smartClawsTools(tool: SmartClawsToolFactory) {
         registerGroupTool(tool),
         registerDeviceTool(tool),
         registerAgentTool(tool),
+        roleGrantTool(tool),
+        roleRevokeTool(tool),
         walletInfoTool(tool),
         listLocalTool(tool),
         discoverTool(tool),
         accessTool(tool),
         readTool(tool),
         readerListTool(tool),
+        readerGrantTool(tool),
+        readerRevokeTool(tool),
         backupListTool(tool),
         discloseTool(tool),
         publishTool(tool),

@@ -255,6 +255,90 @@ export const registerAgentWithResult = mock(async () => ({
     txHash: ORIGIN,
     receiptStatus: "success" as const,
 }));
+export const grantDevicePermission = mock(async () => ({
+    device: { name: "sensor-1", deviceContract: "0x00000000000000000000000000000000000000d1" },
+    role: "publisher",
+    account: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const revokeDevicePermission = mock(async () => ({
+    device: { name: "sensor-1", deviceContract: "0x00000000000000000000000000000000000000d1" },
+    role: "publisher",
+    account: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const grantAgentPermission = mock(async () => ({
+    agent: { name: "controller-1", agentContract: "0x00000000000000000000000000000000000000a1" },
+    role: "sender",
+    account: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const revokeAgentPermission = mock(async () => ({
+    agent: { name: "controller-1", agentContract: "0x00000000000000000000000000000000000000a1" },
+    role: "sender",
+    account: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const grantDeviceReader = mock(async () => ({
+    device: "0x00000000000000000000000000000000000000d1",
+    side: "outgoing",
+    reader: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const revokeDeviceReader = mock(async () => ({
+    device: "0x00000000000000000000000000000000000000d1",
+    side: "outgoing",
+    reader: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const grantAgentReader = mock(async () => ({
+    agent: "0x00000000000000000000000000000000000000a1",
+    side: "outgoing",
+    reader: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const revokeAgentReader = mock(async () => ({
+    agent: "0x00000000000000000000000000000000000000a1",
+    side: "outgoing",
+    reader: "0x00000000000000000000000000000000000000Aa",
+    txHash: ORIGIN,
+    status: "success" as const,
+}));
+export const assertNotSelfLockout = mock(
+    (params: {
+        walletAddress: string;
+        account: string;
+        role: string;
+        allowSelfRevocation?: boolean;
+    }) => {
+        if (params.walletAddress.toLowerCase() !== params.account.toLowerCase()) return;
+        if (params.role !== "master" && params.role !== "agent-admin") return;
+        if (params.allowSelfRevocation) return;
+        const error = new Error(
+            `Refusing to revoke ${params.role} from the active wallet without allowSelfRevocation.`,
+        ) as Error & { code: string };
+        error.code = "SELF_LOCKOUT_RISK";
+        throw error;
+    },
+);
+export const assertNotSelfReaderRevocation = mock(
+    (params: { walletAddress: string; account: string; allowSelfRevocation?: boolean }) => {
+        if (params.walletAddress.toLowerCase() !== params.account.toLowerCase()) return;
+        if (params.allowSelfRevocation) return;
+        const error = new Error(
+            "Refusing to remove the active wallet's own reader access without allowSelfRevocation.",
+        ) as Error & { code: string };
+        error.code = "SELF_LOCKOUT_RISK";
+        throw error;
+    },
+);
 
 // Shared across plugin test files: bun's module mocks are process-wide.
 mock.module("@smartclaws/sdk", () => {
@@ -318,6 +402,16 @@ mock.module("@smartclaws/sdk", () => {
         registerGroupWithResult,
         registerDeviceWithResult,
         registerAgentWithResult,
+        grantDevicePermission,
+        revokeDevicePermission,
+        grantAgentPermission,
+        revokeAgentPermission,
+        grantDeviceReader,
+        revokeDeviceReader,
+        grantAgentReader,
+        revokeAgentReader,
+        assertNotSelfLockout,
+        assertNotSelfReaderRevocation,
         resolveAgent,
         resolveDevice,
         resolveChannel,

@@ -62,12 +62,16 @@
       "smartclaws_register_group",
       "smartclaws_register_device",
       "smartclaws_register_agent",
+      "smartclaws_role_grant",
+      "smartclaws_role_revoke",
       "smartclaws_wallet_info",
       "smartclaws_list_local",
       "smartclaws_discover",
       "smartclaws_access_check",
       "smartclaws_read",
       "smartclaws_reader_list",
+      "smartclaws_reader_grant",
+      "smartclaws_reader_revoke",
       "smartclaws_backup_list",
       "smartclaws_disclose",
       "smartclaws_publish",
@@ -97,6 +101,18 @@
       "optional": true
     },
     "smartclaws_register_agent": {
+      "optional": true
+    },
+    "smartclaws_role_grant": {
+      "optional": true
+    },
+    "smartclaws_role_revoke": {
+      "optional": true
+    },
+    "smartclaws_reader_grant": {
+      "optional": true
+    },
+    "smartclaws_reader_revoke": {
       "optional": true
     },
     "smartclaws_disclose": {

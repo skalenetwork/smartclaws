@@ -13,6 +13,7 @@ import { listLocalTool } from "../../src/tools/list-local.ts";
 import { registerAgentTool } from "../../src/tools/register-agent.ts";
 import { registerDeviceTool } from "../../src/tools/register-device.ts";
 import { registerGroupTool } from "../../src/tools/register-group.ts";
+import { roleGrantTool, roleRevokeTool } from "../../src/tools/roles.ts";
 import { setupStatusTool } from "../../src/tools/setup-status.ts";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";
@@ -150,5 +151,21 @@ describe.skipIf(!ready)("plugin anvil flow", () => {
                 (item) => item.address.toLowerCase() === group.group.address.toLowerCase(),
             ),
         ).toBe(true);
+
+        const other = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+        const granted = (await run(roleGrantTool, {
+            kind: "device",
+            target: device.device.address,
+            role: "publisher",
+            account: other,
+        })) as { status: string; txHash: string };
+        expect(granted.status).toBe("confirmed");
+        const revoked = (await run(roleRevokeTool, {
+            kind: "device",
+            target: device.device.address,
+            role: "publisher",
+            account: other,
+        })) as { status: string };
+        expect(revoked.status).toBe("confirmed");
     });
 });

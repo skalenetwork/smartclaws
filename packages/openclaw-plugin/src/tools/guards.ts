@@ -27,6 +27,11 @@ export async function mapPool<T, R>(
     return results;
 }
 
+export function requireConfirmedReceipt(status: string, txHash: string, action: string): void {
+    if (status === "success") return;
+    throw new SmartClawsError("TRANSACTION_REVERTED", `${action} transaction reverted`, { txHash });
+}
+
 export function requireConfirm(confirm: boolean | undefined, action: string): void {
     if (confirm === true) return;
     throw new SmartClawsError("INVALID_TARGET", `${action} requires confirm: true.`, {
