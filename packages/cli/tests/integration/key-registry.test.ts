@@ -60,7 +60,7 @@ describe("key register|show|remove (anvil)", () => {
     test("show reports not registered, then register, show, remove", async () => {
         const missing = await runCli(["key", "show"], tempDir);
         expect(missing.exitCode).toBe(0);
-        expect(missing.stdout).toContain("not registered");
+        expect(missing.stdout).toContain("Registered: no");
         expect(missing.stdout).toContain("smartclaws key register");
 
         const registered = await runCli(["key", "register"], tempDir);
@@ -70,9 +70,10 @@ describe("key register|show|remove (anvil)", () => {
 
         const shown = await runCli(["key", "show"], tempDir);
         expect(shown.exitCode).toBe(0);
-        expect(shown.stdout).toContain("Public key: registered");
+        expect(shown.stdout).toContain("Registered: yes");
         expect(shown.stdout).toMatch(/X:\s+0x[0-9a-fA-F]{64}/);
         expect(shown.stdout).toMatch(/Y:\s+0x[0-9a-fA-F]{64}/);
+        expect(shown.stdout).toContain("Opens:     yes");
 
         const removed = await runCli(["key", "remove"], tempDir);
         expect(removed.exitCode).toBe(0);
@@ -80,6 +81,38 @@ describe("key register|show|remove (anvil)", () => {
 
         const after = await runCli(["key", "show"], tempDir);
         expect(after.exitCode).toBe(0);
-        expect(after.stdout).toContain("not registered");
+        expect(after.stdout).toContain("Registered: no");
+    });
+
+    /**
+     * The state a disclosure cannot detect: registered, but not with the key held locally.
+     * The fee is spent and the payload comes back as a decode error, so `key show` is the
+     * only place this is visible before paying.
+     */
+    test("show reports a registered key the local view key cannot open", async () => {
+        const registered = await runCli(["key", "register"], tempDir);
+        expect(registered.exitCode).toBe(0);
+        expect(registered.stdout).toContain("Key:      signing key");
+
+        // Rotating locally without re-registering leaves the registry on the old key.
+        const rotated = await runCli(["key", "generate"], tempDir);
+        expect(rotated.exitCode).toBe(0);
+
+        const stale = await runCli(["key", "show"], tempDir);
+        expect(stale.exitCode).toBe(0);
+        expect(stale.stdout).toContain("View key:  separate");
+        expect(stale.stdout).toContain("Opens:     NO");
+        expect(stale.stdout).toContain("smartclaws key register");
+
+        // Re-registering is the whole remedy.
+        const reregistered = await runCli(["key", "register"], tempDir);
+        expect(reregistered.exitCode).toBe(0);
+        expect(reregistered.stdout).toContain("Key:      view key");
+
+        const fixed = await runCli(["key", "show"], tempDir);
+        expect(fixed.stdout).toContain("Opens:     yes");
+
+        await runCli(["key", "remove"], tempDir);
+        await runCli(["key", "forget"], tempDir);
     });
 });

@@ -215,6 +215,19 @@ export async function listDeviceReaders(
     return listChannelReaders(deviceChannel(device, side), config);
 }
 
+/**
+ * Whether `account` can read this channel.
+ *
+ * A plain channel has no reader list at all — everything on it is public — so the answer is
+ * yes. Reporting `false` there described a list that does not exist, and sent people off to
+ * request access they neither need nor can be granted. Each channel is judged on its own
+ * kind rather than on the other one's.
+ */
+async function canRead(channel: Address, account: string, config: Config): Promise<boolean> {
+    if (!(await contracts.resolveChannelEncrypted(channel, config))) return true;
+    return isAuthorizedReader(channel, account, config);
+}
+
 export async function getDeviceReaderStatus(
     config: Config,
     deviceQuery: string,
@@ -222,14 +235,9 @@ export async function getDeviceReaderStatus(
     homeDir?: string,
 ): Promise<{ isIncomingReader: boolean; isOutgoingReader: boolean }> {
     const device = await discovery.resolveDevice(deviceQuery, config, undefined, homeDir);
-    const incoming = normalizeAddress(device.incomingChannel);
-    const outgoing = normalizeAddress(device.outgoingChannel);
-    if (!(await contracts.resolveChannelEncrypted(incoming, config))) {
-        return { isIncomingReader: false, isOutgoingReader: false };
-    }
     const [isIncomingReader, isOutgoingReader] = await Promise.all([
-        isAuthorizedReader(incoming, account, config),
-        isAuthorizedReader(outgoing, account, config),
+        canRead(normalizeAddress(device.incomingChannel), account, config),
+        canRead(normalizeAddress(device.outgoingChannel), account, config),
     ]);
     return { isIncomingReader, isOutgoingReader };
 }
@@ -316,14 +324,9 @@ export async function getAgentReaderStatus(
     homeDir?: string,
 ): Promise<{ isIncomingReader: boolean; isOutgoingReader: boolean }> {
     const agent = await discovery.resolveAgent(agentQuery, config, undefined, homeDir);
-    const incoming = normalizeAddress(agent.incomingChannel);
-    const outgoing = normalizeAddress(agent.outgoingChannel);
-    if (!(await contracts.resolveChannelEncrypted(incoming, config))) {
-        return { isIncomingReader: false, isOutgoingReader: false };
-    }
     const [isIncomingReader, isOutgoingReader] = await Promise.all([
-        isAuthorizedReader(incoming, account, config),
-        isAuthorizedReader(outgoing, account, config),
+        canRead(normalizeAddress(agent.incomingChannel), account, config),
+        canRead(normalizeAddress(agent.outgoingChannel), account, config),
     ]);
     return { isIncomingReader, isOutgoingReader };
 }

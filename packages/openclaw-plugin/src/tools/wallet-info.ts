@@ -1,11 +1,4 @@
-import {
-    getAgentReaderStatus,
-    getDeviceReaderStatus,
-    getWalletInfo,
-    hasPublicKeyWithConfig,
-    listAgents,
-    listDevices,
-} from "@smartclaws/sdk";
+import { getViewKeyStatus, getWalletInfo } from "@smartclaws/sdk";
 import { Type } from "typebox";
 import { requireWallet, resolveConfig } from "../plugin-config.js";
 import type { SmartClawsToolFactory } from "./types.js";
@@ -15,56 +8,26 @@ export function walletInfoTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_wallet_info",
         label: "SmartClaws Wallet Info",
         description:
-            "Return the configured SmartClaws wallet address, on-chain balance, public-key registration, and reader status for locally known encrypted channels. Use this to diagnose a failed disclosure instead of retrying blindly. Never returns the private key.",
+            "Return the configured SmartClaws wallet address, on-chain balance, and whether its registered public key is the one it can decrypt with. Use this to diagnose a failed disclosure instead of retrying blindly. For per-entity read access use smartclaws_access_check. Never returns the private key.",
         parameters: Type.Object({}),
         execute: async (_params, config, context) => {
             context.signal?.throwIfAborted();
             const cfg = resolveConfig(config);
             const wallet = requireWallet(config.smartclawsHome);
             const info = await getWalletInfo(cfg, wallet);
-            const publicKeyRegistered = await hasPublicKeyWithConfig(
-                cfg,
-                wallet.address as `0x${string}`,
-            );
+            // Wallet-scoped and O(1). Reader status used to be gathered here too, which made
+            // "what is my address and balance" walk every known entity; it moved to
+            // smartclaws_access_check, where it can also name a single entity.
+            const key = await getViewKeyStatus(cfg, wallet);
 
-            const home = config.smartclawsHome;
-            const readers = [];
-            for (const device of listDevices(home)) {
-                if (device.encrypted !== true) continue;
-                const status = await getDeviceReaderStatus(
-                    cfg,
-                    device.deviceContract,
-                    wallet.address,
-                    home,
-                );
-                readers.push({
-                    kind: "device" as const,
-                    name: device.name,
-                    incomingChannel: device.incomingChannel,
-                    outgoingChannel: device.outgoingChannel,
-                    isIncomingReader: status.isIncomingReader,
-                    isOutgoingReader: status.isOutgoingReader,
-                });
-            }
-            for (const agent of listAgents(home)) {
-                if (agent.encrypted !== true) continue;
-                const status = await getAgentReaderStatus(
-                    cfg,
-                    agent.agentContract,
-                    wallet.address,
-                    home,
-                );
-                readers.push({
-                    kind: "agent" as const,
-                    name: agent.name,
-                    incomingChannel: agent.incomingChannel,
-                    outgoingChannel: agent.outgoingChannel,
-                    isIncomingReader: status.isIncomingReader,
-                    isOutgoingReader: status.isOutgoingReader,
-                });
-            }
-
-            return { ...info, publicKeyRegistered, readers };
+            return {
+                ...info,
+                publicKeyRegistered: key.registered,
+                // The distinction that explains a disclosure that costs a fee and comes back
+                // unreadable: registered, but not with the key this wallet holds.
+                registeredKeyOpensDisclosures: key.registered ? key.matchesViewKey : false,
+                usesSeparateViewKey: !key.usesSigningKey,
+            };
         },
     });
 }

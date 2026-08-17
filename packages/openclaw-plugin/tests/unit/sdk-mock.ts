@@ -85,6 +85,14 @@ export const getWalletInfo = mock(async () => ({
     symbol: "sFUEL",
 }));
 export const hasPublicKeyWithConfig = mock(async () => false);
+export const getViewKeyStatus = mock(async () => ({
+    account: WALLET.address,
+    registry: "0x00000000000000000000000000000000000000e0",
+    registered: false,
+    matchesViewKey: false,
+    usesSigningKey: true,
+    localPublicKey: { x: `0x${"11".repeat(32)}`, y: `0x${"22".repeat(32)}` },
+}));
 export const getDeviceReaderStatus = mock(async () => ({
     isIncomingReader: false,
     isOutgoingReader: false,
@@ -130,6 +138,7 @@ mock.module("@smartclaws/sdk", () => ({
     readMessages,
     getWalletInfo,
     hasPublicKeyWithConfig,
+    getViewKeyStatus,
     getDeviceReaderStatus,
     getAgentReaderStatus,
     resolveAgent,

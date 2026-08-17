@@ -1,15 +1,15 @@
+import SmartClawsArtifact from "@smartclaws/core/abi/SmartClaws.json";
+import SmartClawsChannelArtifact from "@smartclaws/core/abi/SmartClawsChannel.json";
 import {
+    type Address,
     createPublicClient,
     createWalletClient,
     decodeEventLog,
     getContract,
     http,
-    type Address,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
-import SmartClawsArtifact from "@smartclaws/core/abi/SmartClaws.json";
-import SmartClawsChannelArtifact from "@smartclaws/core/abi/SmartClawsChannel.json";
 import AgentFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/AgentFactory.sol/AgentFactory.json";
 import ChannelFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/ChannelFactory.sol/ChannelFactory.json";
 import DeviceFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/DeviceFactory.sol/DeviceFactory.json";
@@ -106,9 +106,7 @@ export async function createChannel(
                 const args = decoded.args as { channel: Address };
                 return args.channel;
             }
-        } catch {
-            continue;
-        }
+        } catch {}
     }
     throw new Error("ChannelCreated event not found");
 }

@@ -34,6 +34,7 @@
     "contracts": {
         "tools": [
             "smartclaws_wallet_info",
+            "smartclaws_access_check",
             "smartclaws_read",
             "smartclaws_disclose",
             "smartclaws_publish",

@@ -1,4 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
+import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json";
+import SmartClawsChannelABI from "@smartclaws/core/abi/SmartClawsChannel.json";
+import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json";
+import SmartClawsDeviceGroupABI from "@smartclaws/core/abi/SmartClawsDeviceGroup.json";
+import { decode, encode } from "@smartclaws/core/envelope";
 import {
     type Address,
     createWalletClient,
@@ -13,11 +18,6 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
-import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json";
-import SmartClawsChannelABI from "@smartclaws/core/abi/SmartClawsChannel.json";
-import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json";
-import SmartClawsDeviceGroupABI from "@smartclaws/core/abi/SmartClawsDeviceGroup.json";
-import { decode, encode } from "@smartclaws/core/envelope";
 import { deployRegistry, publicClient, walletClient } from "../setup.ts";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";
