@@ -16,6 +16,7 @@ import {
     createDefaultConfig,
     deleteBackup,
     listBackups,
+    resetHomePreservingWallet,
     restoreBackup,
     saveConfig,
     saveWallet,
@@ -44,7 +45,7 @@ describe("backup", () => {
         if (tempDir && existsSync(tempDir)) rmSync(tempDir, { recursive: true });
     });
 
-    test("summarizeHome reports v2 fields and flags legacy v1", () => {
+    test("summarizeHome reports a pre-v3 config without loading it", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
         writeFileSync(
             join(tempDir, "config.json"),
@@ -60,9 +61,51 @@ describe("backup", () => {
 
         const summary = summarizeHome(tempDir);
         expect(summary.configVersion).toBe(1);
-        expect(summary.migratedFromV1).toBe(true);
-        expect(summary.attachedGroupAddress).toBe("0xgroup");
+        expect(summary.staleConfig).toBe(true);
         expect(summary.deviceCount).toBe(0);
+    });
+
+    test("summarizeHome flags a v2 config as stale, not only v1", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
+        writeFileSync(join(tempDir, "config.json"), JSON.stringify({ version: 2, network: "local" }));
+
+        const summary = summarizeHome(tempDir);
+        expect(summary.configVersion).toBe(2);
+        expect(summary.staleConfig).toBe(true);
+    });
+
+    test("summarizeHome does not flag a current config as stale", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
+        seedHome(tempDir);
+
+        const summary = summarizeHome(tempDir);
+        expect(summary.configVersion).toBe(3);
+        expect(summary.staleConfig).toBe(false);
+    });
+
+    test("resetHomePreservingWallet keeps the wallet and discards stale records", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
+        seedHome(tempDir);
+        mkdirSync(join(tempDir, "devices"), { recursive: true });
+        writeFileSync(
+            join(tempDir, "devices", "sensor-1.json"),
+            JSON.stringify({ name: "sensor-1", deviceContract: "0xOldDeployment" }),
+        );
+
+        const { backup, walletPreserved } = resetHomePreservingWallet(tempDir);
+
+        expect(walletPreserved).toBe(true);
+        // The wallet survives verbatim; everything deployment-bound is gone from the HOME.
+        const wallet = JSON.parse(readFileSync(join(tempDir, "wallets", "default.json"), "utf-8"));
+        expect(wallet.address).toBe("0xWallet");
+        expect(wallet.privateKey).toBe("0xdeadbeef");
+        expect(statSync(join(tempDir, "wallets", "default.json")).mode & 0o777).toBe(0o600);
+        expect(existsSync(join(tempDir, "config.json"))).toBe(false);
+        expect(existsSync(join(tempDir, "devices", "sensor-1.json"))).toBe(false);
+
+        // The backup is the only surviving copy of the discarded records.
+        expect(existsSync(join(backup.path, "config.json"))).toBe(true);
+        expect(existsSync(join(backup.path, "devices", "sensor-1.json"))).toBe(true);
     });
 
     test("createBackup copies config + wallet, excludes backups/ and cache/, wallet stays 0600", () => {

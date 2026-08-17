@@ -1,6 +1,12 @@
+import PublicKeyRegistryABI from "@smartclaws/core/abi/PublicKeyRegistry.json" with {
+    type: "json",
+};
 import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json" with { type: "json" };
 import SmartClawsAgentABI from "@smartclaws/core/abi/SmartClawsAgent.json" with { type: "json" };
 import SmartClawsChannelABI from "@smartclaws/core/abi/SmartClawsChannel.json" with {
+    type: "json",
+};
+import SmartClawsChannelEncryptedABI from "@smartclaws/core/abi/SmartClawsChannelEncrypted.json" with {
     type: "json",
 };
 import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json" with { type: "json" };
@@ -14,6 +20,7 @@ import {
     createPublicClient,
     createWalletClient,
     defineChain,
+    getAddress,
     getContract,
     http,
     type PublicClient,
@@ -133,4 +140,99 @@ export function getChannelContract(address: Address, config: Config, wallet: Wal
         abi: SmartClawsChannelABI.abi,
         client: { public: publicClient, wallet: walletClient },
     });
+}
+
+export function getChannelReadContract(address: Address, config: Config) {
+    const publicClient = getPublicClient(config);
+    return getContract({
+        address,
+        abi: SmartClawsChannelABI.abi,
+        client: publicClient,
+    });
+}
+
+export function getEncryptedChannelContract(address: Address, config: Config, wallet: WalletFile) {
+    const { publicClient, walletClient } = getClients(config, wallet);
+    return getContract({
+        address,
+        abi: SmartClawsChannelEncryptedABI.abi,
+        client: { public: publicClient, wallet: walletClient },
+    });
+}
+
+export function getEncryptedChannelReadContract(address: Address, config: Config) {
+    const publicClient = getPublicClient(config);
+    return getContract({
+        address,
+        abi: SmartClawsChannelEncryptedABI.abi,
+        client: publicClient,
+    });
+}
+
+export function getPublicKeyRegistryContract(address: Address, config: Config, wallet: WalletFile) {
+    const { publicClient, walletClient } = getClients(config, wallet);
+    return getContract({
+        address,
+        abi: PublicKeyRegistryABI.abi,
+        client: { public: publicClient, wallet: walletClient },
+    });
+}
+
+export function getPublicKeyRegistryReadContract(address: Address, config: Config) {
+    const publicClient = getPublicClient(config);
+    return getContract({
+        address,
+        abi: PublicKeyRegistryABI.abi,
+        client: publicClient,
+    });
+}
+
+const publicKeyRegistries = new Map<string, Promise<Address>>();
+const channelEncrypted = new Map<string, Promise<boolean>>();
+
+export function clearContractCaches(): void {
+    publicKeyRegistries.clear();
+    channelEncrypted.clear();
+}
+
+export async function resolvePublicKeyRegistryAddress(config: Config): Promise<Address> {
+    const key = getAddress(config.contractAddress);
+    const cached = publicKeyRegistries.get(key);
+    if (cached) return cached;
+
+    const lookup = (async () => {
+        const registry = getRegistryReadContract(config);
+        return getAddress((await registry.read.publicKeyRegistry()) as Address);
+    })();
+
+    publicKeyRegistries.set(key, lookup);
+    try {
+        return await lookup;
+    } catch (error) {
+        publicKeyRegistries.delete(key);
+        throw error;
+    }
+}
+
+export function rememberChannelEncrypted(address: Address, encrypted: boolean): void {
+    channelEncrypted.set(getAddress(address), Promise.resolve(encrypted));
+}
+
+export async function resolveChannelEncrypted(address: Address, config: Config): Promise<boolean> {
+    const key = getAddress(address);
+    const cached = channelEncrypted.get(key);
+    if (cached) return cached;
+
+    const lookup = (async () => {
+        const channel = getChannelReadContract(key, config);
+        return (await channel.read.isEncrypted()) as boolean;
+    })();
+
+    channelEncrypted.set(key, lookup);
+    try {
+        return await lookup;
+    } catch (error) {
+        channelEncrypted.delete(key);
+        throw error;
+    }
 }

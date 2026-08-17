@@ -6,7 +6,8 @@ import {
     assertHomeWallet,
     createDefaultConfig,
     loadConfig,
-    resolveBiteRpcUrl,
+    readStaleConfigHints,
+    SmartClawsError,
     saveConfig,
     type WalletFile,
 } from "../../src/index.ts";
@@ -48,7 +49,7 @@ describe("config", () => {
         expect(loaded).toEqual(config);
     });
 
-    test("loads v1 config through backward-compatible migration", () => {
+    test("refuses to load a pre-v3 config", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
         writeFileSync(
             join(tempDir, "config.json"),
@@ -59,42 +60,22 @@ describe("config", () => {
                 chainId: 31337,
                 contractAddress: "0xLegacyRegistryABC",
                 deviceGroupAddress: "0xgroup",
-                walletAddress: "0xwallet",
-                attachedGroupAddress: "0xattached-group",
-                attachedAgentAddress: "0xattached-agent",
-                attachedDeviceAddresses: ["0xdevice-1", "0xdevice-2"],
             }),
         );
 
-        const loaded = loadConfig(tempDir);
-        expect(loaded?.version).toBe(3);
-        expect(loaded?.deviceGroupAddress).toBe("0xgroup");
-        expect(loaded?.walletAddress).toBe("0xwallet");
-        expect(loaded?.attachedGroupAddress).toBe("0xattached-group");
-        expect(loaded?.attachedAgentAddress).toBe("0xattached-agent");
-        expect(loaded?.attachedDeviceAddresses).toEqual(["0xdevice-1", "0xdevice-2"]);
-        expect(loaded?.contractAddress).toBe("0xLegacyRegistryABC");
-        expect(loaded?.mode).toBe("controller");
+        try {
+            loadConfig(tempDir);
+            throw new Error("expected throw");
+        } catch (error) {
+            expect(error).toBeInstanceOf(SmartClawsError);
+            // Distinct from NOT_INITIALIZED: this HOME exists and holds a wallet, so the
+            // CLI must route to init's reset path rather than "you have nothing here".
+            expect((error as SmartClawsError).code).toBe("CONFIG_VERSION_UNSUPPORTED");
+            expect((error as SmartClawsError).message).toContain("Re-run smartclaws init");
+        }
     });
 
-    test("maps a legacy v1 device group to the attached group", () => {
-        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
-        writeFileSync(
-            join(tempDir, "config.json"),
-            JSON.stringify({
-                version: 1,
-                network: "local",
-                rpcUrl: "http://127.0.0.1:8545",
-                chainId: 31337,
-                contractAddress: "0xregistry",
-                deviceGroupAddress: "0xgroup",
-            }),
-        );
-
-        expect(loadConfig(tempDir)?.attachedGroupAddress).toBe("0xgroup");
-    });
-
-    test("loads v2 config through backward-compatible migration", () => {
+    test("refuses to load a v2 config", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
         writeFileSync(
             join(tempDir, "config.json"),
@@ -104,29 +85,69 @@ describe("config", () => {
                 rpcUrl: "https://legacy-rpc.example.com",
                 chainId: 42,
                 contractAddress: "0xPreservedRegistryDEF",
-                walletAddress: "0xwallet-v2",
-                mode: "master-agent",
-                deviceGroupAddress: "0xlegacy-group",
-                attachedGroupAddress: "0xattached-group-v2",
-                attachedAgentAddress: "0xattached-agent-v2",
-                attachedDeviceAddresses: ["0xdevice-v2"],
             }),
         );
 
-        const loaded = loadConfig(tempDir);
-        expect(loaded?.version).toBe(3);
-        expect(loaded?.walletAddress).toBe("0xwallet-v2");
-        expect(loaded?.attachedGroupAddress).toBe("0xattached-group-v2");
-        expect(loaded?.attachedAgentAddress).toBe("0xattached-agent-v2");
-        expect(loaded?.attachedDeviceAddresses).toEqual(["0xdevice-v2"]);
-        expect(loaded?.contractAddress).toBe("0xPreservedRegistryDEF");
+        expect(() => loadConfig(tempDir)).toThrow("Re-run smartclaws init");
+    });
+
+    test("salvages only local preferences from a stale config", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        writeFileSync(
+            join(tempDir, "config.json"),
+            JSON.stringify({
+                version: 2,
+                network: "base-testnet",
+                rpcUrl: "https://custom-rpc.example.com",
+                chainId: 42,
+                mode: "master-agent",
+                contractAddress: "0x2A49ADe245fE42E6C3eBC7972bB0Fe324fc923b5",
+                attachedGroupAddress: "0xOldGroup",
+                attachedAgentAddress: "0xOldAgent",
+                attachedDeviceAddresses: ["0xOldDevice"],
+            }),
+        );
+
+        const hints = readStaleConfigHints(tempDir);
+
+        expect(hints).toEqual({
+            version: 2,
+            mode: "master-agent",
+            network: "base-testnet",
+            rpcUrl: "https://custom-rpc.example.com",
+            chainId: 42,
+        });
+        // Every deployment-bound field must be dropped: carrying any of them forward would
+        // leave a current config resolving to contracts in the superseded deployment.
+        const carried = JSON.stringify(hints);
+        expect(carried).not.toContain("0x2A49ADe245fE42E6C3eBC7972bB0Fe324fc923b5");
+        expect(carried).not.toContain("0xOldGroup");
+        expect(carried).not.toContain("0xOldAgent");
+        expect(carried).not.toContain("0xOldDevice");
+    });
+
+    test("reports no stale hints for a current config or an absent one", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        expect(readStaleConfigHints(tempDir)).toBeNull();
+
+        saveConfig(
+            createDefaultConfig("current", "https://rpc.example.com", 42, "0xCurrentRegistry"),
+            tempDir,
+        );
+        expect(readStaleConfigHints(tempDir)).toBeNull();
+    });
+
+    test("treats an unparseable config as stale with nothing to salvage", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        writeFileSync(join(tempDir, "config.json"), "{ not json");
+
+        expect(readStaleConfigHints(tempDir)).toEqual({ version: null });
     });
 
     test("loads a v3 config unchanged", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
         const config = {
             ...createDefaultConfig("current", "https://rpc.example.com", 42, "0xCurrentRegistry"),
-            biteRpcUrl: "https://bite-rpc.example.com",
             attachedGroupAddress: "0xgroup",
             attachedAgentAddress: "0xagent",
             attachedDeviceAddresses: ["0xdevice"],
@@ -134,21 +155,6 @@ describe("config", () => {
         writeFileSync(join(tempDir, "config.json"), JSON.stringify(config));
 
         expect(loadConfig(tempDir)).toEqual(config);
-    });
-
-    test("BITE RPC falls back to the chain RPC when no override is configured", () => {
-        expect(resolveBiteRpcUrl({ rpcUrl: "https://rpc.example.com" })).toBe(
-            "https://rpc.example.com",
-        );
-    });
-
-    test("BITE RPC uses its configured override", () => {
-        expect(
-            resolveBiteRpcUrl({
-                rpcUrl: "https://rpc.example.com",
-                biteRpcUrl: "https://bite-rpc.example.com",
-            }),
-        ).toBe("https://bite-rpc.example.com");
     });
 
     test("assertHomeWallet rejects a mismatched wallet", () => {

@@ -16,9 +16,7 @@ export const NETWORKS: Record<string, Network> = {
         chainName: "skale-base-testnet",
         explorerUrl: "https://base-sepolia-testnet-explorer.skalenodes.com",
         nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
-        // TODO(deployment-rollover): replace this legacy registry after the encrypted
-        // verification samples are deployed and the new deployment is verified.
-        registryAddress: "0x2A49ADe245fE42E6C3eBC7972bB0Fe324fc923b5",
+        registryAddress: "0xD8C252E8fbcB9Da1F3ac7b29795BC04dF48d282e",
     },
 };
 

@@ -11,7 +11,7 @@ import {
 import { basename, join } from "node:path";
 import type { Config } from "@smartclaws/core/types";
 import { listAgents } from "./agent.js";
-import { getConfigDir, loadConfig } from "./config.js";
+import { CURRENT_CONFIG_VERSION, ensureConfigDir, getConfigDir, loadConfig } from "./config.js";
 import { listDevices } from "./device.js";
 import { SmartClawsError } from "./errors.js";
 import { listGroups } from "./group.js";
@@ -72,10 +72,13 @@ export function homeExists(homeDir?: string): boolean {
 }
 
 export interface HomeSummary {
-    /** Raw on-disk config version (null when no config file exists). */
+    /** Raw on-disk config version (null when no config file exists, or it is unparseable). */
     configVersion: number | null;
-    /** True when the on-disk config is a legacy v1 that loads as v2. */
-    migratedFromV1: boolean;
+    /**
+     * True when a config file exists but is not the current version, so the HOME cannot
+     * be loaded and must be reset. Covers every superseded version, not just v1.
+     */
+    staleConfig: boolean;
     /** Wallet address only — never the private key. */
     walletAddress: string | null;
     network: string;
@@ -91,15 +94,16 @@ export interface HomeSummary {
 
 /**
  * Describe an existing HOME without mutating it or reading any secret. Reads the
- * config file raw to report its on-disk version (since {@link loadConfig}
- * migrates v1 → v2 in memory), then uses the resolved config for the rest.
+ * config file raw to report its on-disk version, then uses a loaded v3 config
+ * for the rest when one is present.
  */
 export function summarizeHome(homeDir?: string): HomeSummary {
     const dir = getConfigDir(homeDir);
     const configPath = join(dir, "config.json");
 
+    const configExists = existsSync(configPath);
     let configVersion: number | null = null;
-    if (existsSync(configPath)) {
+    if (configExists) {
         try {
             const raw = JSON.parse(readFileSync(configPath, "utf-8")) as { version?: number };
             configVersion = typeof raw.version === "number" ? raw.version : null;
@@ -108,12 +112,21 @@ export function summarizeHome(homeDir?: string): HomeSummary {
         }
     }
 
-    const config: Config | null = loadConfig(homeDir);
+    // An unloadable config still describes a real HOME worth summarizing: the wallet and
+    // the on-disk records are read independently, so the caller can report what is there
+    // before resetting it.
+    const config: Config | null = (() => {
+        try {
+            return loadConfig(homeDir);
+        } catch {
+            return null;
+        }
+    })();
     const wallet = loadWallet(homeDir);
 
     return {
         configVersion,
-        migratedFromV1: configVersion === 1,
+        staleConfig: configExists && configVersion !== CURRENT_CONFIG_VERSION,
         walletAddress: wallet?.address ?? config?.walletAddress ?? null,
         network: config?.network ?? "",
         mode: config?.mode ?? "",
@@ -163,6 +176,45 @@ function dirSize(dir: string): { bytes: number; files: number } {
         }
     }
     return { bytes, files };
+}
+
+export interface HomeResetResult {
+    /** The snapshot taken before clearing. The only surviving copy of the old records. */
+    backup: BackupResult;
+    /** True when a wallet was carried across; false when the HOME had none to begin with. */
+    walletPreserved: boolean;
+}
+
+/**
+ * Back up the HOME, then clear it apart from `backups/` and the wallet.
+ *
+ * Used when the config predates {@link CURRENT_CONFIG_VERSION}. A config-only reset is
+ * not enough: `groups/`, `devices/` and `agents/` name contracts registered under the
+ * superseded registry, so keeping them would leave a current config resolving device
+ * names to entities in the abandoned deployment — which fails silently, by publishing
+ * to the wrong channel rather than erroring.
+ *
+ * The wallet is the one thing that stays: it is a chain-independent keypair, it holds
+ * the account balance, and it lives in its own file, so nothing about the reset needs
+ * to touch it. Callers must warn before calling — the backup becomes the only copy of
+ * everything else.
+ */
+export function resetHomePreservingWallet(homeDir?: string): HomeResetResult {
+    const dir = getConfigDir(homeDir);
+    const backup = createBackup(homeDir);
+
+    clearHomeExceptBackups(dir);
+    ensureConfigDir(homeDir);
+
+    const savedWallet = join(backup.path, "wallets", "default.json");
+    const walletPreserved = existsSync(savedWallet);
+    if (walletPreserved) {
+        const restored = join(dir, "wallets", "default.json");
+        cpSync(savedWallet, restored);
+        chmodSync(restored, 0o600);
+    }
+
+    return { backup, walletPreserved };
 }
 
 /**

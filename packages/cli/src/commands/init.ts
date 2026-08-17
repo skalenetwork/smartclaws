@@ -17,15 +17,19 @@ import {
     discoverOwnedAgents,
     enforceModeConstraints,
     generateWallet,
+    hasPublicKeyWithConfig,
     homeExists,
     loadConfig,
     loadWallet,
+    readStaleConfigHints,
     registerAgent,
     registerDevice,
     registerGroup,
+    resetHomePreservingWallet,
     resolveAgent,
     resolveDevice,
     resolveGroup,
+    type StaleConfigHints,
     saveConfig,
     saveWallet,
     summarizeHome,
@@ -200,16 +204,32 @@ async function createOrLoadWallet(
     return { wallet, imported: false, generated: true };
 }
 
+/** A salvaged network name is only usable if it still exists in the network table. */
+function knownNetworkOrUndefined(name: string | undefined): string | undefined {
+    if (!name) return undefined;
+    return name in NETWORKS ? name : undefined;
+}
+
 function buildConfig(
     opts: InitOptions,
     mode: SmartClawsMode,
     walletAddress: string,
     homeDir?: string,
+    hints?: StaleConfigHints,
 ): Config {
     const existing = loadConfig(homeDir);
-    const network = getNetwork(opts.network ?? existing?.network ?? DEFAULT_NETWORK);
-    const rpcUrl = opts.rpcUrl ?? existing?.rpcUrl ?? network.rpcUrl;
-    const chainId = opts.chainId ? Number(opts.chainId) : existing?.chainId || network.chainId;
+    const network = getNetwork(
+        opts.network ??
+            existing?.network ??
+            knownNetworkOrUndefined(hints?.network) ??
+            DEFAULT_NETWORK,
+    );
+    const rpcUrl = opts.rpcUrl ?? existing?.rpcUrl ?? hints?.rpcUrl ?? network.rpcUrl;
+    const chainId = opts.chainId
+        ? Number(opts.chainId)
+        : existing?.chainId || hints?.chainId || network.chainId;
+    // `hints` is deliberately not consulted for the registry: a salvaged contractAddress
+    // points at the superseded deployment, which is the whole reason the HOME was reset.
     const contractAddress = opts.contract || existing?.contractAddress || network.registryAddress;
     const config =
         existing ??
@@ -409,17 +429,27 @@ async function chooseAgent(
     );
 }
 
+interface ExistingHomeOutcome {
+    /** False when the user declined; the caller exits without changes. */
+    proceed: boolean;
+    /** Local preferences salvaged from a stale config that was reset. */
+    hints?: StaleConfigHints;
+}
+
 /**
  * When a HOME already exists, show what's there, confirm in interactive mode,
- * and snapshot a backup before anything is mutated. Returns false when the user
- * declined (caller should exit without changes).
+ * and snapshot a backup before anything is mutated.
+ *
+ * A config from a superseded version is reset rather than migrated: the whole HOME is
+ * backed up and cleared apart from the wallet, because its cached group/device/agent
+ * records name contracts in the abandoned deployment. Only local preferences survive.
  */
 async function handleExistingHome(
     homeDir: string | undefined,
     opts: InitOptions,
     interactive: boolean,
-): Promise<boolean> {
-    if (!homeExists(homeDir)) return true;
+): Promise<ExistingHomeOutcome> {
+    if (!homeExists(homeDir)) return { proceed: true };
 
     const s = summarizeHome(homeDir);
     console.log("Existing SmartClaws HOME found:");
@@ -431,7 +461,10 @@ async function handleExistingHome(
     console.log(
         `  Records:   ${s.groupCount} group(s), ${s.deviceCount} device(s), ${s.agentCount} agent(s)`,
     );
-    if (s.migratedFromV1) console.log("  Note:      legacy v1 config will be upgraded to v2.");
+
+    if (s.staleConfig) {
+        return handleStaleHome(homeDir, opts, interactive, s.configVersion);
+    }
 
     if (interactive) {
         const proceed = await confirm({
@@ -440,7 +473,7 @@ async function handleExistingHome(
         });
         if (!proceed) {
             console.log("Left HOME unchanged.");
-            return false;
+            return { proceed: false };
         }
     }
 
@@ -452,7 +485,58 @@ async function handleExistingHome(
         const result = createBackup(homeDir);
         console.log(`Backup saved: ${result.path} (${result.fileCount} files)`);
     }
-    return true;
+    return { proceed: true };
+}
+
+async function handleStaleHome(
+    homeDir: string | undefined,
+    opts: InitOptions,
+    interactive: boolean,
+    configVersion: number | null,
+): Promise<ExistingHomeOutcome> {
+    const version = configVersion === null ? "an unreadable" : `a version ${configVersion}`;
+    console.log("");
+    console.log(`  This HOME has ${version} config, which this release cannot load.`);
+    console.log("  It will be backed up and re-created. Your wallet and address are kept;");
+    console.log("  the cached group, device and agent records are not — they name contracts");
+    console.log("  from a superseded deployment and would resolve to the wrong channels.");
+
+    // The backup becomes the only copy of the discarded records, so this is the one path
+    // where --no-backup would mean irreversible deletion. Refuse rather than honour it.
+    if (opts.backup === false) {
+        throw new Error(
+            "--no-backup cannot be used on a HOME that must be reset: the backup is the only " +
+                "copy of the records being discarded. Re-run without --no-backup.",
+        );
+    }
+
+    if (interactive) {
+        const proceed = await confirm({
+            message: "Back up and re-create this HOME?",
+            default: true,
+        });
+        if (!proceed) {
+            console.log("Left HOME unchanged.");
+            return { proceed: false };
+        }
+    }
+
+    // Read the salvageable preferences before the file is cleared.
+    const hints = readStaleConfigHints(homeDir) ?? undefined;
+    const { backup, walletPreserved } = resetHomePreservingWallet(homeDir);
+    console.log(`Backup saved: ${backup.path} (${backup.fileCount} files)`);
+    console.log(walletPreserved ? "Wallet preserved." : "No wallet found to preserve.");
+
+    // The mode is kept because silently downgrading a master-agent node to controller would
+    // change how it behaves without saying so. But the entities that mode requires lived in
+    // the old deployment, so they have to be re-created in this run or init will refuse.
+    if (hints?.mode && hints.mode !== "controller") {
+        console.log(
+            `Mode '${hints.mode}' is kept, but its agent/devices were part of the old deployment.`,
+        );
+        console.log("Re-attach or re-create them in this run (--create-agent, --create-device).");
+    }
+    return { proceed: true, hints };
 }
 
 function printSummary(
@@ -473,6 +557,27 @@ function printSummary(
     if (agent) console.log(`  Agent:     ${agent.name} (${agent.agentContract})`);
     if (devices.length > 0)
         console.log(`  Devices:   ${devices.map((device) => device.name).join(", ")}`);
+}
+
+/**
+ * Report whether the wallet can take part in encrypted channels. A wallet carried across
+ * a reset keeps its address and balance but has no entry in this deployment's
+ * PublicKeyRegistry, and that gap otherwise stays invisible until a disclosure fails.
+ * Reporting only — registering is a transaction, so it stays the operator's call.
+ */
+async function printEncryptionReadiness(config: Config, wallet: WalletFile): Promise<void> {
+    let registered: boolean;
+    try {
+        registered = await hasPublicKeyWithConfig(config, wallet.address as `0x${string}`);
+    } catch {
+        // Never fail init over a diagnostic: the HOME is already written and valid.
+        return;
+    }
+    console.log(
+        registered
+            ? "  Enc. key:  registered"
+            : "  Enc. key:  not registered — required before this wallet can read encrypted channels",
+    );
 }
 
 export const initCommand = new Command("init")
@@ -514,7 +619,9 @@ export const initCommand = new Command("init")
             const interactive = Boolean(process.stdin.isTTY && !opts.yes);
             const verbose = Boolean(opts.verbose || process.argv.includes("+info"));
 
-            if (!(await handleExistingHome(homeDir, opts, interactive))) return;
+            const existingHome = await handleExistingHome(homeDir, opts, interactive);
+            if (!existingHome.proceed) return;
+            const hints = existingHome.hints;
 
             let mode: SmartClawsMode;
             if (opts.mode) {
@@ -530,11 +637,11 @@ export const initCommand = new Command("init")
                     ],
                 });
             } else {
-                mode = loadConfig(homeDir)?.mode ?? "controller";
+                mode = loadConfig(homeDir)?.mode ?? hints?.mode ?? "controller";
             }
 
             const walletState = await createOrLoadWallet(homeDir, opts, interactive);
-            const config = buildConfig(opts, mode, walletState.wallet.address, homeDir);
+            const config = buildConfig(opts, mode, walletState.wallet.address, homeDir, hints);
             assertHomeWallet(config, walletState.wallet);
 
             const group = await chooseGroup(
@@ -578,6 +685,7 @@ export const initCommand = new Command("init")
             saveConfig(config, homeDir);
 
             printSummary(config, group, agent, devices, walletState.generated);
+            await printEncryptionReadiness(config, walletState.wallet);
         } catch (err) {
             console.error(err instanceof Error ? err.message : String(err));
             process.exit(1);

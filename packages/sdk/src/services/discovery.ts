@@ -17,17 +17,7 @@ import {
     zeroHash,
 } from "viem";
 import { listAgents, saveAgent } from "../agent.js";
-import {
-    getAgentContract,
-    getAgentWriteContract,
-    getClients,
-    getDeviceContract,
-    getDeviceGroupContract,
-    getDeviceGroupReadContract,
-    getDeviceWriteContract,
-    getRegistryContract,
-    getRegistryReadContract,
-} from "../contracts.js";
+import * as contracts from "../contracts.js";
 import { listDevices, saveDevice } from "../device.js";
 import { SmartClawsError } from "../errors.js";
 import { listGroups, saveGroup } from "../group.js";
@@ -42,6 +32,99 @@ const SENDER_ROLE = keccak256(toHex("SENDER_ROLE"));
 type NamedRecord = { address: string; name: string };
 export type DevicePermissionRole = "publisher" | "master";
 export type AgentPermissionRole = "publisher" | "sender" | "agent-admin";
+export type RegistrationKind = { encrypted?: boolean };
+
+export function mergeDeviceSets(
+    plain: readonly Address[],
+    encrypted: readonly Address[],
+): {
+    devices: Address[];
+    deviceCount: number;
+    plainDevices: Address[];
+    plainDeviceCount: number;
+    encryptedDevices: Address[];
+    encryptedDeviceCount: number;
+} {
+    const encryptedSet = new Set(encrypted.map((address) => address.toLowerCase()));
+    const devices: Address[] = [];
+    const seen = new Set<string>();
+    for (const address of [...encrypted, ...plain]) {
+        const key = address.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        devices.push(normalizeAddress(address));
+    }
+    return {
+        devices,
+        deviceCount: devices.length,
+        plainDevices: plain
+            .filter((address) => !encryptedSet.has(address.toLowerCase()))
+            .map(normalizeAddress),
+        plainDeviceCount: plain.filter((address) => !encryptedSet.has(address.toLowerCase()))
+            .length,
+        encryptedDevices: encrypted.map(normalizeAddress),
+        encryptedDeviceCount: encrypted.length,
+    };
+}
+
+export function assertRegistrationKind(requested: boolean, actual: boolean): void {
+    if (requested === actual) return;
+    throw new SmartClawsError(
+        "REGISTRATION_KIND_MISMATCH",
+        `On-chain registration produced encrypted=${actual}, but encrypted=${requested} was requested.`,
+        { requested, actual },
+    );
+}
+
+function requireRegistrationEncryptedFlag(
+    eventEncrypted: boolean | undefined,
+    eventName: string,
+    details: Record<string, unknown>,
+): asserts eventEncrypted is boolean {
+    if (eventEncrypted === undefined) {
+        throw new SmartClawsError(
+            "REGISTRATION_KIND_MISMATCH",
+            `${eventName} did not include an encrypted flag.`,
+            details,
+        );
+    }
+}
+
+async function readGroupDeviceSets(group: {
+    read: {
+        getDeviceCount: () => Promise<bigint>;
+        getDevices: (args: [bigint, bigint]) => Promise<readonly Address[]>;
+        getEncryptedDeviceCount: () => Promise<bigint>;
+        getEncryptedDevices: (args: [bigint, bigint]) => Promise<readonly Address[]>;
+    };
+}): Promise<{ plain: Address[]; encrypted: Address[] }> {
+    const [plainCount, encryptedCount] = await Promise.all([
+        group.read.getDeviceCount(),
+        group.read.getEncryptedDeviceCount(),
+    ]);
+    const [plain, encrypted] = await Promise.all([
+        readPages(plainCount, (offset, limit) => group.read.getDevices([offset, limit])),
+        readPages(encryptedCount, (offset, limit) =>
+            group.read.getEncryptedDevices([offset, limit]),
+        ),
+    ]);
+    return { plain, encrypted };
+}
+
+async function readReaderMembership(
+    incomingChannel: Address,
+    outgoingChannel: Address,
+    account: Address,
+    config: Config,
+): Promise<{ isIncomingReader: boolean; isOutgoingReader: boolean }> {
+    const incoming = contracts.getEncryptedChannelReadContract(incomingChannel, config);
+    const outgoing = contracts.getEncryptedChannelReadContract(outgoingChannel, config);
+    const [isIncomingReader, isOutgoingReader] = await Promise.all([
+        incoming.read.isAuthorizedReader([account]) as Promise<boolean>,
+        outgoing.read.isAuthorizedReader([account]) as Promise<boolean>,
+    ]);
+    return { isIncomingReader, isOutgoingReader };
+}
 
 function normalizeAddress(address: string): Address {
     return getAddress(address) as Address;
@@ -88,9 +171,10 @@ export async function hydrateDevice(
     config: Config,
     wallet?: WalletFile,
     homeDir?: string,
+    knownEncrypted?: boolean,
 ): Promise<DeviceFile> {
     const address = normalizeAddress(deviceAddress);
-    const device = getDeviceContract(address, config);
+    const device = contracts.getDeviceContract(address, config);
 
     const [name, groupAddress, createdAt, incomingChannel, outgoingChannel] = await Promise.all([
         device.read.deviceId() as Promise<string>,
@@ -100,17 +184,35 @@ export async function hydrateDevice(
         device.read.getOutgoingMessagesChannel() as Promise<Address>,
     ]);
 
+    const encrypted =
+        knownEncrypted ??
+        (await contracts.resolveChannelEncrypted(incomingChannel as Address, config));
+    contracts.rememberChannelEncrypted(incomingChannel as Address, encrypted);
+    contracts.rememberChannelEncrypted(outgoingChannel as Address, encrypted);
+
     const capabilities: EntityCapabilities = {};
     if (wallet) {
         const account = normalizeAddress(wallet.address);
-        const [isDeviceAdmin, isPublisher, isMaster] = await Promise.all([
+        const [isDeviceAdmin, isPublisher, isMaster, readers] = await Promise.all([
             device.read.hasRole([DEVICE_ADMIN_ROLE, account]) as Promise<boolean>,
             device.read.hasRole([PUBLISHER_ROLE, account]) as Promise<boolean>,
             device.read.hasRole([MASTER_ROLE, account]) as Promise<boolean>,
+            encrypted
+                ? readReaderMembership(
+                      incomingChannel as Address,
+                      outgoingChannel as Address,
+                      account,
+                      config,
+                  )
+                : Promise.resolve(undefined),
         ]);
         capabilities.isDeviceAdmin = isDeviceAdmin;
         capabilities.isPublisher = isPublisher;
         capabilities.isMaster = isMaster;
+        if (readers) {
+            capabilities.isIncomingReader = readers.isIncomingReader;
+            capabilities.isOutgoingReader = readers.isOutgoingReader;
+        }
     }
 
     const record: DeviceFile = {
@@ -120,6 +222,7 @@ export async function hydrateDevice(
         createdAt: Number(createdAt),
         incomingChannel,
         outgoingChannel,
+        encrypted,
         capabilities,
     };
     saveDevice(record, homeDir);
@@ -133,19 +236,16 @@ export async function hydrateGroup(
     homeDir?: string,
 ): Promise<GroupFile> {
     const address = normalizeAddress(groupAddress);
-    const group = getDeviceGroupReadContract(address, config);
+    const group = contracts.getDeviceGroupReadContract(address, config);
 
-    const [name, skills, createdAt, owner, deviceCount] = await Promise.all([
+    const [name, skills, createdAt, owner, deviceSets] = await Promise.all([
         group.read.groupName() as Promise<string>,
         group.read.skills() as Promise<string>,
         group.read.createdAt() as Promise<bigint>,
         group.read.owner() as Promise<Address>,
-        group.read.getDeviceCount() as Promise<bigint>,
+        readGroupDeviceSets(group as never),
     ]);
-    const deviceAddresses = await readPages(
-        deviceCount,
-        (offset, limit) => group.read.getDevices([offset, limit]) as Promise<readonly Address[]>,
-    );
+    const merged = mergeDeviceSets(deviceSets.plain, deviceSets.encrypted);
 
     const capabilities: EntityCapabilities = {};
     if (wallet) capabilities.isGroupOwner = sameAddress(owner, wallet.address);
@@ -156,8 +256,7 @@ export async function hydrateGroup(
         skills,
         createdAt: Number(createdAt),
         owner,
-        deviceCount: Number(deviceCount),
-        devices: [...deviceAddresses],
+        ...merged,
         capabilities,
     };
     saveGroup(record, homeDir);
@@ -169,9 +268,10 @@ export async function hydrateAgent(
     config: Config,
     wallet?: WalletFile,
     homeDir?: string,
+    knownEncrypted?: boolean,
 ): Promise<AgentFile> {
     const address = normalizeAddress(agentAddress);
-    const agent = getAgentContract(address, config);
+    const agent = contracts.getAgentContract(address, config);
 
     const [agentId, metadata, createdAt, owner, incomingChannel, outgoingChannel] =
         await Promise.all([
@@ -183,18 +283,36 @@ export async function hydrateAgent(
             agent.read.getOutgoingMessagesChannel() as Promise<Address>,
         ]);
 
+    const encrypted =
+        knownEncrypted ??
+        (await contracts.resolveChannelEncrypted(incomingChannel as Address, config));
+    contracts.rememberChannelEncrypted(incomingChannel as Address, encrypted);
+    contracts.rememberChannelEncrypted(outgoingChannel as Address, encrypted);
+
     const capabilities: EntityCapabilities = {};
     if (wallet) {
         capabilities.isAgentOwner = sameAddress(owner, wallet.address);
         const account = normalizeAddress(wallet.address);
-        const [isAgentAdmin, isPublisher, isSender] = await Promise.all([
+        const [isAgentAdmin, isPublisher, isSender, readers] = await Promise.all([
             agent.read.hasRole([AGENT_ADMIN_ROLE, account]) as Promise<boolean>,
             agent.read.hasRole([PUBLISHER_ROLE, account]) as Promise<boolean>,
             agent.read.hasRole([SENDER_ROLE, account]) as Promise<boolean>,
+            encrypted
+                ? readReaderMembership(
+                      incomingChannel as Address,
+                      outgoingChannel as Address,
+                      account,
+                      config,
+                  )
+                : Promise.resolve(undefined),
         ]);
         capabilities.isAgentAdmin = isAgentAdmin;
         capabilities.isPublisher = isPublisher;
         capabilities.isSender = isSender;
+        if (readers) {
+            capabilities.isIncomingReader = readers.isIncomingReader;
+            capabilities.isOutgoingReader = readers.isOutgoingReader;
+        }
     }
 
     const record: AgentFile = {
@@ -206,6 +324,7 @@ export async function hydrateAgent(
         outgoingChannel,
         owner,
         createdAt: Number(createdAt),
+        encrypted,
         capabilities,
     };
     saveAgent(record, homeDir);
@@ -217,7 +336,7 @@ export async function discoverGroups(
     wallet?: WalletFile,
     homeDir?: string,
 ): Promise<GroupFile[]> {
-    const registry = getRegistryReadContract(config);
+    const registry = contracts.getRegistryReadContract(config);
     const count = (await registry.read.getDeviceGroupCount()) as bigint;
     const addresses = await readPages(
         count,
@@ -233,13 +352,15 @@ export async function discoverDevices(
     wallet?: WalletFile,
     homeDir?: string,
 ): Promise<DeviceFile[]> {
-    const group = getDeviceGroupReadContract(normalizeAddress(groupAddress), config);
-    const count = (await group.read.getDeviceCount()) as bigint;
-    const addresses = await readPages(
-        count,
-        (offset, limit) => group.read.getDevices([offset, limit]) as Promise<readonly Address[]>,
-    );
-    return Promise.all(addresses.map((address) => hydrateDevice(address, config, wallet, homeDir)));
+    const group = contracts.getDeviceGroupReadContract(normalizeAddress(groupAddress), config);
+    const { plain, encrypted } = await readGroupDeviceSets(group as never);
+    const encryptedSet = new Set(encrypted.map((address) => address.toLowerCase()));
+    return Promise.all([
+        ...encrypted.map((address) => hydrateDevice(address, config, wallet, homeDir, true)),
+        ...plain
+            .filter((address) => !encryptedSet.has(address.toLowerCase()))
+            .map((address) => hydrateDevice(address, config, wallet, homeDir, false)),
+    ]);
 }
 
 export async function discoverAgents(
@@ -247,7 +368,7 @@ export async function discoverAgents(
     wallet?: WalletFile,
     homeDir?: string,
 ): Promise<AgentFile[]> {
-    const registry = getRegistryReadContract(config);
+    const registry = contracts.getRegistryReadContract(config);
     const count = (await registry.read.getAgentCount()) as bigint;
     const addresses = await readPages(
         count,
@@ -444,8 +565,8 @@ export async function registerGroup(
     skills = "",
     homeDir?: string,
 ): Promise<GroupFile> {
-    const registry = getRegistryContract(config, wallet);
-    const { publicClient } = getClients(config, wallet);
+    const registry = contracts.getRegistryContract(config, wallet);
+    const { publicClient } = contracts.getClients(config, wallet);
     const hash = await registry.write.registerDeviceGroup([name, skills]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     let groupAddress: Address | null = null;
@@ -474,25 +595,34 @@ export async function registerDevice(
     name: string,
     capacity: bigint,
     homeDir?: string,
+    options: RegistrationKind = {},
 ): Promise<DeviceFile> {
+    const requestedEncrypted = Boolean(options.encrypted);
     const address = normalizeAddress(groupAddress);
-    const group = getDeviceGroupContract(address, config, wallet);
-    const { publicClient, account } = getClients(config, wallet);
-    const hash = await group.write.registerDevice([name, account.address, capacity]);
+    const group = contracts.getDeviceGroupContract(address, config, wallet);
+    const { publicClient, account } = contracts.getClients(config, wallet);
+    const hash = requestedEncrypted
+        ? await group.write.registerEncryptedDevice([name, account.address, capacity])
+        : await group.write.registerDevice([name, account.address, capacity]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     let deviceAddress: Address | null = null;
+    let eventEncrypted: boolean | undefined;
     for (const log of receipt.logs) {
         if (!sameAddress(log.address, address)) continue;
         try {
             const decoded = decodeEventLog({ abi: group.abi, data: log.data, topics: log.topics });
             if (decoded.eventName === "DeviceRegistered") {
-                deviceAddress = (decoded.args as unknown as { device: Address }).device;
+                const args = decoded.args as unknown as { device: Address; encrypted?: boolean };
+                deviceAddress = args.device;
+                eventEncrypted = args.encrypted;
             }
         } catch {}
     }
     if (!deviceAddress)
         throw new SmartClawsError("ENTITY_NOT_FOUND", "DeviceRegistered event was not found.");
-    return hydrateDevice(deviceAddress, config, wallet, homeDir);
+    requireRegistrationEncryptedFlag(eventEncrypted, "DeviceRegistered", { device: deviceAddress });
+    assertRegistrationKind(requestedEncrypted, eventEncrypted);
+    return hydrateDevice(deviceAddress, config, wallet, homeDir, eventEncrypted);
 }
 
 export async function registerAgent(
@@ -502,12 +632,17 @@ export async function registerAgent(
     metadata = "",
     capacity: bigint,
     homeDir?: string,
+    options: RegistrationKind = {},
 ): Promise<AgentFile> {
-    const registry = getRegistryContract(config, wallet);
-    const { publicClient } = getClients(config, wallet);
-    const hash = await registry.write.registerAgent([name, metadata, capacity]);
+    const requestedEncrypted = Boolean(options.encrypted);
+    const registry = contracts.getRegistryContract(config, wallet);
+    const { publicClient } = contracts.getClients(config, wallet);
+    const hash = requestedEncrypted
+        ? await registry.write.registerEncryptedAgent([name, metadata, capacity])
+        : await registry.write.registerAgent([name, metadata, capacity]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     let agentAddress: Address | null = null;
+    let eventEncrypted: boolean | undefined;
     for (const log of receipt.logs) {
         if (!sameAddress(log.address, config.contractAddress)) continue;
         try {
@@ -517,13 +652,57 @@ export async function registerAgent(
                 topics: log.topics,
             });
             if (decoded.eventName === "AgentRegistered") {
-                agentAddress = (decoded.args as unknown as { agent: Address }).agent;
+                const args = decoded.args as unknown as { agent: Address; encrypted?: boolean };
+                agentAddress = args.agent;
+                eventEncrypted = args.encrypted;
             }
         } catch {}
     }
     if (!agentAddress)
         throw new SmartClawsError("ENTITY_NOT_FOUND", "AgentRegistered event was not found.");
-    return hydrateAgent(agentAddress, config, wallet, homeDir);
+    requireRegistrationEncryptedFlag(eventEncrypted, "AgentRegistered", { agent: agentAddress });
+    assertRegistrationKind(requestedEncrypted, eventEncrypted);
+    return hydrateAgent(agentAddress, config, wallet, homeDir, eventEncrypted);
+}
+
+export async function createChannel(
+    config: Config,
+    wallet: WalletFile,
+    ownerAddress: string,
+    capacity: bigint,
+    options: RegistrationKind = {},
+): Promise<{ channel: Address; encrypted: boolean; txHash: `0x${string}` }> {
+    const requestedEncrypted = Boolean(options.encrypted);
+    const registry = contracts.getRegistryContract(config, wallet);
+    const { publicClient } = contracts.getClients(config, wallet);
+    const owner = normalizeAddress(ownerAddress);
+    const hash = requestedEncrypted
+        ? await registry.write.createEncryptedChannel([owner, capacity])
+        : await registry.write.createChannel([owner, capacity]);
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    let channel: Address | null = null;
+    let eventEncrypted: boolean | undefined;
+    for (const log of receipt.logs) {
+        if (!sameAddress(log.address, config.contractAddress)) continue;
+        try {
+            const decoded = decodeEventLog({
+                abi: registry.abi,
+                data: log.data,
+                topics: log.topics,
+            });
+            if (decoded.eventName === "ChannelCreated") {
+                const args = decoded.args as unknown as { channel: Address; encrypted?: boolean };
+                channel = args.channel;
+                eventEncrypted = args.encrypted;
+            }
+        } catch {}
+    }
+    if (!channel)
+        throw new SmartClawsError("ENTITY_NOT_FOUND", "ChannelCreated event was not found.");
+    requireRegistrationEncryptedFlag(eventEncrypted, "ChannelCreated", { channel });
+    assertRegistrationKind(requestedEncrypted, eventEncrypted);
+    contracts.rememberChannelEncrypted(channel, eventEncrypted);
+    return { channel, encrypted: eventEncrypted, txHash: hash };
 }
 
 function devicePermissionRoleId(role: DevicePermissionRole): `0x${string}` {
@@ -547,12 +726,12 @@ export async function grantDevicePermission(
 }> {
     const device = await resolveDevice(deviceQuery, config, wallet, homeDir);
     const account = normalizeAddress(accountAddress);
-    const contract = getDeviceWriteContract(
+    const contract = contracts.getDeviceWriteContract(
         normalizeAddress(device.deviceContract),
         config,
         wallet,
     );
-    const { publicClient } = getClients(config, wallet);
+    const { publicClient } = contracts.getClients(config, wallet);
 
     const hash = await contract.write.grantRole([devicePermissionRoleId(role), account]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -575,12 +754,12 @@ export async function revokeDevicePermission(
 }> {
     const device = await resolveDevice(deviceQuery, config, wallet, homeDir);
     const account = normalizeAddress(accountAddress);
-    const contract = getDeviceWriteContract(
+    const contract = contracts.getDeviceWriteContract(
         normalizeAddress(device.deviceContract),
         config,
         wallet,
     );
-    const { publicClient } = getClients(config, wallet);
+    const { publicClient } = contracts.getClients(config, wallet);
 
     const hash = await contract.write.revokeRole([devicePermissionRoleId(role), account]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -616,8 +795,12 @@ export async function grantAgentPermission(
 }> {
     const agent = await resolveAgent(agentQuery, config, wallet, homeDir);
     const account = normalizeAddress(accountAddress);
-    const contract = getAgentWriteContract(normalizeAddress(agent.agentContract), config, wallet);
-    const { publicClient } = getClients(config, wallet);
+    const contract = contracts.getAgentWriteContract(
+        normalizeAddress(agent.agentContract),
+        config,
+        wallet,
+    );
+    const { publicClient } = contracts.getClients(config, wallet);
 
     const hash = await contract.write.grantRole([agentPermissionRoleId(role), account]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -640,8 +823,12 @@ export async function revokeAgentPermission(
 }> {
     const agent = await resolveAgent(agentQuery, config, wallet, homeDir);
     const account = normalizeAddress(accountAddress);
-    const contract = getAgentWriteContract(normalizeAddress(agent.agentContract), config, wallet);
-    const { publicClient } = getClients(config, wallet);
+    const contract = contracts.getAgentWriteContract(
+        normalizeAddress(agent.agentContract),
+        config,
+        wallet,
+    );
+    const { publicClient } = contracts.getClients(config, wallet);
 
     const hash = await contract.write.revokeRole([agentPermissionRoleId(role), account]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });

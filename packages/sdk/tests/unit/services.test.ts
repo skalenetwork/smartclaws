@@ -63,6 +63,7 @@ describe("resolveChannel", () => {
             deviceContract: "0xdev",
             incomingChannel: "0xin",
             outgoingChannel: "0xout",
+            encrypted: false,
         });
         const resolved = resolveChannel({ device: "sensor-1" });
         expect(resolved.channelAddress).toBe("0xout");
@@ -79,6 +80,7 @@ describe("resolveChannel", () => {
                 deviceContract: "0xd",
                 incomingChannel: "0xi",
                 outgoingChannel: "0xo2",
+                encrypted: false,
             },
             tempDir,
         );
@@ -132,6 +134,7 @@ describe("local cache filenames", () => {
                 deviceContract: "0x00000000000000000000000000000000000000d1",
                 incomingChannel: "0x00000000000000000000000000000000000000d2",
                 outgoingChannel: "0x00000000000000000000000000000000000000d3",
+                encrypted: false,
             },
             tempDir,
         );
@@ -153,6 +156,7 @@ describe("local cache filenames", () => {
                 agentContract: "0x00000000000000000000000000000000000000a1",
                 incomingChannel: "0x00000000000000000000000000000000000000a2",
                 outgoingChannel: "0x00000000000000000000000000000000000000a3",
+                encrypted: false,
             },
             tempDir,
         );

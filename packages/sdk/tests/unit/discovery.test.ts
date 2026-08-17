@@ -1,15 +1,21 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentFile, Config, DeviceFile, GroupFile, WalletFile } from "@smartclaws/core/types";
-import { ensureConfigDir } from "../../src/config.js";
 import { saveAgent } from "../../src/agent.js";
+import { ensureConfigDir } from "../../src/config.js";
+import * as contracts from "../../src/contracts.js";
 import { saveDevice } from "../../src/device.js";
 import { SmartClawsError } from "../../src/errors.js";
 import { saveGroup } from "../../src/group.js";
 import {
+    assertRegistrationKind,
+    discoverDevices,
     enforceModeConstraints,
+    hydrateDevice,
+    hydrateGroup,
+    mergeDeviceSets,
     resolveAgent,
     resolveDevice,
     resolveGroup,
@@ -54,6 +60,7 @@ function device(address: string, name: string, groupAddress: string): DeviceFile
         createdAt: 1711324800,
         incomingChannel: "0x0000000000000000000000000000000000000100",
         outgoingChannel: "0x0000000000000000000000000000000000000101",
+        encrypted: false,
     };
 }
 
@@ -67,6 +74,7 @@ function agent(address: string, name: string): AgentFile {
         outgoingChannel: "0x0000000000000000000000000000000000000201",
         owner: WALLET.address,
         createdAt: 1711324800,
+        encrypted: false,
     };
 }
 
@@ -79,6 +87,7 @@ describe("discovery resolution", () => {
     let tempDir: string;
 
     afterEach(() => {
+        mock.restore();
         if (tempDir && existsSync(tempDir)) rmSync(tempDir, { recursive: true });
     });
 
@@ -208,5 +217,170 @@ describe("mode constraints", () => {
                 devices: [deviceRecord],
             }),
         ).not.toThrow();
+    });
+});
+
+describe("device-set merge and registration kind", () => {
+    const plain = "0x00000000000000000000000000000000000000a1" as const;
+    const encrypted = "0x00000000000000000000000000000000000000a2" as const;
+
+    test("merges both sets, prefers encrypted on overlap, and counts the union", () => {
+        const merged = mergeDeviceSets([plain, encrypted], [encrypted]);
+        expect(merged.deviceCount).toBe(2);
+        expect(merged.devices).toEqual([
+            "0x00000000000000000000000000000000000000A2",
+            "0x00000000000000000000000000000000000000A1",
+        ]);
+        expect(merged.plainDevices).toEqual(["0x00000000000000000000000000000000000000A1"]);
+        expect(merged.plainDeviceCount).toBe(1);
+        expect(merged.encryptedDevices).toEqual(["0x00000000000000000000000000000000000000A2"]);
+        expect(merged.encryptedDeviceCount).toBe(1);
+    });
+
+    test("fails loudly when the registration event kind does not match the request", () => {
+        expect(() => assertRegistrationKind(true, false)).toThrow(SmartClawsError);
+        try {
+            assertRegistrationKind(true, false);
+        } catch (error) {
+            expectSmartClawsCode(error, "REGISTRATION_KIND_MISMATCH");
+        }
+        expect(() => assertRegistrationKind(false, false)).not.toThrow();
+    });
+});
+
+describe("encrypted discovery", () => {
+    const plainDevice = "0x0000000000000000000000000000000000000031" as const;
+    const encryptedDevice = "0x0000000000000000000000000000000000000032" as const;
+    const incoming = "0x0000000000000000000000000000000000000100" as const;
+    const outgoing = "0x0000000000000000000000000000000000000101" as const;
+    let tempDir: string;
+
+    function home(): string {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        return tempDir;
+    }
+
+    afterEach(() => {
+        mock.restore();
+        contracts.clearContractCaches();
+        if (tempDir && existsSync(tempDir)) rmSync(tempDir, { recursive: true });
+    });
+
+    test("queries both device sets in parallel and merges the count", async () => {
+        spyOn(contracts, "getDeviceGroupReadContract").mockReturnValue({
+            read: {
+                groupName: async () => "home",
+                skills: async () => "temperature",
+                createdAt: async () => 1n,
+                owner: async () => WALLET.address,
+                getDeviceCount: async () => 1n,
+                getDevices: async () => [plainDevice],
+                getEncryptedDeviceCount: async () => 1n,
+                getEncryptedDevices: async () => [encryptedDevice],
+            },
+        } as never);
+
+        const record = await hydrateGroup(
+            "0x0000000000000000000000000000000000000011",
+            CONFIG,
+            undefined,
+            home(),
+        );
+        expect(record.plainDeviceCount).toBe(1);
+        expect(record.encryptedDeviceCount).toBe(1);
+        expect(record.deviceCount).toBe(2);
+        expect(record.encryptedDevices).toEqual(["0x0000000000000000000000000000000000000032"]);
+    });
+
+    test("hydration with provenance does not call isEncrypted", async () => {
+        const isEncrypted = spyOn(contracts, "resolveChannelEncrypted");
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: {
+                deviceId: async () => "sensor",
+                group: async () => "0x0000000000000000000000000000000000000011",
+                createdAt: async () => 1n,
+                getIncomingMessagesChannel: async () => incoming,
+                getOutgoingMessagesChannel: async () => outgoing,
+            },
+        } as never);
+
+        const record = await hydrateDevice(encryptedDevice, CONFIG, undefined, home(), true);
+        expect(record.encrypted).toBe(true);
+        expect(isEncrypted).not.toHaveBeenCalled();
+    });
+
+    test("hydration without provenance queries isEncrypted and never defaults to plain", async () => {
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: {
+                deviceId: async () => "sensor",
+                group: async () => "0x0000000000000000000000000000000000000011",
+                createdAt: async () => 1n,
+                getIncomingMessagesChannel: async () => incoming,
+                getOutgoingMessagesChannel: async () => outgoing,
+                hasRole: async () => false,
+            },
+        } as never);
+        const isEncrypted = spyOn(contracts, "resolveChannelEncrypted").mockResolvedValue(true);
+        spyOn(contracts, "getEncryptedChannelReadContract").mockReturnValue({
+            read: { isAuthorizedReader: async () => true },
+        } as never);
+
+        const record = await hydrateDevice(encryptedDevice, CONFIG, WALLET, home());
+        expect(isEncrypted).toHaveBeenCalled();
+        expect(record.encrypted).toBe(true);
+        expect(record.capabilities?.isIncomingReader).toBe(true);
+        expect(record.capabilities?.isOutgoingReader).toBe(true);
+    });
+
+    test("reader membership is not queried for plain channels", async () => {
+        const readers = spyOn(contracts, "getEncryptedChannelReadContract");
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: {
+                deviceId: async () => "sensor",
+                group: async () => "0x0000000000000000000000000000000000000011",
+                createdAt: async () => 1n,
+                getIncomingMessagesChannel: async () => incoming,
+                getOutgoingMessagesChannel: async () => outgoing,
+                hasRole: async () => false,
+            },
+        } as never);
+
+        const record = await hydrateDevice(plainDevice, CONFIG, WALLET, home(), false);
+        expect(record.encrypted).toBe(false);
+        expect(readers).not.toHaveBeenCalled();
+        expect(record.capabilities?.isIncomingReader).toBeUndefined();
+    });
+
+    test("discoverDevices carries kind provenance into hydration", async () => {
+        spyOn(contracts, "getDeviceGroupReadContract").mockReturnValue({
+            read: {
+                getDeviceCount: async () => 1n,
+                getDevices: async () => [plainDevice],
+                getEncryptedDeviceCount: async () => 1n,
+                getEncryptedDevices: async () => [encryptedDevice],
+            },
+        } as never);
+        spyOn(contracts, "getDeviceContract").mockImplementation((address) => {
+            const encrypted = address.toLowerCase() === encryptedDevice.toLowerCase();
+            return {
+                read: {
+                    deviceId: async () => (encrypted ? "enc" : "plain"),
+                    group: async () => "0x0000000000000000000000000000000000000011",
+                    createdAt: async () => 1n,
+                    getIncomingMessagesChannel: async () => incoming,
+                    getOutgoingMessagesChannel: async () => outgoing,
+                },
+            } as never;
+        });
+        const isEncrypted = spyOn(contracts, "resolveChannelEncrypted");
+
+        const devices = await discoverDevices(
+            CONFIG,
+            "0x0000000000000000000000000000000000000011",
+            undefined,
+            home(),
+        );
+        expect(devices.map((item) => item.encrypted).sort()).toEqual([false, true]);
+        expect(isEncrypted).not.toHaveBeenCalled();
     });
 });
