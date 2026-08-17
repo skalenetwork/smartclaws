@@ -1,9 +1,10 @@
 import { Tag } from "lucide-react";
 import { useMemo } from "react";
-import type { DecodedMessage } from "@/hooks/use-channel-messages";
-import { useChartData } from "@/hooks/use-chart-data";
+import { EmptyState } from "@/components/shared/empty-state";
 import { SensorChart } from "@/components/shared/sensor-chart";
 import { StatCard } from "@/components/shared/stat-card";
+import type { DecodedMessage } from "@/hooks/use-channel-messages";
+import { useChartData } from "@/hooks/use-chart-data";
 
 const COLORS = [
     "#0ea5e9", // sky-500
@@ -37,6 +38,11 @@ interface SensorChartsProps {
 export function SensorCharts({ messages }: SensorChartsProps) {
     const series = useChartData(messages);
     const textFields = useTextFields(messages);
+    const hasEncryptedMessages = messages.some((message) => message.encrypted);
+
+    if (hasEncryptedMessages && series.length === 0 && textFields.length === 0) {
+        return <EmptyState message="Encrypted ciphertext cannot be plotted" />;
+    }
 
     if (series.length === 0 && textFields.length === 0) return null;
 

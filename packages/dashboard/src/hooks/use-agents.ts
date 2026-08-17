@@ -4,6 +4,9 @@ import { type Address, type Hex, hexToBytes, zeroAddress } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain, registryAddress } from "@/config/wagmi";
+import { useChannelActivityTimes } from "@/hooks/use-channel-activity";
+import type { ChannelKind } from "@/hooks/use-channel-kind";
+import { useChannelKinds } from "@/hooks/use-channel-kind";
 
 export interface AgentInfo {
     address: Address;
@@ -15,6 +18,7 @@ export interface AgentInfo {
     createdAt?: bigint;
     incomingChannel?: Address;
     outgoingChannel?: Address;
+    channelKind?: ChannelKind;
     /** Latest offset on the outgoing channel — a proxy for "has it ever published". */
     outgoingOffset?: bigint;
     /** Timestamp of the newest outgoing message, for freshness display. */
@@ -64,6 +68,7 @@ export function useAgents() {
     const outgoingChannels = addresses.map(
         (_a, i) => details?.[i * FIELDS_PER_AGENT + 6]?.result as Address | undefined,
     );
+    const channelKinds = useChannelKinds(outgoingChannels);
 
     const { data: offsets } = useReadContracts({
         contracts: outgoingChannels.map((channel) => ({
@@ -98,13 +103,23 @@ export function useAgents() {
         },
     });
 
+    const activity = useChannelActivityTimes(
+        outgoingChannels.map((address, index) => ({
+            address,
+            latestOffset: offsets?.[index]?.result as bigint | undefined,
+            enabled: channelKinds.kinds[index] === "encrypted",
+        })),
+    );
+
     const agents: AgentInfo[] = addresses.map((address, i) => {
         const at = (offset: number) => details?.[i * FIELDS_PER_AGENT + offset]?.result;
 
-        let lastMessageTs: number | undefined;
+        let lastMessageTs = activity.timestamps[i];
         try {
             const raw = latestMessages?.[i]?.result as [Hex[], bigint[]] | undefined;
-            if (raw?.[0]?.[0]) lastMessageTs = decode(hexToBytes(raw[0][0])).ts;
+            if (channelKinds.kinds[i] === "plain" && raw?.[0]?.[0]) {
+                lastMessageTs = decode(hexToBytes(raw[0][0])).ts;
+            }
         } catch {
             // ignore decode errors — a non-envelope payload just has no timestamp
         }
@@ -118,6 +133,7 @@ export function useAgents() {
             createdAt: at(4) as bigint | undefined,
             incomingChannel: at(5) as Address | undefined,
             outgoingChannel: at(6) as Address | undefined,
+            channelKind: channelKinds.kinds[i],
             outgoingOffset: offsets?.[i]?.result as bigint | undefined,
             lastMessageTs,
         };
@@ -127,6 +143,6 @@ export function useAgents() {
         agents,
         activeCount: agents.filter((a) => a.active === true).length,
         totalCount: addresses.length,
-        isLoading: isLoadingList || isLoadingDetails,
+        isLoading: isLoadingList || isLoadingDetails || channelKinds.isLoading,
     };
 }

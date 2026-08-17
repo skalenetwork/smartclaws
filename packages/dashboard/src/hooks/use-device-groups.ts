@@ -11,6 +11,8 @@ export interface DeviceGroupSummary {
     active: boolean;
     owner: Address;
     deviceCount: bigint;
+    plainDeviceCount: bigint;
+    encryptedDeviceCount: bigint;
 }
 
 export function useDeviceGroups() {
@@ -36,6 +38,12 @@ export function useDeviceGroups() {
                 functionName: "getDeviceCount",
                 chainId: chain.id,
             },
+            {
+                address: addr,
+                abi: abis.deviceGroup,
+                functionName: "getEncryptedDeviceCount",
+                chainId: chain.id,
+            },
         ]),
         query: {
             enabled: addresses.length > 0,
@@ -46,11 +54,15 @@ export function useDeviceGroups() {
 
     const groups: DeviceGroupSummary[] = addresses.map((addr, i) => ({
         address: addr,
-        groupName: (details?.[i * 5]?.result as string) ?? "",
-        skills: (details?.[i * 5 + 1]?.result as string) ?? "",
-        active: (details?.[i * 5 + 2]?.result as boolean) ?? false,
-        owner: (details?.[i * 5 + 3]?.result as Address) ?? "0x",
-        deviceCount: (details?.[i * 5 + 4]?.result as bigint) ?? 0n,
+        groupName: (details?.[i * 6]?.result as string) ?? "",
+        skills: (details?.[i * 6 + 1]?.result as string) ?? "",
+        active: (details?.[i * 6 + 2]?.result as boolean) ?? false,
+        owner: (details?.[i * 6 + 3]?.result as Address) ?? "0x",
+        plainDeviceCount: (details?.[i * 6 + 4]?.result as bigint) ?? 0n,
+        encryptedDeviceCount: (details?.[i * 6 + 5]?.result as bigint) ?? 0n,
+        deviceCount:
+            ((details?.[i * 6 + 4]?.result as bigint) ?? 0n) +
+            ((details?.[i * 6 + 5]?.result as bigint) ?? 0n),
     }));
 
     return {

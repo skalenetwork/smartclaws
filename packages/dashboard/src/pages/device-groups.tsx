@@ -42,6 +42,12 @@ export function DeviceGroupsPage() {
                                     </div>
                                     <SkillChips skills={group.skills || ""} />
                                     <DeviceCountPill count={group.deviceCount} />
+                                    {group.encryptedDeviceCount > 0n && (
+                                        <p className="text-muted-foreground text-[11px]">
+                                            {group.plainDeviceCount.toString()} plain ·{" "}
+                                            {group.encryptedDeviceCount.toString()} encrypted
+                                        </p>
+                                    )}
                                 </CardContent>
                             </Card>
                         </Link>

@@ -58,6 +58,12 @@ export function useAccessGraph() {
             { address, abi: abis.deviceGroup, functionName: "owner", chainId: chain.id },
             { address, abi: abis.deviceGroup, functionName: "groupName", chainId: chain.id },
             { address, abi: abis.deviceGroup, functionName: "getDevices", chainId: chain.id },
+            {
+                address,
+                abi: abis.deviceGroup,
+                functionName: "getEncryptedDevices",
+                chainId: chain.id,
+            },
         ]),
         query: {
             enabled: groupAddresses.length > 0,
@@ -78,9 +84,12 @@ export function useAccessGraph() {
         add(registryAddress, "registry", "registry");
 
         groupAddresses.forEach((address, i) => {
-            const owner = groupInfo?.[i * 3]?.result as Address | undefined;
-            const name = (groupInfo?.[i * 3 + 1]?.result as string | undefined) ?? "group";
-            const devices = (groupInfo?.[i * 3 + 2]?.result as Address[] | undefined) ?? [];
+            const owner = groupInfo?.[i * 4]?.result as Address | undefined;
+            const name = (groupInfo?.[i * 4 + 1]?.result as string | undefined) ?? "group";
+            const devices = [
+                ...((groupInfo?.[i * 4 + 2]?.result as Address[] | undefined) ?? []),
+                ...((groupInfo?.[i * 4 + 3]?.result as Address[] | undefined) ?? []),
+            ];
             add(address, `group ${name}`, "group");
             add(owner, `owner of ${name}`, "group-owner");
             for (const device of devices) add(device, "device", "device");
@@ -117,12 +126,20 @@ export function useAllDevices() {
     const groupAddresses = (groups as Address[] | undefined) ?? [];
 
     const { data: deviceLists, isLoading } = useReadContracts({
-        contracts: groupAddresses.map((address) => ({
-            address,
-            abi: abis.deviceGroup,
-            functionName: "getDevices",
-            chainId: chain.id,
-        })),
+        contracts: groupAddresses.flatMap((address) => [
+            {
+                address,
+                abi: abis.deviceGroup,
+                functionName: "getDevices",
+                chainId: chain.id,
+            },
+            {
+                address,
+                abi: abis.deviceGroup,
+                functionName: "getEncryptedDevices",
+                chainId: chain.id,
+            },
+        ]),
         query: {
             enabled: groupAddresses.length > 0,
             refetchInterval: 30_000,
@@ -130,11 +147,15 @@ export function useAllDevices() {
         },
     });
 
-    const devices = useMemo(
-        () =>
-            (deviceLists ?? []).flatMap((entry) => (entry?.result as Address[] | undefined) ?? []),
-        [deviceLists],
-    );
+    const devices = useMemo(() => {
+        const byAddress = new Map<string, Address>();
+        for (const entry of deviceLists ?? []) {
+            for (const address of (entry?.result as Address[] | undefined) ?? []) {
+                byAddress.set(address.toLowerCase(), address);
+            }
+        }
+        return [...byAddress.values()];
+    }, [deviceLists]);
 
     return { devices, isLoading };
 }
