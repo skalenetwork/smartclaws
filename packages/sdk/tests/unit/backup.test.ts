@@ -67,7 +67,10 @@ describe("backup", () => {
 
     test("summarizeHome flags a v2 config as stale, not only v1", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
-        writeFileSync(join(tempDir, "config.json"), JSON.stringify({ version: 2, network: "local" }));
+        writeFileSync(
+            join(tempDir, "config.json"),
+            JSON.stringify({ version: 2, network: "local" }),
+        );
 
         const summary = summarizeHome(tempDir);
         expect(summary.configVersion).toBe(2);
