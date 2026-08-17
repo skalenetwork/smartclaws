@@ -500,20 +500,42 @@ export async function discoverDevicesPage(
 ): Promise<DiscoveryPage<DeviceFile>> {
     const { offset, limit } = normalizeDiscoveryPage(params.offset, params.limit);
     const group = contracts.getDeviceGroupReadContract(normalizeAddress(groupAddress), config);
-    const { plain, encrypted } = await readGroupDeviceSets(group as never);
-    const merged = mergeDeviceSets(plain, encrypted);
-    const total = merged.devices.length;
-    const slice = merged.devices.slice(offset, offset + limit);
-    const encryptedSet = new Set(merged.encryptedDevices.map((address) => address.toLowerCase()));
+    const [plainCountRaw, encryptedCountRaw] = await Promise.all([
+        group.read.getDeviceCount() as Promise<bigint>,
+        group.read.getEncryptedDeviceCount() as Promise<bigint>,
+    ]);
+    const plainCount = requireSafeCount(plainCountRaw, "plain device count");
+    const encryptedCount = requireSafeCount(encryptedCountRaw, "encrypted device count");
+    // The contract registers a device in exactly one of these EnumerableSets.
+    const total = requireSafeCount(plainCountRaw + encryptedCountRaw, "device count");
+    if (offset >= total) return pageResult(total, offset, limit, []);
+
+    // Preserve the established merged ordering (encrypted, then plain), but read
+    // only the portions intersecting this requested window.
+    const encryptedOffset = Math.min(offset, encryptedCount);
+    const encryptedLimit = Math.min(limit, Math.max(0, encryptedCount - offset));
+    const plainOffset = Math.max(0, offset - encryptedCount);
+    const plainLimit = Math.min(limit - encryptedLimit, plainCount - plainOffset);
+    const [encrypted, plain] = await Promise.all([
+        encryptedLimit > 0
+            ? (group.read.getEncryptedDevices([
+                  BigInt(encryptedOffset),
+                  BigInt(encryptedLimit),
+              ]) as Promise<readonly Address[]>)
+            : Promise.resolve([]),
+        plainLimit > 0
+            ? (group.read.getDevices([BigInt(plainOffset), BigInt(plainLimit)]) as Promise<
+                  readonly Address[]
+              >)
+            : Promise.resolve([]),
+    ]);
+    const slice = [
+        ...encrypted.map((address) => ({ address, encrypted: true })),
+        ...plain.map((address) => ({ address, encrypted: false })),
+    ];
     const items = await Promise.all(
-        slice.map((address) =>
-            hydrateDevice(
-                address,
-                config,
-                params.wallet,
-                params.homeDir,
-                encryptedSet.has(address.toLowerCase()),
-            ),
+        slice.map(({ address, encrypted }) =>
+            hydrateDevice(address, config, params.wallet, params.homeDir, encrypted),
         ),
     );
     return pageResult(total, offset, limit, items);

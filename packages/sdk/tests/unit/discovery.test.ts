@@ -13,6 +13,7 @@ import {
     assertRegistrationKind,
     discoverAgentsPage,
     discoverDevices,
+    discoverDevicesPage,
     discoverGroupsPage,
     enforceModeConstraints,
     hydrateDevice,
@@ -448,6 +449,51 @@ describe("encrypted discovery", () => {
         expect(isEncrypted).not.toHaveBeenCalled();
     });
 
+    test("discoverDevicesPage reads only the requested window across both device sets", async () => {
+        const encryptedLast = "0x0000000000000000000000000000000000000032" as const;
+        const plainFirst = "0x0000000000000000000000000000000000000033" as const;
+        const plainSecond = "0x0000000000000000000000000000000000000034" as const;
+        const encryptedReads: Array<[bigint, bigint]> = [];
+        const plainReads: Array<[bigint, bigint]> = [];
+        spyOn(contracts, "getDeviceGroupReadContract").mockReturnValue({
+            read: {
+                getDeviceCount: async () => 1000n,
+                getDevices: async (range: [bigint, bigint]) => {
+                    plainReads.push(range);
+                    return [plainFirst, plainSecond];
+                },
+                getEncryptedDeviceCount: async () => 1000n,
+                getEncryptedDevices: async (range: [bigint, bigint]) => {
+                    encryptedReads.push(range);
+                    return [encryptedLast];
+                },
+            },
+        } as never);
+        spyOn(contracts, "getDeviceContract").mockImplementation(
+            (address) =>
+                ({
+                    read: {
+                        deviceId: async () => `device-${address.slice(-2)}`,
+                        group: async () => "0x0000000000000000000000000000000000000011",
+                        createdAt: async () => 1n,
+                        getIncomingMessagesChannel: async () => incoming,
+                        getOutgoingMessagesChannel: async () => outgoing,
+                    },
+                }) as never,
+        );
+
+        const page = await discoverDevicesPage(
+            CONFIG,
+            "0x0000000000000000000000000000000000000011",
+            { offset: 999, limit: 3, homeDir: home() },
+        );
+        expect(encryptedReads).toEqual([[999n, 1n]]);
+        expect(plainReads).toEqual([[0n, 2n]]);
+        expect(page.total).toBe(2000);
+        expect(page.nextOffset).toBe(1002);
+        expect(page.items.map((item) => item.encrypted)).toEqual([true, false, false]);
+    });
+
     test("discoverGroupsPage hydrates only the requested window and enforces max page size", async () => {
         const groups = [
             "0x0000000000000000000000000000000000000011",
@@ -497,19 +543,22 @@ describe("encrypted discovery", () => {
                     addresses.slice(Number(offset), Number(offset) + Number(limit)),
             },
         } as never);
-        spyOn(contracts, "getAgentContract").mockImplementation((address) => ({
-            read: {
-                agentId: async () => `agent-${address.slice(-2)}`,
-                metadata: async () => "",
-                createdAt: async () => 1n,
-                owner: async () => "0x0000000000000000000000000000000000000099",
-                getIncomingMessagesChannel: async () =>
-                    "0x0000000000000000000000000000000000000200",
-                getOutgoingMessagesChannel: async () =>
-                    "0x0000000000000000000000000000000000000201",
-                hasRole: async () => false,
-            },
-        } as never));
+        spyOn(contracts, "getAgentContract").mockImplementation(
+            (address) =>
+                ({
+                    read: {
+                        agentId: async () => `agent-${address.slice(-2)}`,
+                        metadata: async () => "",
+                        createdAt: async () => 1n,
+                        owner: async () => "0x0000000000000000000000000000000000000099",
+                        getIncomingMessagesChannel: async () =>
+                            "0x0000000000000000000000000000000000000200",
+                        getOutgoingMessagesChannel: async () =>
+                            "0x0000000000000000000000000000000000000201",
+                        hasRole: async () => false,
+                    },
+                }) as never,
+        );
         spyOn(contracts, "resolveChannelEncrypted").mockResolvedValue(false);
 
         const page = await discoverAgentsPage(CONFIG, {
