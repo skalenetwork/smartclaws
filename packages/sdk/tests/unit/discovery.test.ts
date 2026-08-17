@@ -12,6 +12,7 @@ import { saveGroup } from "../../src/group.js";
 import {
     assertRegistrationKind,
     discoverDevices,
+    discoverGroupsPage,
     enforceModeConstraints,
     hydrateDevice,
     hydrateGroup,
@@ -444,5 +445,42 @@ describe("encrypted discovery", () => {
         );
         expect(devices.map((item) => item.encrypted).sort()).toEqual([false, true]);
         expect(isEncrypted).not.toHaveBeenCalled();
+    });
+
+    test("discoverGroupsPage hydrates only the requested window and enforces max page size", async () => {
+        const groups = [
+            "0x0000000000000000000000000000000000000011",
+            "0x0000000000000000000000000000000000000012",
+            "0x0000000000000000000000000000000000000013",
+        ];
+        spyOn(contracts, "getRegistryReadContract").mockReturnValue({
+            read: {
+                getDeviceGroupCount: async () => 3n,
+                getDeviceGroups: async ([offset, limit]: [bigint, bigint]) =>
+                    groups.slice(Number(offset), Number(offset) + Number(limit)),
+            },
+        } as never);
+        spyOn(contracts, "getDeviceGroupReadContract").mockImplementation((address) => {
+            return {
+                read: {
+                    groupName: async () => `g-${address.slice(-2)}`,
+                    skills: async () => "",
+                    createdAt: async () => 1n,
+                    owner: async () => WALLET.address,
+                    getDeviceCount: async () => 0n,
+                    getDevices: async () => [],
+                    getEncryptedDeviceCount: async () => 0n,
+                    getEncryptedDevices: async () => [],
+                },
+            } as never;
+        });
+
+        const page = await discoverGroupsPage(CONFIG, { offset: 1, limit: 1, homeDir: home() });
+        expect(page.total).toBe(3);
+        expect(page.items).toHaveLength(1);
+        expect(page.nextOffset).toBe(2);
+        await expect(discoverGroupsPage(CONFIG, { offset: 0, limit: 101 })).rejects.toThrow(
+            /cannot exceed/,
+        );
     });
 });

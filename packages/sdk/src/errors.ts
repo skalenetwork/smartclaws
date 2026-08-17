@@ -41,7 +41,15 @@ export type SmartClawsErrorCode =
     | "CTX_NOT_FOUND"
     | "CTX_MALFORMED_RESPONSE"
     | "CTX_FAILED"
-    | "DISCLOSURE_TIMEOUT";
+    | "DISCLOSURE_TIMEOUT"
+    | "LOCAL_STATE_SAVE_FAILED"
+    | "INSUFFICIENT_BALANCE"
+    | "STATE_CHANGED"
+    | "CUSTOM_RPC_FORBIDDEN"
+    | "SELF_LOCKOUT_RISK"
+    | "SECRET_INPUT_UNSUPPORTED"
+    | "SYNC_LIMIT_EXCEEDED"
+    | "CONFIG_SHADOWED";
 
 export class SmartClawsError extends Error {
     readonly code: SmartClawsErrorCode;

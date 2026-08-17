@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Config, SmartClawsMode, WalletFile } from "@smartclaws/core/types";
 import { SmartClawsError } from "./errors.js";
+import { atomicWriteJson } from "./fs.js";
 
 export type { Config, SmartClawsMode };
 
@@ -118,10 +119,16 @@ export function readStaleConfigHints(homeDir?: string): StaleConfigHints | null 
 
 export function saveConfig(config: Config, homeDir?: string): void {
     ensureConfigDir(homeDir);
-    writeFileSync(
-        getConfigPath(homeDir),
-        `${JSON.stringify({ ...DEFAULT_CONFIG, ...config, version: 3 }, null, 2)}\n`,
-    );
+    atomicWriteJson(getConfigPath(homeDir), { ...DEFAULT_CONFIG, ...config, version: 3 });
+}
+
+/** Load a current config, or null when missing or unloadable (stale/unreadable). */
+export function tryLoadConfig(homeDir?: string): Config | null {
+    try {
+        return loadConfig(homeDir);
+    } catch {
+        return null;
+    }
 }
 
 export function createDefaultConfig(

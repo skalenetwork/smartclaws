@@ -15,7 +15,6 @@ import {
     getPublicKey,
     hasPublicKey,
     publicKeyFromPrivateKey,
-    publicKeyMatches,
     registerPublicKey,
     type Secp256k1PublicKey,
     viewingPrivateKey,
@@ -39,13 +38,20 @@ export * from "./contracts.js";
 export * from "./device.js";
 // Typed errors
 export * from "./errors.js";
+export * from "./fingerprint.js";
 export * from "./group.js";
+export * from "./receipts.js";
+export * from "./rpc.js";
+export * from "./services/authority.js";
 export * from "./services/channels.js";
 export * from "./services/ctx.js";
 export * from "./services/discovery.js";
 export * from "./services/encryption.js";
+export * from "./services/home.js";
+export * from "./services/key-transactions.js";
 export * from "./services/keys.js";
 export * from "./services/readers.js";
+export * from "./services/setup.js";
 // Services (typed params in, structured data out)
 export * from "./services/wallet.js";
 export * from "./wallet.js";
@@ -98,54 +104,4 @@ export async function registerPublicKeyWithConfig(
         registry,
         publicKeyFromPrivateKey(viewingPrivateKey(wallet)),
     );
-}
-
-export interface ViewKeyStatus {
-    account: Address;
-    registry: Address;
-    registered: boolean;
-    /** Whether the registered key is the one this wallet's viewing key can open. */
-    matchesViewKey: boolean;
-    /** False once a separate viewing key is configured. */
-    usesSigningKey: boolean;
-    localPublicKey: Secp256k1PublicKey;
-    registeredPublicKey?: Secp256k1PublicKey;
-}
-
-/**
- * Whether this wallet can actually read what it pays to disclose.
- *
- * A mismatch is recoverable — register the right key and request again — but it is only
- * visible before spending if something asks. Nothing on the paid path can check it for you:
- * `requestMessages` snapshots whatever is registered, and the ECIES here has no MAC, so a
- * wrong key surfaces as "not a valid envelope" rather than "wrong key".
- */
-export async function getViewKeyStatus(config: Config, wallet: WalletFile): Promise<ViewKeyStatus> {
-    const account = wallet.address as Address;
-    const registry = await resolvePublicKeyRegistryAddress(config);
-    const client = getPublicClient(config);
-    const viewKey = viewingPrivateKey(wallet);
-    const localPublicKey = publicKeyFromPrivateKey(viewKey);
-    const usesSigningKey = wallet.viewPrivateKey === undefined;
-
-    if (!(await hasPublicKey(client, registry, account))) {
-        return {
-            account,
-            registry,
-            registered: false,
-            matchesViewKey: false,
-            usesSigningKey,
-            localPublicKey,
-        };
-    }
-    const registeredPublicKey = await getPublicKey(client, registry, account);
-    return {
-        account,
-        registry,
-        registered: true,
-        matchesViewKey: publicKeyMatches(registeredPublicKey, viewKey),
-        usesSigningKey,
-        localPublicKey,
-        registeredPublicKey,
-    };
 }

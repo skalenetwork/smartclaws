@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WalletFile } from "@smartclaws/core/types";
 import type { Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { ensureConfigDir, getConfigDir } from "./config.js";
 import { SmartClawsError } from "./errors.js";
+import { atomicWriteJson } from "./fs.js";
 import { publicKeyFromPrivateKey } from "./services/keys.js";
 
 export type { WalletFile };
@@ -15,7 +16,7 @@ function walletPath(homeDir?: string): string {
 
 export function saveWallet(wallet: WalletFile, homeDir?: string): WalletFile {
     ensureConfigDir(homeDir);
-    writeFileSync(walletPath(homeDir), `${JSON.stringify(wallet, null, 2)}\n`, { mode: 0o600 });
+    atomicWriteJson(walletPath(homeDir), wallet, 0o600);
     return wallet;
 }
 

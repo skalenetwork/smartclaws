@@ -1,5 +1,5 @@
 import { checkbox, confirm, input, password, select } from "@inquirer/prompts";
-import { DEFAULT_NETWORK, getNetwork, NETWORKS } from "@smartclaws/core/networks";
+import { DEFAULT_NETWORK, NETWORKS } from "@smartclaws/core/networks";
 import type {
     AgentFile,
     Config,
@@ -10,8 +10,8 @@ import type {
 } from "@smartclaws/core/types";
 import {
     assertHomeWallet,
+    buildHomeConfig,
     createBackup,
-    createDefaultConfig,
     discoverDevices,
     discoverGroups,
     discoverOwnedAgents,
@@ -19,6 +19,7 @@ import {
     generateWallet,
     hasPublicKeyWithConfig,
     homeExists,
+    isSmartClawsMode,
     loadConfig,
     loadWallet,
     readStaleConfigHints,
@@ -38,7 +39,6 @@ import {
 import { Command } from "commander";
 
 const DEFAULT_CHANNEL_CAPACITY = 1024 * 1024;
-const MODES: SmartClawsMode[] = ["controller", "bridge-agent", "master-agent"];
 
 interface InitOptions {
     home?: string;
@@ -71,7 +71,7 @@ interface WalletState {
 }
 
 function isMode(value: string): value is SmartClawsMode {
-    return (MODES as string[]).includes(value);
+    return isSmartClawsMode(value);
 }
 
 function splitDevices(value: unknown): string[] {
@@ -210,12 +210,6 @@ async function createOrLoadWallet(
     return { wallet, imported: false, generated: true };
 }
 
-/** A salvaged network name is only usable if it still exists in the network table. */
-function knownNetworkOrUndefined(name: string | undefined): string | undefined {
-    if (!name) return undefined;
-    return name in NETWORKS ? name : undefined;
-}
-
 function buildConfig(
     opts: InitOptions,
     mode: SmartClawsMode,
@@ -223,32 +217,16 @@ function buildConfig(
     homeDir?: string,
     hints?: StaleConfigHints,
 ): Config {
-    const existing = loadConfig(homeDir);
-    const network = getNetwork(
-        opts.network ??
-            existing?.network ??
-            knownNetworkOrUndefined(hints?.network) ??
-            DEFAULT_NETWORK,
-    );
-    const rpcUrl = opts.rpcUrl ?? existing?.rpcUrl ?? hints?.rpcUrl ?? network.rpcUrl;
-    const chainId = opts.chainId
-        ? Number(opts.chainId)
-        : existing?.chainId || hints?.chainId || network.chainId;
-    // `hints` is deliberately not consulted for the registry: a salvaged contractAddress
-    // points at the superseded deployment, which is the whole reason the HOME was reset.
-    const contractAddress = opts.contract || existing?.contractAddress || network.registryAddress;
-    const config =
-        existing ??
-        createDefaultConfig(network.name, rpcUrl, chainId, contractAddress, mode, walletAddress);
-
-    config.version = 3;
-    config.network = network.name;
-    config.rpcUrl = rpcUrl;
-    config.chainId = chainId;
-    config.contractAddress = contractAddress;
-    config.walletAddress = config.walletAddress || walletAddress;
-    config.mode = mode;
-    return config;
+    return buildHomeConfig({
+        homeDir,
+        mode,
+        walletAddress,
+        network: opts.network,
+        rpcUrl: opts.rpcUrl,
+        chainId: opts.chainId ? Number(opts.chainId) : undefined,
+        registryAddress: opts.contract || undefined,
+        hints,
+    });
 }
 
 async function chooseGroup(

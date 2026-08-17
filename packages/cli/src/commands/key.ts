@@ -1,13 +1,10 @@
 import {
     generateViewKey,
-    getClients,
-    getPublicKeyRegistryContract,
     getViewKeyStatus,
-    hasPublicKeyWithConfig,
     loadWallet,
-    registerPublicKeyWithConfig,
+    registerActiveViewKey,
+    removeRegisteredPublicKey,
     removeViewKey,
-    resolvePublicKeyRegistryAddress,
     SmartClawsError,
     setViewKey,
 } from "@smartclaws/sdk";
@@ -33,20 +30,6 @@ function printNextSteps(): void {
     console.log("");
     console.log("This key is local only until you register it:");
     console.log("  smartclaws key register");
-}
-
-async function waitForWrite(
-    config: ReturnType<typeof loadConfigOrExit>,
-    wallet: ReturnType<typeof loadWalletOrExit>,
-    hash: `0x${string}`,
-    action: string,
-): Promise<void> {
-    const { publicClient } = getClients(config, wallet);
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    if (receipt.status === "success") return;
-    throw new SmartClawsError("TRANSACTION_REVERTED", `${action} transaction reverted`, {
-        txHash: hash,
-    });
 }
 
 export const keyCommand = new Command("key").description(
@@ -117,14 +100,12 @@ keyCommand
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
         try {
-            const registry = await resolvePublicKeyRegistryAddress(config);
-            const hash = await registerPublicKeyWithConfig(config, wallet);
-            await waitForWrite(config, wallet, hash, "registerPublicKey");
+            const result = await registerActiveViewKey(config, wallet);
             console.log("Public key registered");
             console.log(`  Account:  ${wallet.address}`);
             console.log(`  Key:      ${wallet.viewPrivateKey ? "view key" : "signing key"}`);
-            console.log(`  Registry: ${registry}`);
-            console.log(`  Tx:       ${hash}`);
+            console.log(`  Registry: ${result.registry}`);
+            console.log(`  Tx:       ${result.txHash}`);
         } catch (e: unknown) {
             console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
             process.exit(1);
@@ -179,19 +160,11 @@ keyCommand
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
         try {
-            const account = wallet.address as `0x${string}`;
-            if (!(await hasPublicKeyWithConfig(config, account))) {
-                console.error("Public key: not registered");
-                process.exit(1);
-            }
-            const registry = await resolvePublicKeyRegistryAddress(config);
-            const contract = getPublicKeyRegistryContract(registry, config, wallet);
-            const hash = await contract.write.removePublicKey();
-            await waitForWrite(config, wallet, hash, "removePublicKey");
+            const result = await removeRegisteredPublicKey(config, wallet);
             console.log("Public key removed");
             console.log(`  Account:  ${wallet.address}`);
-            console.log(`  Registry: ${registry}`);
-            console.log(`  Tx:       ${hash}`);
+            console.log(`  Registry: ${result.registry}`);
+            console.log(`  Tx:       ${result.txHash}`);
         } catch (e: unknown) {
             console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
             process.exit(1);

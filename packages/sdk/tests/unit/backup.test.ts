@@ -15,12 +15,19 @@ import {
     createBackup,
     createDefaultConfig,
     deleteBackup,
+    executeBackupCleanup,
+    homeFingerprint,
     listBackups,
+    listPresentedBackups,
+    previewBackupCleanup,
     resetHomePreservingWallet,
     restoreBackup,
+    restoreBackupChecked,
     saveConfig,
     saveWallet,
+    SmartClawsError,
     summarizeHome,
+    backupFingerprint,
     type WalletFile,
 } from "../../src/index.ts";
 
@@ -220,5 +227,58 @@ describe("backup", () => {
         expect(restored.rpcUrl).toBe("https://rpc.example.com");
         expect(restored.chainId).toBe(42);
         expect(restored.mode).toBe("controller");
+    });
+
+    test("presented backups omit paths and include fingerprints", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
+        seedHome(tempDir);
+        createBackup(tempDir);
+        const presented = listPresentedBackups(tempDir);
+        expect(presented.length).toBe(1);
+        expect(presented[0]).not.toHaveProperty("path");
+        expect(presented[0].fingerprint).toMatch(/^[a-f0-9]{64}$/);
+        expect(JSON.stringify(presented)).not.toContain(tempDir);
+    });
+
+    test("cleanup execute refuses a changed candidate set and deletes only named backups", async () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
+        seedHome(tempDir);
+        createBackup(tempDir);
+        await Bun.sleep(5);
+        createBackup(tempDir);
+        const preview = previewBackupCleanup(tempDir, { keep: 1 });
+        expect(preview.candidates.length).toBe(1);
+
+        expect(() =>
+            executeBackupCleanup(tempDir, {
+                candidateFingerprint: preview.candidateFingerprint,
+                names: ["backup-does-not-exist"],
+            }),
+        ).toThrow(SmartClawsError);
+
+        const removed = executeBackupCleanup(tempDir, {
+            candidateFingerprint: preview.candidateFingerprint,
+            names: preview.candidates.map((item) => item.name),
+        });
+        expect(removed.removed).toEqual(preview.candidates.map((item) => item.name));
+        expect(listBackups(tempDir).length).toBe(1);
+    });
+
+    test("restoreBackupChecked creates a safety backup and returns no paths", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-backup-"));
+        seedHome(tempDir);
+        const snapshot = createBackup(tempDir);
+        const listed = listBackups(tempDir).find((item) => item.name === snapshot.name);
+        expect(listed).toBeDefined();
+        const result = restoreBackupChecked({
+            homeDir: tempDir,
+            name: snapshot.name,
+            expectedHomeFingerprint: homeFingerprint(tempDir),
+            expectedBackupFingerprint: backupFingerprint(listed!),
+        });
+        expect(result.restored).toBe(snapshot.name);
+        expect(result.safetyBackup).toBeTruthy();
+        expect(result).not.toHaveProperty("path");
+        expect(JSON.stringify(result)).not.toContain(tempDir);
     });
 });

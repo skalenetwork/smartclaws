@@ -11,6 +11,7 @@ import {
     type Address,
     decodeEventLog,
     getAddress,
+    type Hex,
     isAddress,
     keccak256,
     toHex,
@@ -21,8 +22,13 @@ import * as contracts from "../contracts.js";
 import { listDevices, saveDevice } from "../device.js";
 import { SmartClawsError } from "../errors.js";
 import { listGroups, saveGroup } from "../group.js";
+import { localSaveFailed, requireSuccessfulReceipt } from "../receipts.js";
 
 const DISCOVERY_PAGE_SIZE = 100n;
+export const DEFAULT_DISCOVERY_LIMIT = 50;
+export const MAX_DISCOVERY_LIMIT = 100;
+export const DEFAULT_MAX_SYNC_ENTITIES = 1000;
+export const HARD_MAX_SYNC_ENTITIES = 5000;
 const DEVICE_ADMIN_ROLE = keccak256(toHex("DEVICE_ADMIN_ROLE"));
 const PUBLISHER_ROLE = keccak256(toHex("PUBLISHER_ROLE"));
 const MASTER_ROLE = keccak256(toHex("MASTER_ROLE"));
@@ -33,6 +39,61 @@ type NamedRecord = { address: string; name: string };
 export type DevicePermissionRole = "publisher" | "master";
 export type AgentPermissionRole = "publisher" | "sender" | "agent-admin";
 export type RegistrationKind = { encrypted?: boolean };
+
+export interface DiscoveryPage<T> {
+    total: number;
+    offset: number;
+    limit: number;
+    items: T[];
+    nextOffset: number | null;
+}
+
+export interface RegistrationResult<T> {
+    entity: T;
+    txHash: Hex;
+    receiptStatus: "success";
+}
+
+function requireSafeCount(count: bigint, label: string): number {
+    if (count > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new SmartClawsError("INVALID_RANGE", `${label} exceeds a safe integer.`, {
+            count: count.toString(),
+        });
+    }
+    return Number(count);
+}
+
+export function normalizeDiscoveryPage(
+    offset = 0,
+    limit = DEFAULT_DISCOVERY_LIMIT,
+    max = MAX_DISCOVERY_LIMIT,
+): { offset: number; limit: number } {
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+        throw new SmartClawsError("INVALID_RANGE", "offset must be a non-negative safe integer.", {
+            offset,
+        });
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1) {
+        throw new SmartClawsError("INVALID_RANGE", "limit must be a positive safe integer.", {
+            limit,
+        });
+    }
+    if (limit > max) {
+        throw new SmartClawsError("INVALID_RANGE", `limit cannot exceed ${max}.`, { limit, max });
+    }
+    return { offset, limit };
+}
+
+function pageResult<T>(total: number, offset: number, limit: number, items: T[]): DiscoveryPage<T> {
+    const next = offset + items.length;
+    return {
+        total,
+        offset,
+        limit,
+        items,
+        nextOffset: next < total ? next : null,
+    };
+}
 
 export function mergeDeviceSets(
     plain: readonly Address[],
@@ -388,6 +449,27 @@ export async function discoverGroups(
     return Promise.all(addresses.map((address) => hydrateGroup(address, config, wallet, homeDir)));
 }
 
+export async function discoverGroupsPage(
+    config: Config,
+    params: { offset?: number; limit?: number; wallet?: WalletFile; homeDir?: string } = {},
+): Promise<DiscoveryPage<GroupFile>> {
+    const { offset, limit } = normalizeDiscoveryPage(params.offset, params.limit);
+    const registry = contracts.getRegistryReadContract(config);
+    const total = requireSafeCount(
+        (await registry.read.getDeviceGroupCount()) as bigint,
+        "group count",
+    );
+    if (offset >= total) return pageResult(total, offset, limit, []);
+    const addresses = (await registry.read.getDeviceGroups([
+        BigInt(offset),
+        BigInt(limit),
+    ])) as readonly Address[];
+    const items = await Promise.all(
+        addresses.map((address) => hydrateGroup(address, config, params.wallet, params.homeDir)),
+    );
+    return pageResult(total, offset, limit, items);
+}
+
 export async function discoverDevices(
     config: Config,
     groupAddress: string,
@@ -405,6 +487,32 @@ export async function discoverDevices(
     ]);
 }
 
+export async function discoverDevicesPage(
+    config: Config,
+    groupAddress: string,
+    params: { offset?: number; limit?: number; wallet?: WalletFile; homeDir?: string } = {},
+): Promise<DiscoveryPage<DeviceFile>> {
+    const { offset, limit } = normalizeDiscoveryPage(params.offset, params.limit);
+    const group = contracts.getDeviceGroupReadContract(normalizeAddress(groupAddress), config);
+    const { plain, encrypted } = await readGroupDeviceSets(group as never);
+    const merged = mergeDeviceSets(plain, encrypted);
+    const total = merged.devices.length;
+    const slice = merged.devices.slice(offset, offset + limit);
+    const encryptedSet = new Set(merged.encryptedDevices.map((address) => address.toLowerCase()));
+    const items = await Promise.all(
+        slice.map((address) =>
+            hydrateDevice(
+                address,
+                config,
+                params.wallet,
+                params.homeDir,
+                encryptedSet.has(address.toLowerCase()),
+            ),
+        ),
+    );
+    return pageResult(total, offset, limit, items);
+}
+
 export async function discoverAgents(
     config: Config,
     wallet?: WalletFile,
@@ -417,6 +525,37 @@ export async function discoverAgents(
         (offset, limit) => registry.read.getAgents([offset, limit]) as Promise<readonly Address[]>,
     );
     return Promise.all(addresses.map((address) => hydrateAgent(address, config, wallet, homeDir)));
+}
+
+export async function discoverAgentsPage(
+    config: Config,
+    params: {
+        offset?: number;
+        limit?: number;
+        wallet?: WalletFile;
+        homeDir?: string;
+        owned?: boolean;
+    } = {},
+): Promise<DiscoveryPage<AgentFile>> {
+    if (params.owned && !params.wallet) {
+        throw new SmartClawsError("NO_WALLET", "Owned agent discovery requires a wallet.");
+    }
+    const { offset, limit } = normalizeDiscoveryPage(params.offset, params.limit);
+    const registry = contracts.getRegistryReadContract(config);
+    const total = requireSafeCount((await registry.read.getAgentCount()) as bigint, "agent count");
+    if (offset >= total) return pageResult(total, offset, limit, []);
+    const addresses = (await registry.read.getAgents([
+        BigInt(offset),
+        BigInt(limit),
+    ])) as readonly Address[];
+    const hydrated = await Promise.all(
+        addresses.map((address) => hydrateAgent(address, config, params.wallet, params.homeDir)),
+    );
+    const items =
+        params.owned && params.wallet
+            ? hydrated.filter((agent) => sameAddress(agent.owner, params.wallet?.address))
+            : hydrated;
+    return pageResult(total, offset, limit, items);
 }
 
 export async function discoverOwnedAgents(
@@ -546,6 +685,70 @@ export async function syncLocalCache(
     return { groups, devices, agents };
 }
 
+export async function syncLocalCacheBounded(
+    config: Config,
+    options: {
+        wallet?: WalletFile;
+        homeDir?: string;
+        maxEntities?: number;
+    } = {},
+): Promise<{
+    groupCount: number;
+    deviceCount: number;
+    agentCount: number;
+    complete: true;
+}> {
+    const max = Math.min(options.maxEntities ?? DEFAULT_MAX_SYNC_ENTITIES, HARD_MAX_SYNC_ENTITIES);
+    const registry = contracts.getRegistryReadContract(config);
+    const groupCount = requireSafeCount(
+        (await registry.read.getDeviceGroupCount()) as bigint,
+        "group count",
+    );
+    const agentCount = requireSafeCount(
+        (await registry.read.getAgentCount()) as bigint,
+        "agent count",
+    );
+    if (groupCount + agentCount > max) {
+        throw new SmartClawsError(
+            "SYNC_LIMIT_EXCEEDED",
+            "Registry entity count exceeds the configured synchronization limit.",
+            { groupCount, agentCount, max },
+        );
+    }
+
+    const groupAddresses = await readPages(
+        BigInt(groupCount),
+        (offset, limit) =>
+            registry.read.getDeviceGroups([offset, limit]) as Promise<readonly Address[]>,
+    );
+    let deviceCount = 0;
+    for (const address of groupAddresses) {
+        const group = contracts.getDeviceGroupReadContract(address, config);
+        const [plain, encrypted] = await Promise.all([
+            group.read.getDeviceCount() as Promise<bigint>,
+            group.read.getEncryptedDeviceCount() as Promise<bigint>,
+        ]);
+        deviceCount +=
+            requireSafeCount(plain, "device count") +
+            requireSafeCount(encrypted, "encrypted device count");
+        if (groupCount + deviceCount + agentCount > max) {
+            throw new SmartClawsError(
+                "SYNC_LIMIT_EXCEEDED",
+                "Registry entity count exceeds the configured synchronization limit.",
+                { groupCount, deviceCount, agentCount, max },
+            );
+        }
+    }
+
+    const synced = await syncLocalCache(config, options.wallet, options.homeDir);
+    return {
+        groupCount: synced.groups.length,
+        deviceCount: synced.devices.length,
+        agentCount: synced.agents.length,
+        complete: true,
+    };
+}
+
 export function enforceModeConstraints(
     mode: SmartClawsMode,
     input: { group?: GroupFile | null; agent?: AgentFile | null; devices?: DeviceFile[] | null },
@@ -600,17 +803,18 @@ export function enforceModeConstraints(
     }
 }
 
-export async function registerGroup(
+export async function registerGroupWithResult(
     config: Config,
     wallet: WalletFile,
     name: string,
     skills = "",
     homeDir?: string,
-): Promise<GroupFile> {
+): Promise<RegistrationResult<GroupFile>> {
     const registry = contracts.getRegistryContract(config, wallet);
     const { publicClient } = contracts.getClients(config, wallet);
     const hash = await registry.write.registerDeviceGroup([name, skills]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    requireSuccessfulReceipt(receipt, hash, "registerDeviceGroup");
     let groupAddress: Address | null = null;
     for (const log of receipt.logs) {
         if (!sameAddress(log.address, config.contractAddress)) continue;
@@ -626,11 +830,33 @@ export async function registerGroup(
         } catch {}
     }
     if (!groupAddress)
-        throw new SmartClawsError("ENTITY_NOT_FOUND", "DeviceGroupRegistered event was not found.");
-    return hydrateGroup(groupAddress, config, wallet, homeDir);
+        throw new SmartClawsError(
+            "ENTITY_NOT_FOUND",
+            "DeviceGroupRegistered event was not found.",
+            {
+                txHash: hash,
+            },
+        );
+    try {
+        const entity = await hydrateGroup(groupAddress, config, wallet, homeDir);
+        return { entity, txHash: hash, receiptStatus: "success" };
+    } catch (error) {
+        throw localSaveFailed(hash, { kind: "group", address: groupAddress, name }, error);
+    }
 }
 
-export async function registerDevice(
+export async function registerGroup(
+    config: Config,
+    wallet: WalletFile,
+    name: string,
+    skills = "",
+    homeDir?: string,
+): Promise<GroupFile> {
+    const { entity } = await registerGroupWithResult(config, wallet, name, skills, homeDir);
+    return entity;
+}
+
+export async function registerDeviceWithResult(
     config: Config,
     wallet: WalletFile,
     groupAddress: string,
@@ -638,7 +864,7 @@ export async function registerDevice(
     capacity: bigint,
     homeDir?: string,
     options: RegistrationKind = {},
-): Promise<DeviceFile> {
+): Promise<RegistrationResult<DeviceFile>> {
     const requestedEncrypted = Boolean(options.encrypted);
     const address = normalizeAddress(groupAddress);
     const group = contracts.getDeviceGroupContract(address, config, wallet);
@@ -647,6 +873,11 @@ export async function registerDevice(
         ? await group.write.registerEncryptedDevice([name, account.address, capacity])
         : await group.write.registerDevice([name, account.address, capacity]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    requireSuccessfulReceipt(
+        receipt,
+        hash,
+        requestedEncrypted ? "registerEncryptedDevice" : "registerDevice",
+    );
     let deviceAddress: Address | null = null;
     let eventEncrypted: boolean | undefined;
     for (const log of receipt.logs) {
@@ -661,13 +892,45 @@ export async function registerDevice(
         } catch {}
     }
     if (!deviceAddress)
-        throw new SmartClawsError("ENTITY_NOT_FOUND", "DeviceRegistered event was not found.");
+        throw new SmartClawsError("ENTITY_NOT_FOUND", "DeviceRegistered event was not found.", {
+            txHash: hash,
+        });
     requireRegistrationEncryptedFlag(eventEncrypted, "DeviceRegistered", { device: deviceAddress });
     assertRegistrationKind(requestedEncrypted, eventEncrypted);
-    return hydrateDevice(deviceAddress, config, wallet, homeDir, eventEncrypted);
+    try {
+        const entity = await hydrateDevice(deviceAddress, config, wallet, homeDir, eventEncrypted);
+        return { entity, txHash: hash, receiptStatus: "success" };
+    } catch (error) {
+        throw localSaveFailed(
+            hash,
+            { kind: "device", address: deviceAddress, name, group: address },
+            error,
+        );
+    }
 }
 
-export async function registerAgent(
+export async function registerDevice(
+    config: Config,
+    wallet: WalletFile,
+    groupAddress: string,
+    name: string,
+    capacity: bigint,
+    homeDir?: string,
+    options: RegistrationKind = {},
+): Promise<DeviceFile> {
+    const { entity } = await registerDeviceWithResult(
+        config,
+        wallet,
+        groupAddress,
+        name,
+        capacity,
+        homeDir,
+        options,
+    );
+    return entity;
+}
+
+export async function registerAgentWithResult(
     config: Config,
     wallet: WalletFile,
     name: string,
@@ -675,7 +938,7 @@ export async function registerAgent(
     capacity: bigint,
     homeDir?: string,
     options: RegistrationKind = {},
-): Promise<AgentFile> {
+): Promise<RegistrationResult<AgentFile>> {
     const requestedEncrypted = Boolean(options.encrypted);
     const registry = contracts.getRegistryContract(config, wallet);
     const { publicClient } = contracts.getClients(config, wallet);
@@ -683,6 +946,11 @@ export async function registerAgent(
         ? await registry.write.registerEncryptedAgent([name, metadata, capacity])
         : await registry.write.registerAgent([name, metadata, capacity]);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    requireSuccessfulReceipt(
+        receipt,
+        hash,
+        requestedEncrypted ? "registerEncryptedAgent" : "registerAgent",
+    );
     let agentAddress: Address | null = null;
     let eventEncrypted: boolean | undefined;
     for (const log of receipt.logs) {
@@ -701,10 +969,38 @@ export async function registerAgent(
         } catch {}
     }
     if (!agentAddress)
-        throw new SmartClawsError("ENTITY_NOT_FOUND", "AgentRegistered event was not found.");
+        throw new SmartClawsError("ENTITY_NOT_FOUND", "AgentRegistered event was not found.", {
+            txHash: hash,
+        });
     requireRegistrationEncryptedFlag(eventEncrypted, "AgentRegistered", { agent: agentAddress });
     assertRegistrationKind(requestedEncrypted, eventEncrypted);
-    return hydrateAgent(agentAddress, config, wallet, homeDir, eventEncrypted);
+    try {
+        const entity = await hydrateAgent(agentAddress, config, wallet, homeDir, eventEncrypted);
+        return { entity, txHash: hash, receiptStatus: "success" };
+    } catch (error) {
+        throw localSaveFailed(hash, { kind: "agent", address: agentAddress, name }, error);
+    }
+}
+
+export async function registerAgent(
+    config: Config,
+    wallet: WalletFile,
+    name: string,
+    metadata = "",
+    capacity: bigint,
+    homeDir?: string,
+    options: RegistrationKind = {},
+): Promise<AgentFile> {
+    const { entity } = await registerAgentWithResult(
+        config,
+        wallet,
+        name,
+        metadata,
+        capacity,
+        homeDir,
+        options,
+    );
+    return entity;
 }
 
 export async function createChannel(

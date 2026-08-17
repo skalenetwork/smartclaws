@@ -272,6 +272,14 @@ function toCoordinateHex(value: bigint): Hex {
     return `0x${value.toString(16).padStart(64, "0")}`;
 }
 
+/** Short public identifier for a secp256k1 key. Never derived from the private scalar. */
+export function publicKeyFingerprint(publicKey: Secp256k1PublicKey): string {
+    return createHash("sha256")
+        .update(`${publicKey.x.toLowerCase()}:${publicKey.y.toLowerCase()}`)
+        .digest("hex")
+        .slice(0, 16);
+}
+
 function stripPkcs7(bytes: Buffer): Uint8Array {
     const padding = bytes.at(-1) ?? 0;
     if (padding < 1 || padding > 16 || padding > bytes.length) {

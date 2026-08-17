@@ -3,6 +3,7 @@ import type { Config, WalletFile } from "@smartclaws/core/types";
 import { type Address, formatEther } from "viem";
 import { createClient } from "../client.js";
 import { SmartClawsError } from "../errors.js";
+import { redactErrorMessage } from "../rpc.js";
 
 export interface WalletInfo {
     address: string;
@@ -36,8 +37,24 @@ export async function getWalletInfo(config: Config, wallet: WalletFile): Promise
             symbol,
         };
     } catch (e: unknown) {
-        throw new SmartClawsError("BALANCE_FETCH_FAILED", (e as Error).message, {
-            address: wallet.address,
-        });
+        throw new SmartClawsError(
+            "BALANCE_FETCH_FAILED",
+            redactErrorMessage((e as Error).message),
+            {
+                address: wallet.address,
+            },
+        );
     }
+}
+
+export async function requireFundedWallet(config: Config, wallet: WalletFile): Promise<WalletInfo> {
+    const info = await getWalletInfo(config, wallet);
+    if (BigInt(info.balanceWei) === 0n) {
+        throw new SmartClawsError(
+            "INSUFFICIENT_BALANCE",
+            "This wallet has no on-chain balance; fund it before sending a transaction.",
+            { address: info.address, balanceWei: info.balanceWei },
+        );
+    }
+    return info;
 }

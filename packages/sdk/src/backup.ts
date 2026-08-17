@@ -11,9 +11,21 @@ import {
 import { basename, join } from "node:path";
 import type { Config } from "@smartclaws/core/types";
 import { listAgents } from "./agent.js";
-import { CURRENT_CONFIG_VERSION, ensureConfigDir, getConfigDir, loadConfig } from "./config.js";
+import {
+    assertHomeWallet,
+    CURRENT_CONFIG_VERSION,
+    ensureConfigDir,
+    getConfigDir,
+    loadConfig,
+} from "./config.js";
 import { listDevices } from "./device.js";
 import { SmartClawsError } from "./errors.js";
+import {
+    backupFingerprint,
+    candidateSetFingerprint,
+    homeFingerprint,
+    requireHomeFingerprint,
+} from "./fingerprint.js";
 import { listGroups } from "./group.js";
 import { loadWallet } from "./wallet.js";
 
@@ -262,6 +274,129 @@ export function listBackups(homeDir?: string): BackupInfo[] {
             };
         })
         .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export interface PresentedBackup {
+    name: string;
+    createdAt: string;
+    sizeBytes: number;
+    fingerprint: string;
+}
+
+export function presentBackup(info: BackupInfo): PresentedBackup {
+    return {
+        name: info.name,
+        createdAt: new Date(info.createdAt).toISOString(),
+        sizeBytes: info.sizeBytes,
+        fingerprint: backupFingerprint(info),
+    };
+}
+
+export function listPresentedBackups(homeDir?: string): PresentedBackup[] {
+    return listBackups(homeDir).map(presentBackup);
+}
+
+export function presentCreatedBackup(
+    result: BackupResult,
+    homeDir?: string,
+): {
+    name: string;
+    fileCount: number;
+    fingerprint: string;
+    containsSigningKey: true;
+} {
+    const listed = listBackups(homeDir).find((item) => item.name === result.name);
+    return {
+        name: result.name,
+        fileCount: result.fileCount,
+        fingerprint: listed
+            ? backupFingerprint(listed)
+            : backupFingerprint({ name: result.name, createdAt: 0, sizeBytes: 0 }),
+        containsSigningKey: true,
+    };
+}
+
+export function previewBackupCleanup(
+    homeDir: string | undefined,
+    opts: CleanOptions,
+): { candidates: PresentedBackup[]; candidateFingerprint: string } {
+    const candidates = cleanBackups(homeDir, { ...opts, dryRun: true });
+    return {
+        candidates: candidates.map(presentBackup),
+        candidateFingerprint: candidateSetFingerprint(candidates),
+    };
+}
+
+export function executeBackupCleanup(
+    homeDir: string | undefined,
+    params: { candidateFingerprint: string; names: string[] },
+): { removed: string[] } {
+    const uniqueNames = [...new Set(params.names)];
+    const backups = listBackups(homeDir);
+    const selected = uniqueNames.map((name) => {
+        const match = backups.find((item) => item.name === name);
+        if (!match) {
+            throw new SmartClawsError(
+                "STATE_CHANGED",
+                `Backup '${name}' is no longer present. Re-run preview.`,
+                { name },
+            );
+        }
+        return match;
+    });
+    const actual = candidateSetFingerprint(selected);
+    if (actual !== params.candidateFingerprint) {
+        throw new SmartClawsError(
+            "STATE_CHANGED",
+            "Backup candidate set changed since preview. Re-run preview.",
+            { expected: params.candidateFingerprint, actual },
+        );
+    }
+    for (const item of selected) deleteBackup(item.name, homeDir);
+    return { removed: selected.map((item) => item.name) };
+}
+
+export function restoreBackupChecked(params: {
+    homeDir: string;
+    name: string;
+    expectedHomeFingerprint: string;
+    expectedBackupFingerprint: string;
+}): {
+    restored: string;
+    safetyBackup: string | null;
+    walletAddress: string | null;
+    fingerprint: string;
+} {
+    requireHomeFingerprint(params.homeDir, params.expectedHomeFingerprint);
+    const listed = listBackups(params.homeDir).find((item) => item.name === params.name);
+    if (!listed) {
+        throw new SmartClawsError("ENTITY_NOT_FOUND", `Backup '${params.name}' was not found.`, {
+            name: params.name,
+        });
+    }
+    if (backupFingerprint(listed) !== params.expectedBackupFingerprint) {
+        throw new SmartClawsError(
+            "STATE_CHANGED",
+            "Backup contents changed since the expected fingerprint was taken.",
+            { name: params.name },
+        );
+    }
+    const { safetyBackup } = restoreBackup(params.name, params.homeDir);
+    const config = (() => {
+        try {
+            return loadConfig(params.homeDir);
+        } catch {
+            return null;
+        }
+    })();
+    const wallet = loadWallet(params.homeDir);
+    if (config && wallet) assertHomeWallet(config, wallet);
+    return {
+        restored: params.name,
+        safetyBackup,
+        walletAddress: wallet?.address ?? config?.walletAddress ?? null,
+        fingerprint: homeFingerprint(params.homeDir),
+    };
 }
 
 export function deleteBackup(name: string, homeDir?: string): void {

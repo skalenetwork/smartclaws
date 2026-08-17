@@ -11,6 +11,7 @@ import {
     saveConfig,
     type WalletFile,
 } from "../../src/index.ts";
+import { readdirSync } from "node:fs";
 
 describe("config", () => {
     let tempDir: string;
@@ -173,5 +174,14 @@ describe("config", () => {
     test("missing config file is detectable", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
         expect(loadConfig(tempDir)).toBeNull();
+    });
+
+    test("saveConfig writes atomically and leaves no temp files", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        const config = createDefaultConfig("base-testnet", "https://rpc.example.com", 42, "0x123");
+        saveConfig(config, tempDir);
+        expect(loadConfig(tempDir)).toEqual(config);
+        const leftovers = readdirSync(tempDir).filter((name) => name.endsWith(".tmp"));
+        expect(leftovers).toEqual([]);
     });
 });
