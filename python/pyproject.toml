@@ -1,6 +1,6 @@
 [project]
 name = "smartclaws"
-version = "0.3.0"
+version = "0.4.0"
 description = "SDK and CLI for the SmartClaws IoT protocol on SKALE"
 requires-python = ">=3.11"
 license = "LGPL-3.0-or-later"
