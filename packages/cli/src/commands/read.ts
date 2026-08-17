@@ -8,8 +8,8 @@ import {
     MAX_DISCLOSE_BATCH,
     quoteReadFee,
     readMessages,
-    resolveChannel,
     resolveChannelEncrypted,
+    resolveChannelWithConfig,
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
@@ -118,12 +118,15 @@ export const readCommand = new Command("read")
         let agentName: string | undefined;
         let readSide: ChannelSide;
         try {
-            const resolved = resolveChannel({
-                device: opts.device,
-                agent: opts.agent,
-                channel: opts.channel,
-                side,
-            });
+            const resolved = await resolveChannelWithConfig(
+                {
+                    device: opts.device,
+                    agent: opts.agent,
+                    channel: opts.channel,
+                    side,
+                },
+                config,
+            );
             channelAddress = resolved.channelAddress;
             deviceName = resolved.device;
             agentName = resolved.agent;

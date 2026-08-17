@@ -1,7 +1,7 @@
 import {
     discloseMessages,
     MAX_DISCLOSE_BATCH,
-    resolveChannel,
+    resolveChannelWithConfig,
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Type } from "typebox";
@@ -52,13 +52,15 @@ export function discloseTool(tool: SmartClawsToolFactory) {
             const cfg = resolveConfig(config);
             const wallet = requireWallet(config);
             const home = resolvedHome(config);
-            const { channelAddress, device, agent, side } = resolveChannel(
+            const { channelAddress, device, agent, side } = await resolveChannelWithConfig(
                 {
                     device: params.device,
                     agent: params.agent,
                     channel: params.channel,
                     side: params.side,
                 },
+                cfg,
+                wallet,
                 home,
             );
             throwIfAborted(context.signal);

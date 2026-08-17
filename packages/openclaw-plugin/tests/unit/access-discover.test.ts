@@ -101,4 +101,41 @@ describe("smartclaws_discover", () => {
         expect(result.nextOffset).toBe(1);
         expect(JSON.stringify(result)).not.toContain("privateKey");
     });
+
+    test("labels device summaries without inventing channel data", async () => {
+        discoverDevicesPage.mockResolvedValue({
+            total: 1,
+            offset: 0,
+            limit: 1,
+            nextOffset: null,
+            items: [
+                {
+                    hydration: "summary",
+                    name: "sensor-1",
+                    deviceContract: "0x00000000000000000000000000000000000000d1",
+                    groupAddress: "0x0000000000000000000000000000000000000011",
+                    encrypted: true,
+                },
+            ],
+        });
+        const { discoverTool } = await import("../../src/tools/discover.ts");
+        const spec = discoverTool(toolFactory as never) as ToolSpec;
+        const result = (await spec.execute(
+            {
+                kind: "device",
+                group: "0x0000000000000000000000000000000000000011",
+                limit: 1,
+            },
+            { smartclawsHome: HOME },
+            {},
+        )) as { items: Array<Record<string, unknown>> };
+
+        expect(result.items[0]).toMatchObject({
+            name: "sensor-1",
+            hydration: "summary",
+            incomingChannel: null,
+            outgoingChannel: null,
+            encrypted: true,
+        });
+    });
 });

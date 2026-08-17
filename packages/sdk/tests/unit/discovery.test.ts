@@ -6,9 +6,9 @@ import type { AgentFile, Config, DeviceFile, GroupFile, WalletFile } from "@smar
 import { saveAgent } from "../../src/agent.js";
 import { ensureConfigDir } from "../../src/config.js";
 import * as contracts from "../../src/contracts.js";
-import { saveDevice } from "../../src/device.js";
+import { loadDevice, saveDevice } from "../../src/device.js";
 import { SmartClawsError } from "../../src/errors.js";
-import { saveGroup } from "../../src/group.js";
+import { loadGroup, saveGroup } from "../../src/group.js";
 import {
     assertRegistrationKind,
     discoverAgentsPage,
@@ -17,7 +17,9 @@ import {
     discoverGroupsPage,
     enforceModeConstraints,
     hydrateDevice,
+    hydrateDeviceSummary,
     hydrateGroup,
+    hydrateGroupSummary,
     mergeDeviceSets,
     resolveAgent,
     resolveDevice,
@@ -129,6 +131,39 @@ describe("discovery resolution", () => {
 
         const resolved = await resolveDevice("sensor", CONFIG, WALLET, tempDir, groupAddress);
         expect(resolved.deviceContract).toBe("0x0000000000000000000000000000000000000031");
+    });
+
+    test("resolving a summary device hydrates and persists its operational fields", async () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        ensureConfigDir(tempDir);
+        const groupAddress = "0x0000000000000000000000000000000000000011";
+        const address = "0x0000000000000000000000000000000000000031";
+        saveDevice(
+            {
+                hydration: "summary",
+                name: "sensor",
+                deviceContract: address,
+                groupAddress,
+                encrypted: false,
+            },
+            tempDir,
+        );
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: {
+                deviceId: async () => "sensor",
+                group: async () => groupAddress,
+                createdAt: async () => 1n,
+                getIncomingMessagesChannel: async () =>
+                    "0x0000000000000000000000000000000000000100",
+                getOutgoingMessagesChannel: async () =>
+                    "0x0000000000000000000000000000000000000101",
+            },
+        } as never);
+
+        const resolved = await resolveDevice("sensor", CONFIG, undefined, tempDir, groupAddress);
+        expect(resolved.hydration).toBe("full");
+        expect(resolved.outgoingChannel).toBe("0x0000000000000000000000000000000000000101");
+        expect(loadDevice(address, tempDir)?.outgoingChannel).toBe(resolved.outgoingChannel);
     });
 
     test("fails ambiguous local device names", async () => {
@@ -492,6 +527,8 @@ describe("encrypted discovery", () => {
         expect(page.total).toBe(2000);
         expect(page.nextOffset).toBe(1002);
         expect(page.items.map((item) => item.encrypted)).toEqual([true, false, false]);
+        expect(page.items.every((item) => item.hydration === "summary")).toBe(true);
+        expect(page.items.every((item) => item.incomingChannel === undefined)).toBe(true);
     });
 
     test("discoverGroupsPage hydrates only the requested window and enforces max page size", async () => {
@@ -507,6 +544,8 @@ describe("encrypted discovery", () => {
                     groups.slice(Number(offset), Number(offset) + Number(limit)),
             },
         } as never);
+        const getDevices = mock(async () => []);
+        const getEncryptedDevices = mock(async () => []);
         spyOn(contracts, "getDeviceGroupReadContract").mockImplementation((address) => {
             return {
                 read: {
@@ -515,9 +554,9 @@ describe("encrypted discovery", () => {
                     createdAt: async () => 1n,
                     owner: async () => WALLET.address,
                     getDeviceCount: async () => 0n,
-                    getDevices: async () => [],
+                    getDevices,
                     getEncryptedDeviceCount: async () => 0n,
-                    getEncryptedDevices: async () => [],
+                    getEncryptedDevices,
                 },
             } as never;
         });
@@ -525,10 +564,55 @@ describe("encrypted discovery", () => {
         const page = await discoverGroupsPage(CONFIG, { offset: 1, limit: 1, homeDir: home() });
         expect(page.total).toBe(3);
         expect(page.items).toHaveLength(1);
+        expect(page.items[0].hydration).toBe("summary");
+        expect(page.items[0].devices).toBeUndefined();
+        expect(getDevices).not.toHaveBeenCalled();
+        expect(getEncryptedDevices).not.toHaveBeenCalled();
         expect(page.nextOffset).toBe(2);
         await expect(discoverGroupsPage(CONFIG, { offset: 0, limit: 101 })).rejects.toThrow(
             /cannot exceed/,
         );
+    });
+
+    test("summary refreshes preserve fully hydrated cache fields", async () => {
+        const dir = home();
+        const groupAddress = "0x0000000000000000000000000000000000000011";
+        const fullDevice = device(plainDevice, "old-name", groupAddress);
+        const fullGroup = group(groupAddress, "old-group");
+        fullGroup.devices = [plainDevice];
+        fullGroup.plainDevices = [plainDevice];
+        fullGroup.plainDeviceCount = 1;
+        fullGroup.capabilities = { isGroupOwner: true };
+        saveDevice(fullDevice, dir);
+        saveGroup(fullGroup, dir);
+
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: { deviceId: async () => "new-name" },
+        } as never);
+        spyOn(contracts, "getDeviceGroupReadContract").mockReturnValue({
+            read: {
+                groupName: async () => "new-group",
+                skills: async () => "updated",
+                createdAt: async () => 2n,
+                owner: async () => WALLET.address,
+                getDeviceCount: async () => 2n,
+                getEncryptedDeviceCount: async () => 1n,
+            },
+        } as never);
+
+        await hydrateDeviceSummary(plainDevice, groupAddress, true, CONFIG, dir);
+        await hydrateGroupSummary(groupAddress, CONFIG, undefined, dir);
+
+        const storedDevice = loadDevice(plainDevice, dir);
+        expect(storedDevice?.name).toBe("new-name");
+        expect(storedDevice?.encrypted).toBe(true);
+        expect(storedDevice?.incomingChannel).toBe(fullDevice.incomingChannel);
+        expect(storedDevice?.outgoingChannel).toBe(fullDevice.outgoingChannel);
+        const storedGroup = loadGroup(groupAddress, dir);
+        expect(storedGroup?.name).toBe("new-group");
+        expect(storedGroup?.deviceCount).toBe(3);
+        expect(storedGroup?.devices).toEqual([plainDevice]);
+        expect(storedGroup?.capabilities?.isGroupOwner).toBe(true);
     });
 
     test("owned agent pagination advances by scanned registry entries when none match", async () => {

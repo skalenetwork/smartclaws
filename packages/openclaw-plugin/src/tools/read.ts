@@ -1,4 +1,4 @@
-import { readMessages, resolveChannel, SmartClawsError } from "@smartclaws/sdk";
+import { readMessages, resolveChannelWithConfig, SmartClawsError } from "@smartclaws/sdk";
 import { Type } from "typebox";
 import {
     HARD_MAX_READ_MESSAGES,
@@ -42,13 +42,15 @@ export function readTool(tool: SmartClawsToolFactory) {
             }
             const cfg = resolveConfig(config);
             const home = resolvedHome(config);
-            const { channelAddress, device, agent, side } = resolveChannel(
+            const { channelAddress, device, agent, side } = await resolveChannelWithConfig(
                 {
                     device: params.device,
                     agent: params.agent,
                     channel: params.channel,
                     side: params.side,
                 },
+                cfg,
+                undefined,
                 home,
             );
             throwIfAborted(context.signal);

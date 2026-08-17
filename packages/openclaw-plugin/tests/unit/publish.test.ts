@@ -58,6 +58,8 @@ describe("smartclaws_publish", () => {
 
         expect(resolveChannel).toHaveBeenCalledWith(
             { device: "sensor-1", channel: undefined },
+            CONFIG,
+            WALLET,
             "/tmp/smartclaws-test",
         );
         expect(publishDeviceTelemetry).toHaveBeenCalledWith(

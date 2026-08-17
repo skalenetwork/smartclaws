@@ -4,6 +4,8 @@ import type {
     DeviceFile,
     EntityCapabilities,
     GroupFile,
+    HydratedDeviceFile,
+    HydratedGroupFile,
     SmartClawsMode,
     WalletFile,
 } from "@smartclaws/core/types";
@@ -19,7 +21,7 @@ import {
 } from "viem";
 import { listAgents, saveAgent } from "../agent.js";
 import * as contracts from "../contracts.js";
-import { listDevices, saveDevice } from "../device.js";
+import { isHydratedDevice, listDevices, saveDevice } from "../device.js";
 import { SmartClawsError } from "../errors.js";
 import { listGroups, saveGroup } from "../group.js";
 import { localSaveFailed, requireSuccessfulReceipt } from "../receipts.js";
@@ -277,7 +279,7 @@ export async function hydrateDevice(
     wallet?: WalletFile,
     homeDir?: string,
     knownEncrypted?: boolean,
-): Promise<DeviceFile> {
+): Promise<HydratedDeviceFile> {
     const address = normalizeAddress(deviceAddress);
     const device = contracts.getDeviceContract(address, config);
 
@@ -322,7 +324,8 @@ export async function hydrateDevice(
         }
     }
 
-    const record: DeviceFile = {
+    const record: HydratedDeviceFile = {
+        hydration: "full",
         name,
         deviceContract: address,
         groupAddress,
@@ -336,12 +339,34 @@ export async function hydrateDevice(
     return record;
 }
 
+/** Read only the fields needed to identify and select a device. */
+export async function hydrateDeviceSummary(
+    deviceAddress: string,
+    groupAddress: string,
+    encrypted: boolean,
+    config: Config,
+    homeDir?: string,
+): Promise<DeviceFile> {
+    const address = normalizeAddress(deviceAddress);
+    const device = contracts.getDeviceContract(address, config);
+    const name = (await device.read.deviceId()) as string;
+    const record: DeviceFile = {
+        hydration: "summary",
+        name,
+        deviceContract: address,
+        groupAddress: normalizeAddress(groupAddress),
+        encrypted,
+    };
+    saveDevice(record, homeDir);
+    return record;
+}
+
 export async function hydrateGroup(
     groupAddress: string,
     config: Config,
     wallet?: WalletFile,
     homeDir?: string,
-): Promise<GroupFile> {
+): Promise<HydratedGroupFile> {
     const address = normalizeAddress(groupAddress);
     const group = contracts.getDeviceGroupReadContract(address, config);
 
@@ -354,16 +379,56 @@ export async function hydrateGroup(
     ]);
     const merged = mergeDeviceSets(deviceSets.plain, deviceSets.encrypted);
 
-    const capabilities: EntityCapabilities = {};
-    if (wallet) capabilities.isGroupOwner = sameAddress(owner, wallet.address);
+    const capabilities: EntityCapabilities | undefined = wallet
+        ? { isGroupOwner: sameAddress(owner, wallet.address) }
+        : undefined;
 
-    const record: GroupFile = {
+    const record: HydratedGroupFile = {
+        hydration: "full",
         name,
         groupAddress: address,
         skills,
         createdAt: Number(createdAt),
         owner,
         ...merged,
+        capabilities,
+    };
+    saveGroup(record, homeDir);
+    return record;
+}
+
+/** Read group metadata and scalar counts without enumerating member addresses. */
+export async function hydrateGroupSummary(
+    groupAddress: string,
+    config: Config,
+    wallet?: WalletFile,
+    homeDir?: string,
+): Promise<GroupFile> {
+    const address = normalizeAddress(groupAddress);
+    const group = contracts.getDeviceGroupReadContract(address, config);
+    const [name, skills, createdAt, owner, plainCountRaw, encryptedCountRaw] = await Promise.all([
+        group.read.groupName() as Promise<string>,
+        group.read.skills() as Promise<string>,
+        group.read.createdAt() as Promise<bigint>,
+        group.read.owner() as Promise<Address>,
+        group.read.getDeviceCount() as Promise<bigint>,
+        group.read.getEncryptedDeviceCount() as Promise<bigint>,
+    ]);
+    const plainDeviceCount = requireSafeCount(plainCountRaw, "plain device count");
+    const encryptedDeviceCount = requireSafeCount(encryptedCountRaw, "encrypted device count");
+    const capabilities: EntityCapabilities | undefined = wallet
+        ? { isGroupOwner: sameAddress(owner, wallet.address) }
+        : undefined;
+    const record: GroupFile = {
+        hydration: "summary",
+        name,
+        groupAddress: address,
+        skills,
+        createdAt: Number(createdAt),
+        owner,
+        deviceCount: plainDeviceCount + encryptedDeviceCount,
+        plainDeviceCount,
+        encryptedDeviceCount,
         capabilities,
     };
     saveGroup(record, homeDir);
@@ -455,6 +520,23 @@ export async function discoverGroups(
     return Promise.all(addresses.map((address) => hydrateGroup(address, config, wallet, homeDir)));
 }
 
+export async function discoverGroupSummaries(
+    config: Config,
+    wallet?: WalletFile,
+    homeDir?: string,
+): Promise<GroupFile[]> {
+    const registry = contracts.getRegistryReadContract(config);
+    const count = (await registry.read.getDeviceGroupCount()) as bigint;
+    const addresses = await readPages(
+        count,
+        (offset, limit) =>
+            registry.read.getDeviceGroups([offset, limit]) as Promise<readonly Address[]>,
+    );
+    return Promise.all(
+        addresses.map((address) => hydrateGroupSummary(address, config, wallet, homeDir)),
+    );
+}
+
 export async function discoverGroupsPage(
     config: Config,
     params: { offset?: number; limit?: number; wallet?: WalletFile; homeDir?: string } = {},
@@ -471,7 +553,9 @@ export async function discoverGroupsPage(
         BigInt(limit),
     ])) as readonly Address[];
     const items = await Promise.all(
-        addresses.map((address) => hydrateGroup(address, config, params.wallet, params.homeDir)),
+        addresses.map((address) =>
+            hydrateGroupSummary(address, config, params.wallet, params.homeDir),
+        ),
     );
     return pageResult(total, offset, limit, items);
 }
@@ -491,6 +575,38 @@ export async function discoverDevices(
             .filter((address) => !encryptedSet.has(address.toLowerCase()))
             .map((address) => hydrateDevice(address, config, wallet, homeDir, false)),
     ]);
+}
+
+export async function discoverDeviceSummaries(
+    config: Config,
+    groupAddress: string,
+    homeDir?: string,
+    onProgress?: (loaded: number, total: number) => void,
+): Promise<DeviceFile[]> {
+    const normalizedGroup = normalizeAddress(groupAddress);
+    const group = contracts.getDeviceGroupReadContract(normalizedGroup, config);
+    const { plain, encrypted } = await readGroupDeviceSets(group as never);
+    const encryptedSet = new Set(encrypted.map((address) => address.toLowerCase()));
+    const entries = [
+        ...encrypted.map((address) => ({ address, encrypted: true }) as const),
+        ...plain
+            .filter((address) => !encryptedSet.has(address.toLowerCase()))
+            .map((address) => ({ address, encrypted: false }) as const),
+    ];
+    const records: DeviceFile[] = [];
+    onProgress?.(0, entries.length);
+    for (let offset = 0; offset < entries.length; offset += 25) {
+        const batch = entries.slice(offset, offset + 25);
+        records.push(
+            ...(await Promise.all(
+                batch.map(({ address, encrypted }) =>
+                    hydrateDeviceSummary(address, normalizedGroup, encrypted, config, homeDir),
+                ),
+            )),
+        );
+        onProgress?.(records.length, entries.length);
+    }
+    return records;
 }
 
 export async function discoverDevicesPage(
@@ -535,7 +651,7 @@ export async function discoverDevicesPage(
     ];
     const items = await Promise.all(
         slice.map(({ address, encrypted }) =>
-            hydrateDevice(address, config, params.wallet, params.homeDir, encrypted),
+            hydrateDeviceSummary(address, groupAddress, encrypted, config, params.homeDir),
         ),
     );
     return pageResult(total, offset, limit, items);
@@ -601,7 +717,7 @@ export async function resolveGroup(
     wallet?: WalletFile,
     homeDir?: string,
 ): Promise<GroupFile> {
-    if (isAddress(query)) return hydrateGroup(query, config, wallet, homeDir);
+    if (isAddress(query)) return hydrateGroupSummary(query, config, wallet, homeDir);
 
     const local = listGroups(homeDir).filter((group) => group.name === query);
     if (local.length === 1) return local[0];
@@ -613,7 +729,7 @@ export async function resolveGroup(
         ) as unknown as GroupFile;
     }
 
-    const remote = (await discoverGroups(config, wallet, homeDir)).filter(
+    const remote = (await discoverGroupSummaries(config, wallet, homeDir)).filter(
         (group) => group.name === query,
     );
     return requireUnique(
@@ -629,17 +745,28 @@ export async function resolveDevice(
     wallet?: WalletFile,
     homeDir?: string,
     groupAddress?: string,
-): Promise<DeviceFile> {
-    if (isAddress(query)) return hydrateDevice(query, config, wallet, homeDir);
+): Promise<HydratedDeviceFile> {
+    if (isAddress(query)) {
+        const cached = listDevices(homeDir).find((device) =>
+            sameAddress(device.deviceContract, query),
+        );
+        if (cached && isHydratedDevice(cached)) return cached;
+        return hydrateDevice(query, config, wallet, homeDir, cached?.encrypted);
+    }
 
     const local = listDevices(homeDir).filter(
         (device) =>
             device.name === query &&
             (!groupAddress || sameAddress(device.groupAddress, groupAddress)),
     );
-    if (local.length === 1) return local[0];
+    if (local.length === 1) {
+        const device = local[0];
+        return isHydratedDevice(device)
+            ? device
+            : hydrateDevice(device.deviceContract, config, wallet, homeDir, device.encrypted);
+    }
     if (local.length > 1) {
-        return requireUnique(
+        const selected = requireUnique(
             local.map((device) => ({
                 ...device,
                 address: device.deviceContract,
@@ -648,21 +775,25 @@ export async function resolveDevice(
             "device",
             query,
         ) as unknown as DeviceFile;
+        return isHydratedDevice(selected)
+            ? selected
+            : hydrateDevice(selected.deviceContract, config, wallet, homeDir, selected.encrypted);
     }
 
     const groups = groupAddress
-        ? [await hydrateGroup(groupAddress, config, wallet, homeDir)]
-        : await discoverGroups(config, wallet, homeDir);
+        ? [await hydrateGroupSummary(groupAddress, config, wallet, homeDir)]
+        : await discoverGroupSummaries(config, wallet, homeDir);
     const discovered: DeviceFile[] = [];
     for (const group of groups) {
-        discovered.push(...(await discoverDevices(config, group.groupAddress, wallet, homeDir)));
+        discovered.push(...(await discoverDeviceSummaries(config, group.groupAddress, homeDir)));
     }
     const remote = discovered.filter((device) => device.name === query);
-    return requireUnique(
+    const selected = requireUnique(
         remote.map((device) => ({ ...device, address: device.deviceContract, name: device.name })),
         "device",
         query,
     ) as unknown as DeviceFile;
+    return hydrateDevice(selected.deviceContract, config, wallet, homeDir, selected.encrypted);
 }
 
 export async function resolveAgent(

@@ -104,6 +104,7 @@ export const getAgentReaderStatus = mock(async () => ({
 export const listDevices = mock(() => []);
 export const listAgents = mock(() => []);
 export const resolveChannel = mock();
+export const resolveChannelWithConfig = resolveChannel;
 export const resolveAgent = mock(async () => ({
     name: "controller-1",
     agentContract: "0x00000000000000000000000000000000000000a1",
@@ -494,6 +495,7 @@ mock.module("@smartclaws/sdk", () => {
         resolveAgent,
         resolveDevice,
         resolveChannel,
+        resolveChannelWithConfig,
     };
 });
 

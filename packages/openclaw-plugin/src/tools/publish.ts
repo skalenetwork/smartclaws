@@ -4,7 +4,7 @@ import {
     publishDeviceCommand,
     publishDeviceTelemetry,
     resolveAgent,
-    resolveChannel,
+    resolveChannelWithConfig,
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Type } from "typebox";
@@ -82,8 +82,10 @@ export function publishTool(tool: SmartClawsToolFactory) {
                 );
             }
 
-            const { channelAddress, device, deviceAddress } = resolveChannel(
+            const { channelAddress, device, deviceAddress } = await resolveChannelWithConfig(
                 { device: params.device, channel: params.channel },
+                cfg,
+                wallet,
                 home,
             );
             if (params.deviceChannel && !device) {

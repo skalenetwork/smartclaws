@@ -12,8 +12,8 @@ import {
     assertHomeWallet,
     buildHomeConfig,
     createBackup,
-    discoverDevices,
-    discoverGroups,
+    discoverDeviceSummaries,
+    discoverGroupSummaries,
     discoverOwnedAgents,
     enforceModeConstraints,
     generateWallet,
@@ -242,7 +242,9 @@ async function chooseGroup(
     if (opts.group) return resolveGroup(opts.group, config, wallet, homeDir);
     if (!interactive) return null;
 
-    const groups = await discoverGroups(config, wallet, homeDir).catch(() => [] as GroupFile[]);
+    const groups = await discoverGroupSummaries(config, wallet, homeDir).catch(
+        () => [] as GroupFile[],
+    );
     const choices = groups.map((group) => ({
         name: groupLabel(group, verbose),
         value: group.groupAddress,
@@ -294,9 +296,17 @@ async function chooseDevices(
     if (devices.length > 0 || !interactive) return devices;
 
     if (!groupAddress) return devices;
-    const existing = await discoverDevices(config, groupAddress, wallet, homeDir).catch(
-        () => [] as DeviceFile[],
-    );
+    let showedProgress = false;
+    const existing = await discoverDeviceSummaries(
+        config,
+        groupAddress,
+        homeDir,
+        (loaded, total) => {
+            showedProgress = total > 0;
+            if (showedProgress) process.stderr.write(`\rLoading device names: ${loaded}/${total}`);
+        },
+    ).catch(() => [] as DeviceFile[]);
+    if (showedProgress) process.stderr.write("\n");
 
     if (mode === "bridge-agent") {
         const choices = existing.map((device) => ({

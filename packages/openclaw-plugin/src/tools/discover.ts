@@ -21,7 +21,7 @@ export function discoverTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_discover",
         label: "SmartClaws Discover",
         description:
-            "Paginated on-chain discovery of groups, devices, or agents. Hydrates and caches only the returned page. Prefer addresses for exact resolution. `owned` is valid only for agents and requires a wallet. Never scans the entire registry to resolve one address.",
+            "Paginated on-chain discovery of groups, devices, or agents. Group and device pages cache lightweight summaries; channel and permission details hydrate on first use. Prefer addresses for exact resolution. `owned` is valid only for agents and requires a wallet.",
         parameters: Type.Object({
             kind: Type.Union(
                 [Type.Literal("group"), Type.Literal("device"), Type.Literal("agent")],
@@ -95,6 +95,7 @@ export function discoverTool(tool: SmartClawsToolFactory) {
                             owner: item.owner ?? null,
                             skills: item.skills ?? "",
                             deviceCount: item.deviceCount,
+                            hydration: item.hydration ?? (item.devices ? "full" : "summary"),
                             capabilities: item.capabilities ?? null,
                         };
                     }
@@ -103,9 +104,12 @@ export function discoverTool(tool: SmartClawsToolFactory) {
                             name: item.name,
                             address: item.deviceContract,
                             group: item.groupAddress,
-                            incomingChannel: item.incomingChannel,
-                            outgoingChannel: item.outgoingChannel,
+                            incomingChannel: item.incomingChannel ?? null,
+                            outgoingChannel: item.outgoingChannel ?? null,
                             encrypted: item.encrypted === true,
+                            hydration:
+                                item.hydration ??
+                                (item.incomingChannel && item.outgoingChannel ? "full" : "summary"),
                             capabilities: item.capabilities ?? null,
                         };
                     }

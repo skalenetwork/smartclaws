@@ -46,6 +46,8 @@ describe("smartclaws_read", () => {
                 channel: undefined,
                 side: "incoming",
             },
+            CONFIG,
+            undefined,
             "/tmp/smartclaws-test",
         );
     });

@@ -44,6 +44,8 @@ export interface WalletFile {
 }
 
 export interface GroupFile {
+    /** Summary records omit member address arrays; legacy records with arrays are fully hydrated. */
+    hydration?: "summary" | "full";
     name: string;
     groupAddress: string;
     skills: string;
@@ -52,7 +54,7 @@ export interface GroupFile {
     /** Total number of plain and encrypted devices. */
     deviceCount: number;
     /** Canonical deduplicated list containing both plain and encrypted devices. */
-    devices: string[];
+    devices?: string[];
     plainDevices?: string[];
     plainDeviceCount?: number;
     encryptedDevices?: string[];
@@ -61,15 +63,28 @@ export interface GroupFile {
 }
 
 export interface DeviceFile {
+    /** Summary records omit channels and expensive capability reads. */
+    hydration?: "summary" | "full";
     name: string;
     deviceContract: string;
     groupAddress?: string;
     createdAt?: number;
-    incomingChannel: string;
-    outgoingChannel: string;
+    incomingChannel?: string;
+    outgoingChannel?: string;
     encrypted: boolean;
     capabilities?: EntityCapabilities;
 }
+
+export type HydratedGroupFile = GroupFile & {
+    hydration?: "full";
+    devices: string[];
+};
+
+export type HydratedDeviceFile = DeviceFile & {
+    hydration?: "full";
+    incomingChannel: string;
+    outgoingChannel: string;
+};
 
 export interface AgentFile {
     name: string;

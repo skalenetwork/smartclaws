@@ -92,6 +92,7 @@ function presentGroup(group: GroupFile) {
         owner: group.owner ?? null,
         skills: group.skills ?? "",
         deviceCount: group.deviceCount,
+        hydration: group.hydration ?? (group.devices ? "full" : "summary"),
         capabilities: group.capabilities ?? null,
     };
 }
@@ -101,9 +102,12 @@ function presentDevice(device: DeviceFile) {
         name: device.name,
         address: device.deviceContract,
         group: device.groupAddress,
-        incomingChannel: device.incomingChannel,
-        outgoingChannel: device.outgoingChannel,
+        incomingChannel: device.incomingChannel ?? null,
+        outgoingChannel: device.outgoingChannel ?? null,
         encrypted: device.encrypted === true,
+        hydration:
+            device.hydration ??
+            (device.incomingChannel && device.outgoingChannel ? "full" : "summary"),
         capabilities: device.capabilities ?? null,
     };
 }

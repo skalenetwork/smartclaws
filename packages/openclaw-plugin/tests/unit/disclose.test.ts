@@ -66,6 +66,8 @@ describe("smartclaws_disclose", () => {
 
         expect(resolveChannel).toHaveBeenCalledWith(
             { device: "sensor-1", agent: undefined, channel: undefined, side: "incoming" },
+            CONFIG,
+            WALLET,
             "/tmp/smartclaws-test",
         );
         expect(result.side).toBe("incoming");

@@ -54,6 +54,26 @@ describe("resolveChannel", () => {
         }
     });
 
+    test("refuses to return an undefined channel from a summary record", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        ensureConfigDir(tempDir);
+        saveDevice(
+            {
+                hydration: "summary",
+                name: "sensor-summary",
+                deviceContract: "0xsummary",
+                encrypted: false,
+            },
+            tempDir,
+        );
+        try {
+            resolveChannel({ device: "sensor-summary" }, tempDir);
+            throw new Error("expected throw");
+        } catch (e) {
+            expect((e as SmartClawsError).code).toBe("ENTITY_NOT_HYDRATED");
+        }
+    });
+
     test("resolves a registered device to its outgoing channel", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
         process.env.SMARTCLAWS_HOME = tempDir;

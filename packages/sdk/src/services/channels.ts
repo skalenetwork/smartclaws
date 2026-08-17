@@ -9,6 +9,7 @@ import * as contracts from "../contracts.js";
 import { loadDevice } from "../device.js";
 import { SmartClawsError } from "../errors.js";
 import * as ctx from "./ctx.js";
+import { resolveDevice } from "./discovery.js";
 import {
     BiteEncryptionProvider,
     ciphertextByteLength,
@@ -135,6 +136,35 @@ export function resolveChannel(target: ChannelTarget, homeDir?: string): Resolve
             device: target.device,
         });
     }
+    if (!device.incomingChannel || !device.outgoingChannel) {
+        throw new SmartClawsError(
+            "ENTITY_NOT_HYDRATED",
+            `Device '${target.device}' is cached as a summary and has no channel data yet.`,
+            { device: target.device, address: device.deviceContract },
+        );
+    }
+    return {
+        channelAddress: (side === "incoming"
+            ? device.incomingChannel
+            : device.outgoingChannel) as Address,
+        side,
+        device: device.name,
+        deviceAddress: device.deviceContract as Address,
+    };
+}
+
+/** Resolve a channel, hydrating a summary-only device record on first operational use. */
+export async function resolveChannelWithConfig(
+    target: ChannelTarget,
+    config: Config,
+    wallet?: WalletFile,
+    homeDir?: string,
+): Promise<ResolvedChannel> {
+    if (!target.device) return resolveChannel(target, homeDir);
+    const targets = [target.device, target.agent, target.channel].filter(Boolean);
+    if (targets.length !== 1) return resolveChannel(target, homeDir);
+    const device = await resolveDevice(target.device, config, wallet, homeDir);
+    const side: ChannelSide = target.side ?? "outgoing";
     return {
         channelAddress: (side === "incoming"
             ? device.incomingChannel

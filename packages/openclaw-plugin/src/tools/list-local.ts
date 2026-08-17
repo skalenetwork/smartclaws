@@ -12,6 +12,7 @@ function presentGroup(group: ReturnType<typeof listGroups>[number]) {
         owner: group.owner ?? null,
         skills: group.skills ?? "",
         deviceCount: group.deviceCount ?? null,
+        hydration: group.hydration ?? (group.devices ? "full" : "summary"),
         capabilities: group.capabilities ?? null,
     };
 }
@@ -21,9 +22,12 @@ function presentDevice(device: ReturnType<typeof listDevices>[number]) {
         name: device.name,
         address: device.deviceContract,
         group: device.groupAddress,
-        incomingChannel: device.incomingChannel,
-        outgoingChannel: device.outgoingChannel,
+        incomingChannel: device.incomingChannel ?? null,
+        outgoingChannel: device.outgoingChannel ?? null,
         encrypted: device.encrypted === true,
+        hydration:
+            device.hydration ??
+            (device.incomingChannel && device.outgoingChannel ? "full" : "summary"),
         owner: null,
         capabilities: device.capabilities ?? null,
     };
@@ -46,7 +50,7 @@ export function listLocalTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_list_local",
         label: "SmartClaws List Local",
         description:
-            "List locally cached groups, devices, and/or agents: addresses, channels, encryption kind, owner, and capabilities. Never returns filesystem paths.",
+            "List locally cached groups, devices, and/or agents. Summary records identify entities but may have null channels or capabilities until first use. Never returns filesystem paths.",
         parameters: Type.Object({
             kind: Type.Optional(
                 Type.Union(
