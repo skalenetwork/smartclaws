@@ -6,6 +6,7 @@ import {
     resolveGroup,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
+import { entityKindLabel } from "../format.ts";
 import { loadConfigOrExit, loadOptionalWalletOrExit } from "../runtime.ts";
 
 function date(seconds?: number): string {
@@ -34,13 +35,18 @@ discoverCommand
                 console.log(`  Address:  ${group.groupAddress}`);
                 console.log(`  Owner:    ${group.owner}`);
                 console.log(`  Created:  ${date(group.createdAt)}`);
+                if (group.encryptedDeviceCount !== undefined) {
+                    console.log(
+                        `  Encrypted: ${group.encryptedDeviceCount} of ${group.deviceCount}`,
+                    );
+                }
             }
         }
     });
 
 discoverCommand
     .command("devices")
-    .description("List devices in a group")
+    .description("List devices in a group (plain and encrypted)")
     .requiredOption("--group <address-or-name>", "Group address or name")
     .option("--verbose", "Show contract/channel addresses and createdAt")
     .action(async (opts) => {
@@ -53,7 +59,7 @@ discoverCommand
             return;
         }
         for (const device of devices) {
-            console.log(device.name);
+            console.log(`${device.name} (${entityKindLabel(device.encrypted)})`);
             if (opts.verbose) {
                 console.log(`  Contract:  ${device.deviceContract}`);
                 console.log(`  Group:     ${device.groupAddress ?? group.groupAddress}`);
@@ -81,7 +87,7 @@ discoverCommand
             return;
         }
         for (const agent of agents) {
-            console.log(agent.name);
+            console.log(`${agent.name} (${entityKindLabel(agent.encrypted)})`);
             if (opts.verbose) {
                 console.log(`  Contract:  ${agent.agentContract}`);
                 console.log(`  Owner:     ${agent.owner ?? "unknown"}`);

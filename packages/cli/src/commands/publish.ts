@@ -9,6 +9,7 @@ import {
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
+import { printPublishOutcome, publishHeadline } from "../format.ts";
 import { loadConfigOrExit, loadWalletOrExit } from "../runtime.ts";
 
 function printPublisherGuidance(deviceName: string, account: string, canGrant: boolean): void {
@@ -62,9 +63,15 @@ export const publishCommand = new Command("publish")
         "Message topic (e.g. telemetry.switch_status, command.switch.set)",
     )
     .requiredOption("--data <json>", `Payload as JSON (e.g. '{"on":true}')`)
+    .option("--wait", "Wait for CTX confirmation on encrypted publishes (default)")
+    .option(
+        "--no-wait",
+        "Return after the origin transaction; encrypted publishes report Scheduled, never Published",
+    )
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
+        const wait = !process.argv.includes("--no-wait");
 
         let payload: Record<string, unknown>;
         try {
@@ -118,12 +125,20 @@ export const publishCommand = new Command("publish")
                         },
                         config,
                         wallet,
+                        { wait },
                     );
-                    console.log(`Published command to ${hydrated.name}/${result.topic}`);
-                    console.log(`  Device:  ${hydrated.deviceContract}`);
-                    console.log(`  Channel: ${result.channel}`);
-                    console.log(`  Tx:      ${result.txHash}`);
-                    console.log(`  Status:  ${result.status}`);
+                    const ok = printPublishOutcome(
+                        result,
+                        publishHeadline(
+                            result.status,
+                            `command to ${hydrated.name}/${result.topic}`,
+                        ),
+                        [
+                            ["Device:", hydrated.deviceContract],
+                            ["Channel:", result.channel],
+                        ],
+                    );
+                    if (!ok) process.exit(1);
                     return;
                 }
 
@@ -145,12 +160,17 @@ export const publishCommand = new Command("publish")
                     },
                     config,
                     wallet,
+                    { wait },
                 );
-                console.log(`Published to ${hydrated.name}/${result.topic}`);
-                console.log(`  Device:  ${hydrated.deviceContract}`);
-                console.log(`  Channel: ${result.channel}`);
-                console.log(`  Tx:      ${result.txHash}`);
-                console.log(`  Status:  ${result.status}`);
+                const ok = printPublishOutcome(
+                    result,
+                    publishHeadline(result.status, `to ${hydrated.name}/${result.topic}`),
+                    [
+                        ["Device:", hydrated.deviceContract],
+                        ["Channel:", result.channel],
+                    ],
+                );
+                if (!ok) process.exit(1);
                 return;
             }
 
@@ -164,12 +184,16 @@ export const publishCommand = new Command("publish")
                 },
                 config,
                 wallet,
+                { wait },
             );
-            console.log(
-                `Published ${opts.from}/${result.topic} to channel ${resolved.channelAddress}`,
+            const ok = printPublishOutcome(
+                result,
+                publishHeadline(
+                    result.status,
+                    `${opts.from}/${result.topic} to channel ${resolved.channelAddress}`,
+                ),
             );
-            console.log(`  Tx:     ${result.txHash}`);
-            console.log(`  Status: ${result.status}`);
+            if (!ok) process.exit(1);
         } catch (e: unknown) {
             console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
             process.exit(1);

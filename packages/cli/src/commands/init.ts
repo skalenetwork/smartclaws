@@ -61,6 +61,7 @@ interface InitOptions {
     yes?: boolean;
     verbose?: boolean;
     backup?: boolean;
+    encrypted?: boolean;
 }
 
 interface WalletState {
@@ -100,13 +101,18 @@ function groupLabel(group: GroupFile, verbose: boolean): string {
     );
 }
 
+function registrationKind(encrypted: boolean | undefined): { encrypted?: boolean } {
+    return encrypted ? { encrypted: true } : {};
+}
+
 function deviceLabel(device: DeviceFile, verbose: boolean): string {
-    if (!verbose) return device.name;
-    return `${device.name} — ${device.deviceContract} — created ${describeDate(device.createdAt)}`;
+    const kind = device.encrypted ? "encrypted" : "plain";
+    if (!verbose) return `${device.name} (${kind})`;
+    return `${device.name} (${kind}) — ${device.deviceContract} — created ${describeDate(device.createdAt)}`;
 }
 
 function agentLabel(agent: AgentFile, verbose: boolean): string {
-    if (!verbose) return agent.name;
+    if (!verbose) return agent.encrypted ? `${agent.name} (encrypted)` : agent.name;
     return (
         agent.name +
         " — " +
@@ -303,6 +309,7 @@ async function chooseDevices(
                 opts.createDevice,
                 BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
                 homeDir,
+                registrationKind(opts.encrypted),
             ),
         );
     }
@@ -330,6 +337,7 @@ async function chooseDevices(
                     name,
                     BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
                     homeDir,
+                    registrationKind(opts.encrypted),
                 ),
             ];
         }
@@ -366,6 +374,7 @@ async function chooseDevices(
                 name,
                 BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
                 homeDir,
+                registrationKind(opts.encrypted),
             ),
         );
     }
@@ -392,6 +401,7 @@ async function chooseAgent(
             opts.metadata ?? "",
             BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
             homeDir,
+            registrationKind(opts.encrypted),
         );
     if (opts.agent) return resolveAgent(opts.agent, config, wallet, homeDir);
     if (!interactive) return null;
@@ -426,6 +436,7 @@ async function chooseAgent(
         metadata,
         BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
         homeDir,
+        registrationKind(opts.encrypted),
     );
 }
 
@@ -554,30 +565,48 @@ function printSummary(
     console.log(`  Wallet:    ${config.walletAddress}${generated ? " (generated)" : ""}`);
     console.log(`  Mode:      ${config.mode}`);
     if (group) console.log(`  Group:     ${group.name} (${group.groupAddress})`);
-    if (agent) console.log(`  Agent:     ${agent.name} (${agent.agentContract})`);
+    if (agent)
+        console.log(
+            `  Agent:     ${agent.name} (${agent.agentContract})${agent.encrypted ? " [encrypted]" : ""}`,
+        );
     if (devices.length > 0)
-        console.log(`  Devices:   ${devices.map((device) => device.name).join(", ")}`);
+        console.log(
+            `  Devices:   ${devices
+                .map((device) => (device.encrypted ? `${device.name} (encrypted)` : device.name))
+                .join(", ")}`,
+        );
 }
 
 /**
- * Report whether the wallet can take part in encrypted channels. A wallet carried across
- * a reset keeps its address and balance but has no entry in this deployment's
- * PublicKeyRegistry, and that gap otherwise stays invisible until a disclosure fails.
- * Reporting only — registering is a transaction, so it stays the operator's call.
+ * Report whether the wallet can take part in encrypted channels. Registering a key is a
+ * transaction and needs a funded wallet, so init never auto-registers — especially not
+ * for a freshly generated wallet that still has zero balance.
  */
-async function printEncryptionReadiness(config: Config, wallet: WalletFile): Promise<void> {
-    let registered: boolean;
+async function printEncryptionReadiness(
+    config: Config,
+    wallet: WalletFile,
+    generated: boolean,
+): Promise<void> {
+    let registered: boolean | undefined;
     try {
         registered = await hasPublicKeyWithConfig(config, wallet.address as `0x${string}`);
     } catch {
         // Never fail init over a diagnostic: the HOME is already written and valid.
+    }
+    if (registered === true) {
+        console.log("  Enc. key:  registered");
         return;
     }
-    console.log(
-        registered
-            ? "  Enc. key:  registered"
-            : "  Enc. key:  not registered — required before this wallet can read encrypted channels",
-    );
+    if (registered === false) console.log("  Enc. key:  not registered");
+    if (generated) {
+        console.log("This wallet is unfunded. After it has sFUEL, register its public key:");
+        console.log("  smartclaws key register");
+        return;
+    }
+    if (registered === false) {
+        console.log("Register this wallet's public key with:");
+        console.log("  smartclaws key register");
+    }
 }
 
 export const initCommand = new Command("init")
@@ -612,6 +641,7 @@ export const initCommand = new Command("init")
     )
     .option("--yes", "Run non-interactively using provided flags/defaults")
     .option("--verbose", "Show addresses, owners, createdAt, and role data in interactive choices")
+    .option("--encrypted", "Create encrypted devices/agents in this invocation")
     .option("--no-backup", "Skip the automatic backup when re-initializing an existing HOME")
     .action(async (opts: InitOptions) => {
         try {
@@ -685,7 +715,7 @@ export const initCommand = new Command("init")
             saveConfig(config, homeDir);
 
             printSummary(config, group, agent, devices, walletState.generated);
-            await printEncryptionReadiness(config, walletState.wallet);
+            await printEncryptionReadiness(config, walletState.wallet, walletState.generated);
         } catch (err) {
             console.error(err instanceof Error ? err.message : String(err));
             process.exit(1);

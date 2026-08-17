@@ -74,6 +74,7 @@ describe("init command", () => {
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain("SmartClaws HOME initialized");
         expect(result.stdout).toContain("Mode:      controller");
+        expect(result.stdout).toContain("smartclaws key register");
 
         const config = JSON.parse(readFileSync(join(tempDir, "config.json"), "utf-8"));
         const wallet = JSON.parse(readFileSync(join(tempDir, "wallets", "default.json"), "utf-8"));
