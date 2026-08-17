@@ -332,6 +332,68 @@ describe("encrypted discovery", () => {
         expect(record.capabilities?.isOutgoingReader).toBe(true);
     });
 
+    test("hydration reads both channels, not just the incoming one", async () => {
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: {
+                deviceId: async () => "sensor",
+                group: async () => "0x0000000000000000000000000000000000000011",
+                createdAt: async () => 1n,
+                getIncomingMessagesChannel: async () => incoming,
+                getOutgoingMessagesChannel: async () => outgoing,
+                hasRole: async () => false,
+            },
+        } as never);
+        const isEncrypted = spyOn(contracts, "resolveChannelEncrypted").mockResolvedValue(false);
+
+        await hydrateDevice(plainDevice, CONFIG, undefined, home());
+
+        const queried = isEncrypted.mock.calls.map((call) => call[0]);
+        expect(queried).toContain(incoming);
+        expect(queried).toContain(outgoing);
+    });
+
+    test("an entity whose channels disagree on kind fails instead of picking one", async () => {
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: {
+                deviceId: async () => "sensor",
+                group: async () => "0x0000000000000000000000000000000000000011",
+                createdAt: async () => 1n,
+                getIncomingMessagesChannel: async () => incoming,
+                getOutgoingMessagesChannel: async () => outgoing,
+                hasRole: async () => false,
+            },
+        } as never);
+        // Unreachable today, but one `encrypted` flag cannot describe two kinds, and the
+        // record feeds the decision to attach native value on publish.
+        spyOn(contracts, "resolveChannelEncrypted").mockImplementation(
+            async (address) => address === incoming,
+        );
+
+        await expect(hydrateDevice(encryptedDevice, CONFIG, undefined, home())).rejects.toThrow(
+            /disagree on encryption/,
+        );
+    });
+
+    test("provenance fills the record without seeding the channel-kind cache", async () => {
+        spyOn(contracts, "getDeviceContract").mockReturnValue({
+            read: {
+                deviceId: async () => "sensor",
+                group: async () => "0x0000000000000000000000000000000000000011",
+                createdAt: async () => 1n,
+                getIncomingMessagesChannel: async () => incoming,
+                getOutgoingMessagesChannel: async () => outgoing,
+                hasRole: async () => false,
+            },
+        } as never);
+        const remember = spyOn(contracts, "rememberChannelEncrypted");
+
+        await hydrateDevice(encryptedDevice, CONFIG, undefined, home(), true);
+
+        // A kind read off neither channel must not reach the cache that decides whether a
+        // publish attaches native value; resolveChannelEncrypted fills it at first use.
+        expect(remember).not.toHaveBeenCalled();
+    });
+
     test("reader membership is not queried for plain channels", async () => {
         const readers = spyOn(contracts, "getEncryptedChannelReadContract");
         spyOn(contracts, "getDeviceContract").mockReturnValue({

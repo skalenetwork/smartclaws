@@ -166,6 +166,44 @@ function requireUnique<T extends NamedRecord>(matches: T[], kind: string, query:
     );
 }
 
+/**
+ * The channel kind for an entity's record.
+ *
+ * Hydration used to read only the incoming channel and then memoize that answer for *both*
+ * channels. The outgoing channel's kind was therefore a cache entry nobody had verified, and
+ * that cache decides whether a publish attaches native value — which a plain channel rejects
+ * outright and an encrypted one requires. Both channels are deployed together with the same
+ * kind today, so the guess was always right; it was still a guess sitting on the paid path.
+ *
+ * So: never write a kind that was not read. With provenance — the registry set the entity was
+ * discovered in, or its registration event — the record is filled in without touching the
+ * chain, deliberately, and the channel cache is simply left empty for
+ * `resolveChannelEncrypted` to fill from the channel itself at first use. Without provenance,
+ * both channels are read concurrently and compared, which is the check that was missing.
+ */
+async function resolveEntityChannelKind(
+    entity: Address,
+    incomingChannel: Address,
+    outgoingChannel: Address,
+    config: Config,
+    knownEncrypted: boolean | undefined,
+): Promise<boolean> {
+    if (knownEncrypted !== undefined) return knownEncrypted;
+
+    const [incoming, outgoing] = await Promise.all([
+        contracts.resolveChannelEncrypted(incomingChannel, config),
+        contracts.resolveChannelEncrypted(outgoingChannel, config),
+    ]);
+    if (incoming !== outgoing) {
+        throw new SmartClawsError(
+            "CHANNEL_KIND_MISMATCH",
+            "Entity channels disagree on encryption; one record cannot describe both.",
+            { entity, incomingChannel, outgoingChannel, incoming, outgoing },
+        );
+    }
+    return incoming;
+}
+
 export async function hydrateDevice(
     deviceAddress: string,
     config: Config,
@@ -184,11 +222,13 @@ export async function hydrateDevice(
         device.read.getOutgoingMessagesChannel() as Promise<Address>,
     ]);
 
-    const encrypted =
-        knownEncrypted ??
-        (await contracts.resolveChannelEncrypted(incomingChannel as Address, config));
-    contracts.rememberChannelEncrypted(incomingChannel as Address, encrypted);
-    contracts.rememberChannelEncrypted(outgoingChannel as Address, encrypted);
+    const encrypted = await resolveEntityChannelKind(
+        address,
+        incomingChannel as Address,
+        outgoingChannel as Address,
+        config,
+        knownEncrypted,
+    );
 
     const capabilities: EntityCapabilities = {};
     if (wallet) {
@@ -283,11 +323,13 @@ export async function hydrateAgent(
             agent.read.getOutgoingMessagesChannel() as Promise<Address>,
         ]);
 
-    const encrypted =
-        knownEncrypted ??
-        (await contracts.resolveChannelEncrypted(incomingChannel as Address, config));
-    contracts.rememberChannelEncrypted(incomingChannel as Address, encrypted);
-    contracts.rememberChannelEncrypted(outgoingChannel as Address, encrypted);
+    const encrypted = await resolveEntityChannelKind(
+        address,
+        incomingChannel as Address,
+        outgoingChannel as Address,
+        config,
+        knownEncrypted,
+    );
 
     const capabilities: EntityCapabilities = {};
     if (wallet) {

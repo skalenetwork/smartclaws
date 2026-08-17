@@ -19,6 +19,11 @@ export type SmartClawsErrorCode =
     | "MISSING_PERMISSION"
     | "ENCRYPTION_UNSUPPORTED"
     | "REGISTRATION_KIND_MISMATCH"
+    // An entity whose two channels are not the same kind, or whose kind disagrees with the
+    // registry set it was discovered in. Not reachable today — both channels are deployed
+    // together — but every consumer stores one `encrypted` flag per entity, so picking a
+    // side would silently attach the wrong publish value on one of the two channels.
+    | "CHANNEL_KIND_MISMATCH"
     | "TRANSACTION_REVERTED"
     | "NOT_A_READER"
     | "NO_PUBLIC_KEY"
