@@ -61,6 +61,12 @@ jobs:
       - name: Build packages
         run: bun run build:packages
 
+      # The dashboard is not part of build:packages, so its production bundle
+      # needs an explicit gate before changes can reach main.
+      - name: Build dashboard
+        working-directory: packages/dashboard
+        run: bun run build
+
       - name: Type check core
         working-directory: packages/core
         run: bun run check
@@ -71,6 +77,10 @@ jobs:
 
       - name: Type check CLI
         working-directory: packages/cli
+        run: bun run check
+
+      - name: Type check dashboard
+        working-directory: packages/dashboard
         run: bun run check
 
       - name: Type check plugin

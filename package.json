@@ -18,7 +18,7 @@
         "test:cli": "cd packages/cli && bun test",
         "test:sdk": "cd packages/sdk && bun test",
         "test:nearai-plugin": "cd packages/nearai-verify-plugin && bun test",
-        "lint": "biome check packages/cli/src packages/sdk/src packages/openclaw-plugin/src packages/nearai-verify-plugin/src packages/nearai-verify-plugin/tests",
+        "lint": "biome check packages/cli/src packages/sdk/src packages/dashboard/src packages/openclaw-plugin/src packages/nearai-verify-plugin/src packages/nearai-verify-plugin/tests",
         "build:core": "cd packages/core && bun run build",
         "build:sdk": "cd packages/sdk && bun run build",
         "build:plugin": "cd packages/openclaw-plugin && bun run build",
