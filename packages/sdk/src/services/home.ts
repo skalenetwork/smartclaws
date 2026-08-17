@@ -7,6 +7,7 @@ import {
     assertHomeWallet,
     createDefaultConfig,
     loadConfig,
+    readStaleConfigHints,
     type StaleConfigHints,
     saveConfig,
     tryLoadConfig,
@@ -134,12 +135,14 @@ export interface InitializeHomeResult {
     rpcUrl: string;
     mode: SmartClawsMode;
     fingerprint: string;
-    generated: true;
+    generated: boolean;
 }
 
 /**
- * Fresh-HOME initialization only. Refuses an existing wallet or current config.
- * Generates a local signing wallet and writes named-network configuration.
+ * Initialize a HOME that has no configuration. Reuses a wallet-only HOME so a
+ * reset or interrupted first setup can be completed without importing or
+ * replacing its signing key. Refuses any current or stale configuration.
+ * Generates a local signing wallet only when none exists.
  * Does not register anything on-chain.
  */
 export function initializeHome(input: InitializeHomeInput): InitializeHomeResult {
@@ -148,14 +151,15 @@ export function initializeHome(input: InitializeHomeInput): InitializeHomeResult
             mode: input.mode,
         });
     }
-    if (loadWallet(input.homeDir) || tryLoadConfig(input.homeDir) || homeExists(input.homeDir)) {
+    const existingWallet = loadWallet(input.homeDir);
+    if (tryLoadConfig(input.homeDir) || readStaleConfigHints(input.homeDir)) {
         throw new SmartClawsError(
             "NOT_INITIALIZED",
-            "This SmartClaws HOME already has a wallet or configuration. Use configure, attach, or home reset instead of initialize.",
+            "This SmartClaws HOME already has configuration. Use configure, attach, or home reset instead of initialize.",
         );
     }
     const { key, network } = requireNamedNetwork(input.network);
-    const wallet = generateWallet(input.homeDir);
+    const wallet = existingWallet ?? generateWallet(input.homeDir);
     const config = createDefaultConfig(
         key,
         network.rpcUrl,
@@ -174,7 +178,7 @@ export function initializeHome(input: InitializeHomeInput): InitializeHomeResult
         rpcUrl: redactRpcUrl(network.rpcUrl),
         mode: input.mode,
         fingerprint: homeFingerprint(input.homeDir),
-        generated: true,
+        generated: existingWallet === null,
     };
 }
 

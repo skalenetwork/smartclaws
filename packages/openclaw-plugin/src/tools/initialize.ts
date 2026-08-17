@@ -11,7 +11,7 @@ export function initializeTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_initialize",
         label: "SmartClaws Initialize",
         description:
-            "Create a fresh SmartClaws HOME and generate a signing wallet locally. Named networks only — custom RPC belongs in smartclaws_configure. Refuses an existing wallet or config. Does not register anything on-chain and never returns the private key. No automatic retries.",
+            "Initialize SmartClaws configuration and generate a signing wallet locally when one does not already exist. Resumes a wallet-only HOME after reset or interrupted setup without replacing its key. Named networks only — custom RPC belongs in smartclaws_configure. Refuses existing configuration. Does not register anything on-chain and never returns the private key. No automatic retries.",
         optional: true,
         parameters: Type.Object({
             mode: ModeSchema,

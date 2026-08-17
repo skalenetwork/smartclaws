@@ -6,6 +6,9 @@ import {
     createDefaultConfig,
     homeFingerprint,
     initializeHome,
+    loadConfig,
+    loadWallet,
+    resetHomeChecked,
     saveConfig,
     SmartClawsError,
 } from "../../src/index.ts";
@@ -231,12 +234,41 @@ describe("initializeHome", () => {
         expect(leftover).toEqual([]);
     });
 
-    test("refuses when a wallet already exists", () => {
+    test("resumes a wallet-only HOME without replacing its signing key", () => {
         tempDir = tempHome();
-        generateWallet(tempDir);
-        expect(() =>
-            initializeHome({ homeDir: tempDir, mode: "controller", network: "base-testnet" }),
-        ).toThrow(SmartClawsError);
+        const wallet = generateWallet(tempDir);
+        const result = initializeHome({
+            homeDir: tempDir,
+            mode: "controller",
+            network: "base-testnet",
+        });
+        expect(result.generated).toBe(false);
+        expect(result.walletAddress).toBe(wallet.address);
+        expect(loadWallet(tempDir)?.privateKey).toBe(wallet.privateKey);
+        expect(loadConfig(tempDir)?.walletAddress).toBe(wallet.address);
+    });
+
+    test("resumes setup after HOME reset while preserving the signing key", () => {
+        tempDir = tempHome();
+        const initialized = initializeHome({
+            homeDir: tempDir,
+            mode: "controller",
+            network: "base-testnet",
+        });
+        resetHomeChecked({
+            homeDir: tempDir,
+            expectedFingerprint: initialized.fingerprint,
+            reason: "deployment-change",
+        });
+
+        const resumed = initializeHome({
+            homeDir: tempDir,
+            mode: "controller",
+            network: "base-testnet",
+        });
+        expect(resumed.generated).toBe(false);
+        expect(resumed.walletAddress).toBe(initialized.walletAddress);
+        expect(loadConfig(tempDir)?.walletAddress).toBe(initialized.walletAddress);
     });
 
     test("refuses unknown networks", () => {

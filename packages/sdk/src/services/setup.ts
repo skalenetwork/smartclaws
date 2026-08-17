@@ -214,7 +214,7 @@ export async function getSetupStatus(input: GetSetupStatusInput) {
         issues.push({
             code: "CONFIGURATION_INCOMPLETE",
             severity: "blocking",
-            recommendedTool: "smartclaws_configure",
+            recommendedTool: persisted ? "smartclaws_configure" : "smartclaws_initialize",
             requiresOwnerAuthorization: true,
             signs: false,
             spends: false,

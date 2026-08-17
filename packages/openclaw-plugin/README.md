@@ -48,7 +48,7 @@ Existing names are stable: `smartclaws_wallet_info`, `smartclaws_access_check`,
 | `smartclaws_read` | read | Free ciphertext-or-decoded messages. Encrypted ciphertext is success, not a decode error. Wallet-free. |
 | `smartclaws_reader_list` | read | Reader ACL addresses and channel metadata. Not AccessControl roles. |
 | `smartclaws_backup_list` | read | Backup names, timestamps, sizes, fingerprints. No paths. |
-| `smartclaws_initialize` | write (`optional`) | Fresh HOME + generated wallet. Named networks only. |
+| `smartclaws_initialize` | write (`optional`) | Configure a fresh or wallet-only HOME; generate a wallet only when missing. Named networks only. |
 | `smartclaws_configure` | write (`optional`) | Patch HOME config. Custom RPC is privileged. Refuses deployment changes while attachments exist. |
 | `smartclaws_attach` | write (`optional`) | Update local attachments without creating contracts. Recovers a confirmed registration whose local save failed. |
 | `smartclaws_sync` | write (`optional`) | Bounded cache refresh. Returns counts, not records. |
