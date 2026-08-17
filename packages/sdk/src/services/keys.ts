@@ -2,6 +2,7 @@ import { createDecipheriv, createHash } from "node:crypto";
 import PublicKeyRegistryABI from "@smartclaws/core/abi/PublicKeyRegistry.json" with {
     type: "json",
 };
+import type { WalletFile } from "@smartclaws/core/types";
 import type { Address, Hex } from "viem";
 import { SmartClawsError } from "../errors.js";
 
@@ -76,6 +77,31 @@ export function isValidSecp256k1PublicKey(publicKey: Secp256k1PublicKey): boolea
         return false;
     }
     return (y * y) % SECP256K1_FIELD === (x * x * x + 7n) % SECP256K1_FIELD;
+}
+
+/**
+ * The private key that opens this wallet's disclosures.
+ *
+ * Registration and decryption must agree on this, so both go through here rather than
+ * reaching for `wallet.privateKey` directly. Falling back to the signing key keeps the
+ * single-key setup working unchanged.
+ */
+export function viewingPrivateKey(wallet: Pick<WalletFile, "privateKey" | "viewPrivateKey">): Hex {
+    return (wallet.viewPrivateKey ?? wallet.privateKey) as Hex;
+}
+
+/** Whether a registered public key is the one `viewingPrivateKey` can actually open. */
+export function publicKeyMatches(publicKey: Secp256k1PublicKey, privateKey: Hex): boolean {
+    let derived: Secp256k1PublicKey;
+    try {
+        derived = publicKeyFromPrivateKey(privateKey);
+    } catch {
+        return false;
+    }
+    return (
+        derived.x.toLowerCase() === publicKey.x.toLowerCase() &&
+        derived.y.toLowerCase() === publicKey.y.toLowerCase()
+    );
 }
 
 export function publicKeyFromPrivateKey(privateKey: Hex): Secp256k1PublicKey {

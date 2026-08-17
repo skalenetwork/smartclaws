@@ -31,6 +31,16 @@ export interface Config {
 export interface WalletFile {
     address: string;
     privateKey: string;
+    /**
+     * Optional key used only to open disclosures, kept separate from the signing key.
+     *
+     * `PublicKeyRegistry` stores whatever public key an account registers and never proves
+     * ownership, so viewing can be decoupled from signing: register a key used only for
+     * reading and rotate it freely without changing the wallet address — which matters
+     * because reader ACLs are keyed by address, so a new address would lose every grant.
+     * Absent means the signing key is also the viewing key.
+     */
+    viewPrivateKey?: string;
 }
 
 export interface GroupFile {

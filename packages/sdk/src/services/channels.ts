@@ -603,7 +603,7 @@ export async function discloseMessages(
 
     const messages: ReadMessage[] = disclosed.map((item) => {
         const env = keys.decryptDisclosedEnvelope(
-            wallet.privateKey as Hex,
+            keys.viewingPrivateKey(wallet),
             item.encryptedPayload,
             decode,
         );
