@@ -19,6 +19,8 @@ async function main() {
     const verificationGroupName = "verification-device-group";
     const verificationGroupSkills = "Deployment-time verification sample";
     const verificationDeviceId = "verification-device";
+    const verificationEncryptedAgentId = "verification-encrypted-agent";
+    const verificationEncryptedDeviceId = "verification-encrypted-device";
 
     // --- Deploy factories ---
     // SmartClaws delegates all contract creation to these factories, so they must
@@ -139,6 +141,101 @@ async function main() {
     console.log("Device incoming channel deployed to:", deviceIncomingChannelAddress);
     console.log("Device outgoing channel deployed to:", deviceOutgoingChannelAddress);
 
+    // The encrypted counterparts. Without these, SmartClawsChannelEncrypted bytecode is
+    // never deployed by this script, so it is never seeded into Blockscout and the
+    // encrypted paths stay unexercised until something downstream tries them on a live
+    // chain. They also give the SDK/CLI a real encrypted target to develop against, which
+    // matters because BITE cannot be simulated locally.
+    const encryptedChannelTx = await registry.createEncryptedChannel(
+        deployer.address,
+        verificationCapacity,
+    );
+    const encryptedChannelAddress = getEventAddress(
+        await encryptedChannelTx.wait(),
+        registry,
+        "ChannelCreated",
+        "channel",
+    );
+    console.log("Encrypted channel deployed to:", encryptedChannelAddress);
+
+    // Registering an encrypted entity deploys two SmartClawsChannelEncrypted instances. Hardhat's
+    // in-memory runtime enforces a 2^24 (16,777,216) per-transaction gas cap, and the *multiplied*
+    // automatic estimate for these registrations lands above it, so a local dry-run is rejected
+    // before the transaction is ever sent. That cap is not the block gas limit (which reports
+    // 60M here) and cannot be read from a block; explicit estimation does not avoid it either,
+    // because the estimation request is itself filled in with the multiplied value.
+    //
+    // Scope the workaround to the dev chain. SKALE's cap is ~230M, far above the estimate, so
+    // real deployments must keep normal estimation — pinning a constant there could under-provision
+    // the transaction and run it out of gas.
+    const { chainId } = await ethers.provider.getNetwork();
+    const encryptedDeployOverrides = chainId === 31337n ? { gasLimit: 16_000_000 } : {};
+    console.log(
+        `Chain ${chainId}:`,
+        "gasLimit" in encryptedDeployOverrides
+            ? "capping encrypted registrations for the local runtime"
+            : "using gas estimation for encrypted registrations",
+    );
+
+    const encryptedAgentTx = await registry.registerEncryptedAgent(
+        verificationEncryptedAgentId,
+        verificationAgentMetadata,
+        verificationCapacity,
+        encryptedDeployOverrides,
+    );
+    const encryptedAgentAddress = getEventAddress(
+        await encryptedAgentTx.wait(),
+        registry,
+        "AgentRegistered",
+        "agent",
+    );
+    const encryptedAgent = await ethers.getContractAt("SmartClawsAgent", encryptedAgentAddress);
+    const encryptedAgentIncomingChannelAddress =
+        await encryptedAgent.getIncomingMessagesChannel();
+    const encryptedAgentOutgoingChannelAddress =
+        await encryptedAgent.getOutgoingMessagesChannel();
+    console.log("Verification encrypted Agent deployed to:", encryptedAgentAddress);
+    console.log(
+        "Encrypted agent incoming channel deployed to:",
+        encryptedAgentIncomingChannelAddress,
+    );
+    console.log(
+        "Encrypted agent outgoing channel deployed to:",
+        encryptedAgentOutgoingChannelAddress,
+    );
+
+    // Registered into the same group as the plain device: a group holds both factories, so
+    // this also proves mixed groups deploy and enumerate correctly.
+    const encryptedDeviceTx = await group.registerEncryptedDevice(
+        verificationEncryptedDeviceId,
+        deployer.address,
+        verificationCapacity,
+        encryptedDeployOverrides,
+    );
+    const encryptedDeviceAddress = getEventAddress(
+        await encryptedDeviceTx.wait(),
+        group,
+        "DeviceRegistered",
+        "device",
+    );
+    const encryptedDevice = await ethers.getContractAt(
+        "SmartClawsDevice",
+        encryptedDeviceAddress,
+    );
+    const encryptedDeviceIncomingChannelAddress =
+        await encryptedDevice.getIncomingMessagesChannel();
+    const encryptedDeviceOutgoingChannelAddress =
+        await encryptedDevice.getOutgoingMessagesChannel();
+    console.log("Verification encrypted Device deployed to:", encryptedDeviceAddress);
+    console.log(
+        "Encrypted device incoming channel deployed to:",
+        encryptedDeviceIncomingChannelAddress,
+    );
+    console.log(
+        "Encrypted device outgoing channel deployed to:",
+        encryptedDeviceOutgoingChannelAddress,
+    );
+
     // Verify every contract deployed by this script, including contracts created
     // internally by a factory call.
     console.log("\nWaiting for Blockscout to index contracts...");
@@ -150,6 +247,17 @@ async function main() {
         owner,
         verificationCapacity,
         registryAddress,
+    ];
+
+    // Encrypted channels take the PublicKeyRegistry as a fourth constructor argument, so
+    // they cannot reuse the plain channel's args or contract path.
+    const encryptedChannelContract =
+        "contracts/SmartClawsChannelEncrypted.sol:SmartClawsChannelEncrypted";
+    const ownedEncryptedChannelConstructorArgs = (owner: string) => [
+        owner,
+        verificationCapacity,
+        registryAddress,
+        publicKeyRegistryAddress,
     ];
 
     const verificationTargets: VerificationTarget[] = [
@@ -278,6 +386,62 @@ async function main() {
             address: deviceOutgoingChannelAddress,
             constructorArgs: ownedChannelConstructorArgs(deviceAddress),
             contract: channelContract,
+        },
+        {
+            label: "Encrypted channel",
+            address: encryptedChannelAddress,
+            constructorArgs: ownedEncryptedChannelConstructorArgs(deployer.address),
+            contract: encryptedChannelContract,
+        },
+        {
+            label: "SmartClawsAgent (encrypted)",
+            address: encryptedAgentAddress,
+            constructorArgs: [
+                deployer.address,
+                verificationCapacity,
+                registryAddress,
+                encryptedChannelFactory,
+                verificationEncryptedAgentId,
+                verificationAgentMetadata,
+            ],
+            contract: "contracts/SmartClawsAgent.sol:SmartClawsAgent",
+        },
+        {
+            label: "Encrypted agent incoming channel",
+            address: encryptedAgentIncomingChannelAddress,
+            constructorArgs: ownedEncryptedChannelConstructorArgs(encryptedAgentAddress),
+            contract: encryptedChannelContract,
+        },
+        {
+            label: "Encrypted agent outgoing channel",
+            address: encryptedAgentOutgoingChannelAddress,
+            constructorArgs: ownedEncryptedChannelConstructorArgs(encryptedAgentAddress),
+            contract: encryptedChannelContract,
+        },
+        {
+            label: "SmartClawsDevice (encrypted)",
+            address: encryptedDeviceAddress,
+            constructorArgs: [
+                groupAddress,
+                deployer.address,
+                registryAddress,
+                encryptedChannelFactory,
+                verificationCapacity,
+                verificationEncryptedDeviceId,
+            ],
+            contract: "contracts/SmartClawsDevice.sol:SmartClawsDevice",
+        },
+        {
+            label: "Encrypted device incoming channel",
+            address: encryptedDeviceIncomingChannelAddress,
+            constructorArgs: ownedEncryptedChannelConstructorArgs(encryptedDeviceAddress),
+            contract: encryptedChannelContract,
+        },
+        {
+            label: "Encrypted device outgoing channel",
+            address: encryptedDeviceOutgoingChannelAddress,
+            constructorArgs: ownedEncryptedChannelConstructorArgs(encryptedDeviceAddress),
+            contract: encryptedChannelContract,
         },
     ];
 
