@@ -4,6 +4,7 @@ import SmartClawsChannelEncryptedABI from "@smartclaws/core/abi/SmartClawsChanne
 import { decode, encode } from "@smartclaws/core/envelope";
 import type { Config, WalletFile } from "@smartclaws/core/types";
 import { type Abi, type Address, getAddress, type Hex, parseEventLogs, toBytes, toHex } from "viem";
+import { loadAgent } from "../agent.js";
 import * as contracts from "../contracts.js";
 import { loadDevice } from "../device.js";
 import { SmartClawsError } from "../errors.js";
@@ -46,37 +47,86 @@ export function publishStateFromError(error: unknown): PublishState | undefined 
     }
 }
 
+/**
+ * Which half of an entity's channel pair. Devices and agents each own two channels,
+ * and both are readable: `outgoing` is the entity speaking (telemetry, decision logs),
+ * `incoming` is what was sent to it (commands, notifications).
+ */
+export type ChannelSide = "incoming" | "outgoing";
+
 export interface ChannelTarget {
-    /** Local device name; reads/writes its outgoing channel. */
+    /** Local device name, id or address. */
     device?: string;
-    /** Direct channel address (mutually exclusive with `device`). */
+    /** Local agent name, id or address. */
+    agent?: string;
+    /** Direct channel address. Mutually exclusive with `device` and `agent`. */
     channel?: string;
+    /**
+     * Which side of the entity's pair to resolve. Defaults to `outgoing`, which is the
+     * common case. Rejected alongside `channel`, where an address already names one
+     * specific channel and a side could only be silently ignored.
+     */
+    side?: ChannelSide;
 }
 
 export interface ResolvedChannel {
     channelAddress: Address;
+    /** The side actually resolved. Always `outgoing` for a direct channel address. */
+    side: ChannelSide;
     device?: string;
     deviceAddress?: Address;
+    agent?: string;
+    agentAddress?: Address;
 }
 
 /**
- * Resolve a `{ device }` or `{ channel }` target to a channel address. Throws
- * `INVALID_TARGET` if neither/both are given, or `DEVICE_NOT_FOUND` if the named
- * device has no local record. Read-only; no wallet required. `homeDir` overrides
- * the SmartClaws home used to look up local device records.
+ * Resolve a `{ device }`, `{ agent }` or `{ channel }` target to a channel address.
+ *
+ * Local and synchronous by design: it reads the on-disk records only, never the chain,
+ * so free walletless reads stay free. A name absent from the local cache is an error
+ * rather than a chain lookup.
+ *
+ * Throws `INVALID_TARGET` unless exactly one target is given, and
+ * `DEVICE_NOT_FOUND` / `ENTITY_NOT_FOUND` when the named entity has no local record.
  */
 export function resolveChannel(target: ChannelTarget, homeDir?: string): ResolvedChannel {
-    const hasDevice = Boolean(target.device);
-    const hasChannel = Boolean(target.channel);
-    if (hasDevice === hasChannel) {
+    const targets = [target.device, target.agent, target.channel].filter(Boolean);
+    if (targets.length !== 1) {
         throw new SmartClawsError(
             "INVALID_TARGET",
-            "Provide exactly one of `device` or `channel`.",
+            "Provide exactly one of `device`, `agent` or `channel`.",
+            { device: target.device, agent: target.agent, channel: target.channel },
         );
     }
 
+    const side: ChannelSide = target.side ?? "outgoing";
+
     if (target.channel) {
-        return { channelAddress: target.channel as Address };
+        if (target.side) {
+            throw new SmartClawsError(
+                "INVALID_TARGET",
+                "`side` applies to `device` and `agent` targets; a channel address already names one channel.",
+                { channel: target.channel, side: target.side },
+            );
+        }
+        return { channelAddress: target.channel as Address, side: "outgoing" };
+    }
+
+    if (target.agent) {
+        const agent = loadAgent(target.agent, homeDir);
+        if (!agent) {
+            throw new SmartClawsError("ENTITY_NOT_FOUND", `Agent '${target.agent}' not found.`, {
+                agent: target.agent,
+            });
+        }
+        return {
+            channelAddress: (side === "incoming"
+                ? agent.incomingChannel
+                : agent.outgoingChannel) as Address,
+            side,
+            agent: agent.name,
+            agentAddress: agent.agentContract as Address,
+        };
     }
 
     const device = loadDevice(target.device as string, homeDir);
@@ -86,7 +136,10 @@ export function resolveChannel(target: ChannelTarget, homeDir?: string): Resolve
         });
     }
     return {
-        channelAddress: device.outgoingChannel as Address,
+        channelAddress: (side === "incoming"
+            ? device.incomingChannel
+            : device.outgoingChannel) as Address,
+        side,
         device: device.name,
         deviceAddress: device.deviceContract as Address,
     };

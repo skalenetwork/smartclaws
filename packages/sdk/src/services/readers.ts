@@ -2,9 +2,14 @@ import type { Config, WalletFile } from "@smartclaws/core/types";
 import { type Address, getAddress } from "viem";
 import * as contracts from "../contracts.js";
 import { SmartClawsError } from "../errors.js";
+import type { ChannelSide } from "./channels.js";
 import * as discovery from "./discovery.js";
 
-export type ReaderChannelSide = "incoming" | "outgoing";
+/**
+ * Alias of {@link ChannelSide}. Reader ACLs and channel resolution talk about the same
+ * axis, so they must not drift into two vocabularies for one concept.
+ */
+export type ReaderChannelSide = ChannelSide;
 
 function normalizeAddress(address: string): Address {
     return getAddress(address) as Address;
