@@ -9,11 +9,17 @@ if (!newVersion || !/^\d+\.\d+\.\d+/.test(newVersion)) {
     process.exit(1);
 }
 
+// Keep this list identical to scripts/version-check.mjs, minus the root and pyproject which
+// are handled separately. A file bumped here but unchecked there, or the reverse, is how the
+// SDK and plugin drifted to being set by hand in the first place.
 const jsonFiles = [
     "package.json",
     "packages/core/package.json",
+    "packages/sdk/package.json",
     "packages/cli/package.json",
     "packages/dashboard/package.json",
+    "packages/openclaw-plugin/package.json",
+    "packages/openclaw-plugin/openclaw.plugin.json",
     "smart-contracts/package.json",
 ];
 
