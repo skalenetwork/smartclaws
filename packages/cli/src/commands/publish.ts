@@ -1,7 +1,10 @@
 import {
     hydrateDevice,
+    listAgents,
     listDevices,
+    loadAgent,
     loadDevice,
+    publishAgentOutbound,
     publishChannelMessage,
     publishDeviceCommand,
     publishDeviceTelemetry,
@@ -46,11 +49,18 @@ function printMasterGuidance(deviceName: string, account: string, canGrant: bool
 
 export const publishCommand = new Command("publish")
     .description("Publish a message through a device contract or directly to an authorized channel")
-    .option("--device <name>", "Device name (publishes through SmartClawsDevice.publishTelemetry)")
+    .option(
+        "--device <address-or-name>",
+        "Device contract address or local name (publishes through SmartClawsDevice)",
+    )
     .option(
         "--device-channel <channel>",
         "When using --device: telemetry for outgoing telemetry, command for incoming commands",
         "telemetry",
+    )
+    .option(
+        "--agent <address-or-name>",
+        "Agent contract address or local name (publishes to the agent's outgoing channel)",
     )
     .option("--channel <address>", "Direct channel address (publish to any authorized channel)")
     .option(
@@ -71,7 +81,10 @@ export const publishCommand = new Command("publish")
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
-        const wait = !process.argv.includes("--no-wait");
+        // Commander leaves `wait` undefined unless a flag is passed, and sets it to false for
+        // --no-wait. Read the parsed option rather than scanning process.argv: a global scan
+        // ignores this command's parse entirely and cannot be driven in-process by a test.
+        const wait = opts.wait ?? true;
 
         let payload: Record<string, unknown>;
         try {
@@ -82,11 +95,47 @@ export const publishCommand = new Command("publish")
         }
 
         try {
-            if (Boolean(opts.device) === Boolean(opts.channel)) {
+            const targets = [opts.device, opts.agent, opts.channel].filter(Boolean);
+            if (targets.length !== 1) {
                 throw new SmartClawsError(
                     "INVALID_TARGET",
-                    "Provide exactly one of --device or --channel.",
+                    "Provide exactly one of --device, --agent or --channel.",
                 );
+            }
+
+            if (opts.agent) {
+                const agent = loadAgent(opts.agent);
+                if (!agent) {
+                    console.error(`Agent '${opts.agent}' not found.`);
+                    const agents = listAgents();
+                    if (agents.length > 0)
+                        console.error(`Available: ${agents.map((a) => a.name).join(", ")}`);
+                    process.exit(1);
+                }
+                // The agent's own outgoing channel — a decision log. Writing to another
+                // agent's inbox is a different operation with a different role (SENDER_ROLE)
+                // and is not folded in here.
+                const result = await publishAgentOutbound(
+                    {
+                        agentAddress: agent.agentContract as `0x${string}`,
+                        topic: opts.topic,
+                        payload,
+                        from: opts.from === "controller" ? agent.name : opts.from,
+                    },
+                    config,
+                    wallet,
+                    { wait },
+                );
+                const ok = printPublishOutcome(
+                    result,
+                    publishHeadline(result.status, `to ${agent.name}/${result.topic}`),
+                    [
+                        ["Agent:", agent.agentContract],
+                        ["Channel:", result.channel],
+                    ],
+                );
+                if (!ok) process.exit(1);
+                return;
             }
 
             if (opts.device) {

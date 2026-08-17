@@ -1,4 +1,4 @@
-import type { PublishResult, PublishState, ReadMessage } from "@smartclaws/sdk";
+import type { ChannelSide, PublishResult, PublishState, ReadMessage } from "@smartclaws/sdk";
 import { formatEther } from "viem";
 
 const FAILED_PUBLISH: ReadonlySet<PublishState> = new Set(["origin-reverted", "ctx-reverted"]);
@@ -88,8 +88,12 @@ export function entityKindLabel(encrypted: boolean): string {
     return encrypted ? "encrypted" : "plain";
 }
 
-export function parseReaderChannelSide(value: string): "incoming" | "outgoing" {
+/**
+ * `--side` names one half of an entity's channel pair, everywhere it appears. `--channel`
+ * always means an address, so the two never overlap.
+ */
+export function parseChannelSide(value: string): ChannelSide {
     if (value === "incoming" || value === "outgoing") return value;
-    console.error("--channel must be incoming or outgoing.");
+    console.error("--side must be incoming or outgoing.");
     process.exit(1);
 }

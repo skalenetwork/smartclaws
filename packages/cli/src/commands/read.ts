@@ -1,7 +1,9 @@
 import {
+    type ChannelSide,
     discloseMessages,
     getEncryptedChannelReadContract,
     getPublicClient,
+    listAgents,
     listDevices,
     MAX_DISCLOSE_BATCH,
     quoteReadFee,
@@ -11,18 +13,40 @@ import {
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
-import { formatDisclosureCost, formatReadMessageLine, jsonStringify } from "../format.ts";
+import {
+    formatDisclosureCost,
+    formatReadMessageLine,
+    jsonStringify,
+    parseChannelSide,
+} from "../format.ts";
 import { loadConfigOrExit, loadOptionalWalletOrExit, loadWalletOrExit } from "../runtime.ts";
 
-function printReaderGuidance(account: string): void {
+function printReaderGuidance(account: string, side: ChannelSide): void {
     console.error(`Wallet ${account} is not an authorized reader on this channel.`);
     console.error("Ask the channel owner to grant reader access:");
+    // Name the side actually being read: granting the wrong one leaves the next attempt
+    // failing identically, after paying nothing but learning nothing either.
     console.error(
-        `  smartclaws device reader add --device <name> --channel outgoing --account ${account}`,
+        `  smartclaws device reader add --device <name> --side ${side} --account ${account}`,
     );
     console.error(
-        `  smartclaws agent reader add --agent <name> --channel outgoing --account ${account}`,
+        `  smartclaws agent reader add --agent <name> --side ${side} --account ${account}`,
     );
+}
+
+/**
+ * Name the entity and side that were read. Without it, `--device d` and
+ * `--device d --side incoming` produce indistinguishable output for two different channels.
+ */
+function readTargetLine(
+    device: string | undefined,
+    agent: string | undefined,
+    side: ChannelSide,
+    channel: string,
+): string {
+    const entity = device ?? agent;
+    if (!entity) return `Channel: ${channel}`;
+    return `${device ? "Device" : "Agent"}: ${entity} (${side}) — ${channel}`;
 }
 
 function printPublicKeyGuidance(): void {
@@ -53,9 +77,14 @@ async function quoteDisclosureDeposit(
 }
 
 export const readCommand = new Command("read")
-    .description("Read messages from a device's outgoing channel")
-    .option("--device <name>", "Device name (reads from local device config)")
-    .option("--channel <address>", "Channel address (reads directly, no local device needed)")
+    .description("Read messages from a device or agent channel, or a channel address")
+    .option("--device <address-or-name>", "Device contract address or local name")
+    .option("--agent <address-or-name>", "Agent contract address or local name")
+    .option("--channel <address>", "Channel address (reads directly, no local record needed)")
+    .option(
+        "--side <side>",
+        "Which channel of the device/agent: outgoing (default) or incoming. Not valid with --channel",
+    )
     .option("--limit <n>", "Number of messages to read", "10")
     .option("--offset <n>", "Start reading from this offset")
     .option("--raw", "Show raw hex instead of decoded envelopes")
@@ -82,18 +111,37 @@ export const readCommand = new Command("read")
             process.exit(1);
         }
 
+        const side = opts.side === undefined ? undefined : parseChannelSide(opts.side);
+
         let channelAddress: `0x${string}`;
         let deviceName: string | undefined;
+        let agentName: string | undefined;
+        let readSide: ChannelSide;
         try {
-            const resolved = resolveChannel({ device: opts.device, channel: opts.channel });
+            const resolved = resolveChannel({
+                device: opts.device,
+                agent: opts.agent,
+                channel: opts.channel,
+                side,
+            });
             channelAddress = resolved.channelAddress;
             deviceName = resolved.device;
+            agentName = resolved.agent;
+            readSide = resolved.side;
         } catch (e: unknown) {
             if (e instanceof SmartClawsError && e.code === "DEVICE_NOT_FOUND") {
                 console.error(`Device '${opts.device}' not found.`);
                 const devices = listDevices();
                 if (devices.length > 0) {
                     console.error(`Available: ${devices.map((d) => d.name).join(", ")}`);
+                }
+                process.exit(1);
+            }
+            if (e instanceof SmartClawsError && e.code === "ENTITY_NOT_FOUND") {
+                console.error(`Agent '${opts.agent}' not found.`);
+                const agents = listAgents();
+                if (agents.length > 0) {
+                    console.error(`Available: ${agents.map((a) => a.name).join(", ")}`);
                 }
                 process.exit(1);
             }
@@ -120,6 +168,8 @@ export const readCommand = new Command("read")
                         console.log(
                             jsonStringify({
                                 device: deviceName ?? null,
+                                agent: agentName ?? null,
+                                side: readSide,
                                 channel: channelAddress,
                                 encrypted,
                                 total: 0,
@@ -136,6 +186,8 @@ export const readCommand = new Command("read")
                     console.log(
                         jsonStringify({
                             device: deviceName ?? null,
+                            agent: agentName ?? null,
+                            side: readSide,
                             channel: result.channel,
                             encrypted,
                             total: result.total,
@@ -147,6 +199,7 @@ export const readCommand = new Command("read")
                     return;
                 }
 
+                console.log(readTargetLine(deviceName, agentName, readSide, result.channel));
                 console.log(
                     `Messages: ${result.total} total (offsets ${result.oldest}..${result.latest})`,
                 );
@@ -179,6 +232,8 @@ export const readCommand = new Command("read")
                     console.log(
                         jsonStringify({
                             device: deviceName ?? null,
+                            agent: agentName ?? null,
+                            side: readSide,
                             channel: channelAddress,
                             encrypted: true,
                             total: 0,
@@ -206,6 +261,8 @@ export const readCommand = new Command("read")
                 console.log(
                     jsonStringify({
                         device: deviceName ?? null,
+                        agent: agentName ?? null,
+                        side: readSide,
                         encrypted: true,
                         ...disclosed,
                     }),
@@ -227,7 +284,7 @@ export const readCommand = new Command("read")
             }
         } catch (e: unknown) {
             if (e instanceof SmartClawsError && e.code === "NOT_A_READER") {
-                printReaderGuidance(loadWalletOrExit(config).address);
+                printReaderGuidance(loadWalletOrExit(config).address, readSide);
                 process.exit(1);
             }
             if (e instanceof SmartClawsError && e.code === "NO_PUBLIC_KEY") {

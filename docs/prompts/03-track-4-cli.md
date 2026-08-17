@@ -18,7 +18,7 @@ Read-only: all of `packages/sdk`, `packages/core`, `packages/openclaw-plugin` (T
 ## Commands
 
 - `device register --encrypted`, `agent register --encrypted`
-- `device reader add|remove|list --channel incoming|outgoing`, same for `agent`
+- `device reader add|remove|list --side incoming|outgoing`, same for `agent`
 - `key register|show|remove` (new `key.ts`) against `PublicKeyRegistry`
 - `init --encrypted`, applying to entities created in that invocation. There is **no**
   `--bite-rpc-url`: every SKALE node serves the `bite_*` methods, so a separate BITE endpoint does
@@ -61,53 +61,42 @@ Live channels from `00-DEPLOYMENT.md` are free to read. **Do not spend funds wit
 operator** — publishing or disclosing on the live deployment costs real sFUEL. If you want a live
 run, stop and ask, stating the cost and target.
 
-## Addendum — added mid-track, after the SDK changed under you
+## Addendum — RESOLVED after the track landed
 
-`resolveChannel` gained two things in commit `d062e09`. **Run `bun run build:packages` before
-type-checking**, or the CLI will read a stale `.d.ts` and appear to compile against the old shape.
+Recorded because the conventions below are now load-bearing, and re-litigating them would
+churn the CLI surface users have been given.
 
-```ts
-resolveChannel({ device?, agent?, channel?, side? }, homeDir?)
-  -> { channelAddress, side, device?, deviceAddress?, agent?, agentAddress? }
-```
+**Two flag words, one meaning each.** `--channel` is *always* a channel address.
+`--side incoming|outgoing` is *always* one half of an entity's channel pair. The reader
+subcommands originally spelled the side `--channel`, which collided with `--channel <address>`
+in `read` and `publish`; they were renamed to `--side`. Do not reintroduce a second meaning
+for either word.
 
-- `agent` is a new target, resolved from the local record like `device`.
-- `side` is `"incoming" | "outgoing"`, defaulting to `"outgoing"`. Existing calls are unchanged.
-- Passing `side` together with `channel` throws `INVALID_TARGET` — an address already names one
-  channel, so a side there could only be silently ignored.
+`publish --device-channel telemetry|command` deliberately stays as it is. There the choice is
+not merely which channel but which contract method, and those enforce different roles
+(`PUBLISHER_ROLE` vs `MASTER_ROLE`), so the action names carry more information than
+`incoming`/`outgoing` would.
 
-Previously only a device's outgoing channel was reachable by name. A device's incoming commands and
-both of an agent's channels required a raw address, which mattered most for the encrypted case:
-commands on an encrypted incoming channel are ciphertext, so disclosure is the only way to read
-them, and disclosure was the one path that could not name that channel.
+**Every entity channel is reachable by name.** `read` and `publish` take
+`--device <address-or-name>` or `--agent <address-or-name>` or `--channel <address>` — exactly
+one — and `read` takes `--side`. Previously only a device's outgoing channel could be named,
+which mattered most for encrypted channels: commands sitting on an encrypted incoming channel
+are ciphertext, so disclosure is the only way to read them, and disclosure was precisely the
+path that could not name that channel.
 
-### What to add
+`--side` with `--channel` is rejected rather than ignored. An address already names one
+channel, so accepting and dropping a side would read a different channel than the one asked
+for, silently.
 
-1. `read` takes `--agent <name>` alongside `--device` and `--channel`, and a side selector. Both
-   the free read and `--disclose` must accept the same targeting — the incoming side is precisely
-   where disclosure earns its cost.
-2. Surface the `INVALID_TARGET` from a side-plus-address combination as a clean CLI error, not an
-   unhandled throw.
-3. Print which side was read, so output for `--device sensor-1` and `--device sensor-1 --side
-   incoming` is not indistinguishable.
+`read` prints the entity and side it read, so `--device d` and `--device d --side incoming`
+are distinguishable in both human and JSON output.
 
-### The flag-naming collision — decide this deliberately
-
-`--channel` currently means two different things in this CLI:
-
-- `read --channel <address>` — a channel **address**
-- `device reader add --channel outgoing` — a channel **side**
-
-Adding a side to `read` forces the issue. Pick one word for the side and use it everywhere;
-`--side incoming|outgoing` is the natural choice, since `--channel` meaning "side" is the outlier.
-That means renaming the flag on the `device reader` / `agent reader` commands too. If you keep
-`--channel` for the side instead, `read` needs a different word for the address, which is worse.
-Either way, do not ship two meanings for one flag name.
-
-The SDK's `ReaderChannelSide` is now an alias of `ChannelSide`, so both spellings type-check
-identically and this is purely a CLI surface decision.
+**Read the parsed option, not `process.argv`.** `publish` briefly decided `wait` with
+`!process.argv.includes("--no-wait")`, which left `--wait` declared but dead and made the
+flag→status wiring impossible to drive in-process. `opts.wait ?? true` is correct: commander
+leaves it `undefined` by default and `false` for `--no-wait`.
 
 ## Report
 
-Files changed, the exact output strings for encrypted publish in both wait modes, the flag naming
-you chose for the side and what you renamed to get there, and gate results verbatim.
+Files changed, the exact output strings for encrypted publish in both wait modes, and gate
+results verbatim.

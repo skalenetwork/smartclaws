@@ -10,7 +10,7 @@ import {
     revokeDeviceReader,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
-import { entityKindLabel, parseReaderChannelSide } from "../format.ts";
+import { entityKindLabel, parseChannelSide } from "../format.ts";
 import { loadConfigOrExit, loadWalletOrExit } from "../runtime.ts";
 
 const DEFAULT_CHANNEL_CAPACITY = 1024 * 1024;
@@ -156,12 +156,12 @@ deviceReaderCommand
     .command("add")
     .description("Authorize a wallet to disclose messages on one device channel")
     .requiredOption("--device <address-or-name>", "Device contract address or local/on-chain name")
-    .requiredOption("--channel <side>", "incoming or outgoing")
+    .requiredOption("--side <side>", "incoming or outgoing")
     .requiredOption("--account <address>", "Reader wallet address")
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
-        const side = parseReaderChannelSide(opts.channel);
+        const side = parseChannelSide(opts.side);
         try {
             const result = await grantDeviceReader(config, wallet, opts.device, side, opts.account);
             console.log(`Granted ${result.side} reader on device`);
@@ -179,12 +179,12 @@ deviceReaderCommand
     .command("remove")
     .description("Revoke disclosure access on one device channel")
     .requiredOption("--device <address-or-name>", "Device contract address or local/on-chain name")
-    .requiredOption("--channel <side>", "incoming or outgoing")
+    .requiredOption("--side <side>", "incoming or outgoing")
     .requiredOption("--account <address>", "Reader wallet address")
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
-        const side = parseReaderChannelSide(opts.channel);
+        const side = parseChannelSide(opts.side);
         try {
             const result = await revokeDeviceReader(
                 config,
@@ -208,10 +208,10 @@ deviceReaderCommand
     .command("list")
     .description("List authorized readers on one device channel")
     .requiredOption("--device <address-or-name>", "Device contract address or local/on-chain name")
-    .requiredOption("--channel <side>", "incoming or outgoing")
+    .requiredOption("--side <side>", "incoming or outgoing")
     .action(async (opts) => {
         const config = loadConfigOrExit();
-        const side = parseReaderChannelSide(opts.channel);
+        const side = parseChannelSide(opts.side);
         try {
             const readers = await listDeviceReaders(config, opts.device, side);
             if (readers.length === 0) {

@@ -322,8 +322,8 @@ Commands and behavior:
 
 - `device register --encrypted`
 - `agent register --encrypted`
-- `device reader add|remove|list --channel incoming|outgoing`
-- `agent reader add|remove|list --channel incoming|outgoing`
+- `device reader add|remove|list --side incoming|outgoing`
+- `agent reader add|remove|list --side incoming|outgoing`
 - `key register|show|remove`
 - `init --bite-rpc-url`
 - `init --encrypted` for entities created during that invocation

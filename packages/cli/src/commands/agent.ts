@@ -18,7 +18,7 @@ import {
 import { Command } from "commander";
 import {
     entityKindLabel,
-    parseReaderChannelSide,
+    parseChannelSide,
     printPublishOutcome,
     publishHeadline,
 } from "../format.ts";
@@ -278,12 +278,12 @@ agentReaderCommand
     .command("add")
     .description("Authorize a wallet to disclose messages on one agent channel")
     .requiredOption("--agent <address-or-name>", "Agent contract address or local/on-chain name")
-    .requiredOption("--channel <side>", "incoming or outgoing")
+    .requiredOption("--side <side>", "incoming or outgoing")
     .requiredOption("--account <address>", "Reader wallet address")
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
-        const side = parseReaderChannelSide(opts.channel);
+        const side = parseChannelSide(opts.side);
         try {
             const result = await grantAgentReader(config, wallet, opts.agent, side, opts.account);
             console.log(`Granted ${result.side} reader on agent`);
@@ -301,12 +301,12 @@ agentReaderCommand
     .command("remove")
     .description("Revoke disclosure access on one agent channel")
     .requiredOption("--agent <address-or-name>", "Agent contract address or local/on-chain name")
-    .requiredOption("--channel <side>", "incoming or outgoing")
+    .requiredOption("--side <side>", "incoming or outgoing")
     .requiredOption("--account <address>", "Reader wallet address")
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
-        const side = parseReaderChannelSide(opts.channel);
+        const side = parseChannelSide(opts.side);
         try {
             const result = await revokeAgentReader(config, wallet, opts.agent, side, opts.account);
             console.log(`Revoked ${result.side} reader on agent`);
@@ -324,10 +324,10 @@ agentReaderCommand
     .command("list")
     .description("List authorized readers on one agent channel")
     .requiredOption("--agent <address-or-name>", "Agent contract address or local/on-chain name")
-    .requiredOption("--channel <side>", "incoming or outgoing")
+    .requiredOption("--side <side>", "incoming or outgoing")
     .action(async (opts) => {
         const config = loadConfigOrExit();
-        const side = parseReaderChannelSide(opts.channel);
+        const side = parseChannelSide(opts.side);
         try {
             const readers = await listAgentReaders(config, opts.agent, side);
             if (readers.length === 0) {

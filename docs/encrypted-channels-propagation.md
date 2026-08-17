@@ -218,7 +218,7 @@ channel-kind resolver.
 |---|---|
 | `publish.ts` | Auto-detect (encryption is a property of the target channel, not a user flag). Needs fee display, `--wait` / `--no-wait` for CTX confirmation, and output that says **scheduled** vs **published**. The two guidance helpers (`printPublisherGuidance` / `printMasterGuidance`) should gain a reader/pubkey equivalent. |
 | `read.ts` | Encrypted target: default to a labelled ciphertext view; `--decrypt` (or `--disclose`) for the paid 2-phase read. `--limit` capped at 10 per request. `--json` shape gains `encrypted`. |
-| `device.ts` | `register --encrypted`; new `device reader add|remove|list --channel incoming|outgoing`; `list` marks encrypted devices. |
+| `device.ts` | `register --encrypted`; new `device reader add|remove|list --side incoming|outgoing`; `list` marks encrypted devices. |
 | `agent.ts` | `register --encrypted`; `agent reader add|remove|list`; publish/notify output changes as above. |
 | `register.ts` | Group registration is factory-neutral now (groups hold both factories) — no flag needed, but the help text should say a group can host both kinds. |
 | `discover.ts` | `devices` must list encrypted devices (currently invisible) and mark them. |
