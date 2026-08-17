@@ -107,6 +107,7 @@
       "name": "@smartclaws/sdk",
       "version": "0.3.0",
       "dependencies": {
+        "@skalenetwork/bite": "^0.8.1",
         "@smartclaws/core": "workspace:*",
         "viem": "^2.47.0",
       },

@@ -15,7 +15,25 @@ export type SmartClawsErrorCode =
     | "ENTITY_NOT_FOUND"
     | "AMBIGUOUS_ENTITY"
     | "MODE_CONSTRAINT"
-    | "MISSING_PERMISSION";
+    | "MISSING_PERMISSION"
+    | "ENCRYPTION_UNSUPPORTED"
+    | "NOT_A_READER"
+    | "NO_PUBLIC_KEY"
+    | "INSUFFICIENT_FEE"
+    | "READ_BATCH_LIMIT"
+    // The three encrypted-publish outcomes are kept distinct because they map onto separate
+    // PublishStates and imply different recovery:
+    //   ORIGIN_REVERTED  the submitting tx reverted, so no CTX was ever crafted. Nothing was
+    //                    scheduled and nothing was spent on a callback -> safe to resubmit.
+    //   CTX_NOT_FOUND    the wait ended before a CTX appeared. A CTX must land eventually,
+    //                    so this is "not yet", not a failure -> re-check, never resubmit.
+    //   CTX_FAILED       terminal. The CTX itself reverted; the message is dropped with no
+    //                    retry path and the callback funding is not recoverable.
+    | "ORIGIN_REVERTED"
+    | "CTX_NOT_FOUND"
+    | "CTX_MALFORMED_RESPONSE"
+    | "CTX_FAILED"
+    | "DISCLOSURE_TIMEOUT";
 
 export class SmartClawsError extends Error {
     readonly code: SmartClawsErrorCode;
