@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
     attachHomeEntities,
+    MockSmartClawsError,
     ORIGIN,
     registerAgentWithResult,
     registerDeviceWithResult,
@@ -65,6 +66,30 @@ describe("smartclaws_register_group", () => {
                 kind: "group",
             });
         }
+    });
+
+    test("returns confirmed with a recovery step when mode attachment is incomplete", async () => {
+        attachHomeEntities.mockRejectedValueOnce(
+            new MockSmartClawsError(
+                "MODE_CONSTRAINT",
+                "master-agent mode requires exactly one agent.",
+            ),
+        );
+        const { registerGroupTool } = await import("../../src/tools/register-group.ts");
+        const spec = registerGroupTool(toolFactory as never) as ToolSpec;
+        const result = (await spec.execute(
+            { name: "home" },
+            { smartclawsHome: HOME },
+            {},
+        )) as Record<string, unknown>;
+
+        expect(result.status).toBe("confirmed");
+        expect(result.attached).toBe(false);
+        expect(result.attachmentIssue).toEqual({
+            code: "MODE_CONSTRAINT",
+            message: "master-agent mode requires exactly one agent.",
+            recommendedTool: "smartclaws_attach",
+        });
     });
 });
 

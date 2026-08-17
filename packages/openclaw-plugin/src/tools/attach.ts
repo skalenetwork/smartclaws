@@ -1,4 +1,10 @@
-import { attachHomeEntities, homeFingerprint, loadConfig, localSaveFailed } from "@smartclaws/sdk";
+import {
+    attachHomeEntities,
+    homeFingerprint,
+    loadConfig,
+    localSaveFailed,
+    SmartClawsError,
+} from "@smartclaws/sdk";
 import { Type } from "typebox";
 import { resolvedHome } from "../plugin-config.js";
 import { throwIfAborted } from "./guards.js";
@@ -99,7 +105,15 @@ export async function attachAfterConfirmedRegistration(input: {
     kind: "group" | "device" | "agent";
     address: string;
     txHash: `0x${string}`;
-}): Promise<{ fingerprint: string; attached: true }> {
+}): Promise<{
+    fingerprint: string;
+    attached: boolean;
+    attachmentIssue?: {
+        code: "MODE_CONSTRAINT";
+        message: string;
+        recommendedTool: "smartclaws_attach";
+    };
+}> {
     try {
         const config = loadConfig(input.homeDir);
         if (!config) {
@@ -121,6 +135,17 @@ export async function attachAfterConfirmedRegistration(input: {
         });
         return { fingerprint: result.fingerprint, attached: true };
     } catch (error) {
+        if (error instanceof SmartClawsError && error.code === "MODE_CONSTRAINT") {
+            return {
+                fingerprint: homeFingerprint(input.homeDir),
+                attached: false,
+                attachmentIssue: {
+                    code: "MODE_CONSTRAINT",
+                    message: error.message,
+                    recommendedTool: "smartclaws_attach",
+                },
+            };
+        }
         throw localSaveFailed(input.txHash, { kind: input.kind, address: input.address }, error);
     }
 }

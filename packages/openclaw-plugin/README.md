@@ -53,9 +53,9 @@ Existing names are stable: `smartclaws_wallet_info`, `smartclaws_access_check`,
 | `smartclaws_attach` | write (`optional`) | Update local attachments without creating contracts. Recovers a confirmed registration whose local save failed. |
 | `smartclaws_sync` | write (`optional`) | Bounded cache refresh. Returns counts, not records. |
 | `smartclaws_home_reset` | write (`optional`) | Safety-backup, preserve wallet/view key, clear deployment-bound state. |
-| `smartclaws_register_group` | write (`optional`) | Named group registration. Do not retry after `LOCAL_STATE_SAVE_FAILED`. |
-| `smartclaws_register_device` | write (`optional`) | Device registration. Capacity is a decimal string. |
-| `smartclaws_register_agent` | write (`optional`) | Agent registration. Capacity is a decimal string. |
+| `smartclaws_register_group` | write (`optional`) | Named group registration. Mode-incomplete attachment returns `attachmentIssue`; do not retry after `LOCAL_STATE_SAVE_FAILED`. |
+| `smartclaws_register_device` | write (`optional`) | Device registration. Capacity is a decimal string; mode-incomplete attachment is recoverable. |
+| `smartclaws_register_agent` | write (`optional`) | Agent registration. Capacity is a decimal string; mode-incomplete attachment is recoverable. |
 | `smartclaws_role_grant` / `smartclaws_role_revoke` | write (`optional`) | AccessControl roles. Invalid cross-kind roles are rejected before RPC. |
 | `smartclaws_reader_grant` / `smartclaws_reader_revoke` | write (`optional`) | Encrypted-channel reader ACLs. Self-revocation requires `allowSelfRevocation`. |
 | `smartclaws_view_key_generate` | write (`optional`) | Create a local viewing key when none exists. |

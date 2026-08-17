@@ -406,23 +406,24 @@ export const restoreBackupChecked = mock(() => ({
     fingerprint: "home-fp",
 }));
 
+export class MockSmartClawsError extends Error {
+    code: string;
+    details?: Record<string, unknown>;
+
+    constructor(code: string, message: string, details?: Record<string, unknown>) {
+        super(message);
+        this.name = "SmartClawsError";
+        this.code = code;
+        this.details = details;
+    }
+}
+
 // Shared across plugin test files: bun's module mocks are process-wide.
 mock.module("@smartclaws/sdk", () => {
-    class SmartClawsError extends Error {
-        code: string;
-        details?: Record<string, unknown>;
-
-        constructor(code: string, message: string, details?: Record<string, unknown>) {
-            super(message);
-            this.name = "SmartClawsError";
-            this.code = code;
-            this.details = details;
-        }
-    }
     return {
-        SmartClawsError,
+        SmartClawsError: MockSmartClawsError,
         localSaveFailed: (txHash: string, publicData: Record<string, unknown>, cause: unknown) =>
-            new SmartClawsError(
+            new MockSmartClawsError(
                 "LOCAL_STATE_SAVE_FAILED",
                 "On-chain registration confirmed, but local state could not be saved. Do not retry registration; attach the confirmed entity instead.",
                 {

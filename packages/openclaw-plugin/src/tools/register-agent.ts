@@ -17,7 +17,7 @@ export function registerAgentTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_register_agent",
         label: "SmartClaws Register Agent",
         description:
-            "Register an agent on-chain with an explicit stable name. Capacity is a decimal string. Waits for a successful receipt. If local attachment fails after confirmation, recover with smartclaws_attach — do not retry registration. No automatic retries.",
+            "Register an agent on-chain with an explicit stable name. Capacity is a decimal string. Waits for a successful receipt. If the current mode needs more identities before attachment, returns confirmed with attachmentIssue and recommends smartclaws_attach. If local persistence fails after confirmation, recover with smartclaws_attach — do not retry registration. No automatic retries.",
         optional: true,
         parameters: Type.Object({
             name: Type.String({ description: "Required stable agent name." }),
@@ -62,7 +62,11 @@ export function registerAgentTool(tool: SmartClawsToolFactory) {
                       address: entity.agentContract,
                       txHash,
                   })
-                : { attached: false as const, fingerprint: undefined };
+                : {
+                      attached: false as const,
+                      fingerprint: undefined,
+                      attachmentIssue: undefined,
+                  };
             return jsonCompatible({
                 status: "confirmed",
                 txHash,
@@ -75,6 +79,7 @@ export function registerAgentTool(tool: SmartClawsToolFactory) {
                     encrypted: entity.encrypted === true,
                 },
                 attached: attachment.attached,
+                attachmentIssue: attachment.attachmentIssue ?? null,
                 fingerprint: attachment.fingerprint ?? null,
             });
         },

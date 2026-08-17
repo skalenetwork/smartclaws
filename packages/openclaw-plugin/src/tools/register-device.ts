@@ -22,7 +22,7 @@ export function registerDeviceTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_register_device",
         label: "SmartClaws Register Device",
         description:
-            "Register a device in a group. Capacity is a decimal string. Verifies the group before signing and waits for a successful receipt. If local attachment fails after confirmation, recover with smartclaws_attach — do not retry registration. No automatic retries.",
+            "Register a device in a group. Capacity is a decimal string. Verifies the group before signing and waits for a successful receipt. If the current mode needs more identities before attachment, returns confirmed with attachmentIssue and recommends smartclaws_attach. If local persistence fails after confirmation, recover with smartclaws_attach — do not retry registration. No automatic retries.",
         optional: true,
         parameters: Type.Object({
             name: Type.String({ description: "Required stable device name." }),
@@ -82,7 +82,11 @@ export function registerDeviceTool(tool: SmartClawsToolFactory) {
                       address: entity.deviceContract,
                       txHash,
                   })
-                : { attached: false as const, fingerprint: undefined };
+                : {
+                      attached: false as const,
+                      fingerprint: undefined,
+                      attachmentIssue: undefined,
+                  };
             return jsonCompatible({
                 status: "confirmed",
                 txHash,
@@ -95,6 +99,7 @@ export function registerDeviceTool(tool: SmartClawsToolFactory) {
                     encrypted: entity.encrypted === true,
                 },
                 attached: attachment.attached,
+                attachmentIssue: attachment.attachmentIssue ?? null,
                 fingerprint: attachment.fingerprint ?? null,
             });
         },

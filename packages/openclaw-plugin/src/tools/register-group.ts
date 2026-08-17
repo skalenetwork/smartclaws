@@ -12,7 +12,7 @@ export function registerGroupTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_register_group",
         label: "SmartClaws Register Group",
         description:
-            "Register a device group on-chain with an explicit stable name. Waits for a successful receipt. If local attachment fails after confirmation, recover with smartclaws_attach using the returned address and txHash — do not retry registration. No automatic retries.",
+            "Register a device group on-chain with an explicit stable name. Waits for a successful receipt. If the current mode needs more identities before attachment, returns confirmed with attachmentIssue and recommends smartclaws_attach. If local persistence fails after confirmation, recover using the returned address and txHash — do not retry registration. No automatic retries.",
         optional: true,
         parameters: Type.Object({
             name: Type.String({ description: "Required stable group name. Never generated." }),
@@ -45,7 +45,11 @@ export function registerGroupTool(tool: SmartClawsToolFactory) {
                       address: entity.groupAddress,
                       txHash,
                   })
-                : { attached: false as const, fingerprint: undefined };
+                : {
+                      attached: false as const,
+                      fingerprint: undefined,
+                      attachmentIssue: undefined,
+                  };
             return jsonCompatible({
                 status: "confirmed",
                 txHash,
@@ -57,6 +61,7 @@ export function registerGroupTool(tool: SmartClawsToolFactory) {
                     deviceCount: entity.deviceCount ?? null,
                 },
                 attached: attachment.attached,
+                attachmentIssue: attachment.attachmentIssue ?? null,
                 fingerprint: attachment.fingerprint ?? null,
             });
         },
