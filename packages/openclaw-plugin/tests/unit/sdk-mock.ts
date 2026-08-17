@@ -121,6 +121,8 @@ export const resolveDevice = mock(async () => ({
 export const loadAgent = mock();
 export const loadConfig = mock(() => CONFIG);
 export const loadWallet = mock(() => WALLET);
+export const validateRpcUrl = mock((url: string) => url);
+export const withRpcFetch = mock((config: typeof CONFIG) => config);
 export const getSetupStatus = mock(async () => ({
     state: "uninitialized",
     ready: false,
@@ -433,6 +435,8 @@ mock.module("@smartclaws/sdk", () => {
         createDefaultConfig: mock(() => CONFIG),
         loadConfig,
         loadWallet,
+        validateRpcUrl,
+        withRpcFetch,
         loadAgent,
         listDevices,
         listAgents,

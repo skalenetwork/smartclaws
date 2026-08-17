@@ -7,9 +7,12 @@ import {
     loadConfig,
     loadWallet,
     SmartClawsError,
+    validateRpcUrl,
     type WalletFile,
+    withRpcFetch,
 } from "@smartclaws/sdk";
 import { type Static, Type } from "typebox";
+import { createGuardedRpcFetch } from "./rpc-fetch.js";
 
 export const HARD_MAX_DISCOVERY_PAGE = 100;
 export const HARD_MAX_SYNC_ENTITIES = 1000;
@@ -179,10 +182,12 @@ export function resolveConfig(pc: PluginConfig): Config {
     }
 
     if (pc.network) cfg.network = pc.network;
-    if (pc.rpcUrl) cfg.rpcUrl = pc.rpcUrl;
+    if (pc.rpcUrl) {
+        cfg.rpcUrl = validateRpcUrl(pc.rpcUrl, { allowPrivateRpc: pc.allowPrivateRpc === true });
+    }
     if (pc.chainId !== undefined) cfg.chainId = pc.chainId;
     if (pc.registryAddress) cfg.contractAddress = pc.registryAddress;
-    return cfg;
+    return withRpcFetch(cfg, createGuardedRpcFetch(pc.allowPrivateRpc === true));
 }
 
 /** Load the wallet, throwing a typed error when none is configured. */

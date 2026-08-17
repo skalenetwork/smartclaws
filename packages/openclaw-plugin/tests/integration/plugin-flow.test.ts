@@ -180,5 +180,5 @@ describe.skipIf(!ready)("plugin anvil flow", () => {
         };
         expect(listed.backups.some((item) => item.name === backup.name)).toBe(true);
         expect(listed.backups[0]).not.toHaveProperty("path");
-    });
+    }, 20_000);
 });

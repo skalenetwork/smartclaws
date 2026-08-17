@@ -6,7 +6,7 @@ import { tryLoadConfig } from "../config.js";
 import { loadDevice } from "../device.js";
 import { homeFingerprint } from "../fingerprint.js";
 import { loadGroup } from "../group.js";
-import { redactErrorMessage, redactRpcUrl } from "../rpc.js";
+import { type RpcFetch, redactErrorMessage, redactRpcUrl, withRpcFetch } from "../rpc.js";
 import { loadWallet } from "../wallet.js";
 import { type PublicConfigView, presentConfig } from "./home.js";
 import { getViewKeyStatus } from "./key-transactions.js";
@@ -45,6 +45,7 @@ export interface SetupOverrides {
 export interface GetSetupStatusInput {
     homeDir: string;
     overrides?: SetupOverrides;
+    rpcFetch?: RpcFetch;
 }
 
 function shadowedFields(persisted: Config | null, overrides?: SetupOverrides): string[] {
@@ -162,7 +163,11 @@ export async function getSetupStatus(input: GetSetupStatusInput) {
         pluginOverrides.registryAddress = overrides.registryAddress;
     }
 
-    const effectiveConfig = persisted ? applyOverrides(persisted, input.overrides) : null;
+    const resolvedConfig = persisted ? applyOverrides(persisted, input.overrides) : null;
+    const effectiveConfig =
+        resolvedConfig && input.rpcFetch
+            ? withRpcFetch(resolvedConfig, input.rpcFetch)
+            : resolvedConfig;
     const issues: SetupIssue[] = [];
     let state: SetupState = "ready";
     let rpcOk = true;

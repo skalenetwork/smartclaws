@@ -28,6 +28,7 @@ describe("smartclaws_setup_status", () => {
                 chainId: undefined,
                 registryAddress: undefined,
             },
+            rpcFetch: expect.any(Function),
         });
     });
 });

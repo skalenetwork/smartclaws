@@ -27,6 +27,7 @@ import {
     type WalletClient,
 } from "viem";
 import { type PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
+import { getRpcFetch } from "./rpc.js";
 
 function buildChain(config: Config) {
     const network = NETWORKS[config.network];
@@ -38,9 +39,13 @@ function buildChain(config: Config) {
     });
 }
 
+function rpcTransport(config: Config) {
+    return http(config.rpcUrl, { fetchFn: getRpcFetch(config) });
+}
+
 export function getPublicClient(config: Config): PublicClient {
     const chain = buildChain(config);
-    return createPublicClient({ chain, transport: http(config.rpcUrl) });
+    return createPublicClient({ chain, transport: rpcTransport(config) });
 }
 
 export interface Clients {
@@ -52,11 +57,11 @@ export interface Clients {
 export function getClients(config: Config, wallet: WalletFile): Clients {
     const chain = buildChain(config);
     const account = privateKeyToAccount(wallet.privateKey as `0x${string}`);
-    const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
+    const publicClient = createPublicClient({ chain, transport: rpcTransport(config) });
     const walletClient = createWalletClient({
         account,
         chain,
-        transport: http(config.rpcUrl),
+        transport: rpcTransport(config),
     });
     return { publicClient, walletClient, account };
 }

@@ -1,6 +1,7 @@
 import { getSetupStatus } from "@smartclaws/sdk";
 import { Type } from "typebox";
 import { resolvedHome, setupOverrides } from "../plugin-config.js";
+import { createGuardedRpcFetch } from "../rpc-fetch.js";
 import { throwIfAborted } from "./guards.js";
 import { jsonCompatible } from "./result.js";
 import type { SmartClawsToolFactory } from "./types.js";
@@ -17,6 +18,7 @@ export function setupStatusTool(tool: SmartClawsToolFactory) {
             const status = await getSetupStatus({
                 homeDir: resolvedHome(config),
                 overrides: setupOverrides(config),
+                rpcFetch: createGuardedRpcFetch(config.allowPrivateRpc === true),
             });
             throwIfAborted(context.signal);
             return jsonCompatible(status);

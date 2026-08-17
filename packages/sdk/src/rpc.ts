@@ -1,3 +1,4 @@
+import type { Config } from "@smartclaws/core/types";
 import { getAddress, isAddress } from "viem";
 import { SmartClawsError } from "./errors.js";
 
@@ -12,6 +13,22 @@ const SENSITIVE_QUERY_KEYS = [
     "access_token",
     "key",
 ];
+
+export type RpcFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
+const RPC_FETCH = Symbol.for("@smartclaws/sdk/rpc-fetch");
+type ConfigWithRpcFetch = Config & { [RPC_FETCH]?: RpcFetch };
+
+/** Attach a runtime-only fetch implementation without persisting it in config JSON. */
+export function withRpcFetch(config: Config, fetchFn: RpcFetch): Config {
+    const decorated = { ...config } as ConfigWithRpcFetch;
+    Object.defineProperty(decorated, RPC_FETCH, { value: fetchFn, enumerable: false });
+    return decorated;
+}
+
+export function getRpcFetch(config: Config): RpcFetch | undefined {
+    return (config as ConfigWithRpcFetch)[RPC_FETCH];
+}
 
 function ipv4Octets(host: string): number[] | null {
     const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
