@@ -11,6 +11,7 @@ import { SmartClawsError } from "../../src/errors.js";
 import { saveGroup } from "../../src/group.js";
 import {
     assertRegistrationKind,
+    discoverAgentsPage,
     discoverDevices,
     discoverGroupsPage,
     enforceModeConstraints,
@@ -482,5 +483,44 @@ describe("encrypted discovery", () => {
         await expect(discoverGroupsPage(CONFIG, { offset: 0, limit: 101 })).rejects.toThrow(
             /cannot exceed/,
         );
+    });
+
+    test("owned agent pagination advances by scanned registry entries when none match", async () => {
+        const addresses = [
+            "0x0000000000000000000000000000000000000041",
+            "0x0000000000000000000000000000000000000042",
+        ];
+        spyOn(contracts, "getRegistryReadContract").mockReturnValue({
+            read: {
+                getAgentCount: async () => 5n,
+                getAgents: async ([offset, limit]: [bigint, bigint]) =>
+                    addresses.slice(Number(offset), Number(offset) + Number(limit)),
+            },
+        } as never);
+        spyOn(contracts, "getAgentContract").mockImplementation((address) => ({
+            read: {
+                agentId: async () => `agent-${address.slice(-2)}`,
+                metadata: async () => "",
+                createdAt: async () => 1n,
+                owner: async () => "0x0000000000000000000000000000000000000099",
+                getIncomingMessagesChannel: async () =>
+                    "0x0000000000000000000000000000000000000200",
+                getOutgoingMessagesChannel: async () =>
+                    "0x0000000000000000000000000000000000000201",
+                hasRole: async () => false,
+            },
+        } as never));
+        spyOn(contracts, "resolveChannelEncrypted").mockResolvedValue(false);
+
+        const page = await discoverAgentsPage(CONFIG, {
+            offset: 0,
+            limit: 2,
+            owned: true,
+            wallet: WALLET,
+            homeDir: home(),
+        });
+        expect(page.items).toEqual([]);
+        expect(page.nextOffset).toBe(2);
+        expect(page.total).toBe(5);
     });
 });

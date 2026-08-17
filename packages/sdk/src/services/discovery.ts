@@ -84,8 +84,14 @@ export function normalizeDiscoveryPage(
     return { offset, limit };
 }
 
-function pageResult<T>(total: number, offset: number, limit: number, items: T[]): DiscoveryPage<T> {
-    const next = offset + items.length;
+function pageResult<T>(
+    total: number,
+    offset: number,
+    limit: number,
+    items: T[],
+    consumed = items.length,
+): DiscoveryPage<T> {
+    const next = offset + consumed;
     return {
         total,
         offset,
@@ -555,7 +561,7 @@ export async function discoverAgentsPage(
         params.owned && params.wallet
             ? hydrated.filter((agent) => sameAddress(agent.owner, params.wallet?.address))
             : hydrated;
-    return pageResult(total, offset, limit, items);
+    return pageResult(total, offset, limit, items, addresses.length);
 }
 
 export async function discoverOwnedAgents(
