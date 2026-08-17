@@ -22,8 +22,12 @@ each item says **what** is affected and **what has to change**, not the order or
 > Still outstanding: §3's contracts/discovery/readers and publish/disclosure work, §4 (CLI),
 > §5 (plugin), §7 (skills), §8 (dev scripts), and §10 (docs).
 >
-> See the roadmap's Status section for ordering, the open legacy-registry contradiction, and
-> the live-chain facts that cannot be re-derived locally.
+> **Backward compatibility was dropped on 2026-08-17.** Pre-encryption registries are unsupported,
+> `biteRpcUrl` was removed, pre-v3 configs are not migrated, and `encrypted` is a required field.
+> Anything below that assumes an older deployment or an optional `encrypted` flag is historical.
+>
+> See the roadmap's Status section for ordering and for the live-chain facts that cannot be
+> re-derived locally.
 
 ---
 
@@ -415,8 +419,11 @@ Listed because two of them would **significantly reduce** the downstream work ab
 
 ## 12. Decisions needed before implementation
 
-1. **BITE RPC endpoint** — same as `config.rpcUrl`, or a separate `biteRpcUrl`? Affects
-   `Config` (version bump), plugin config schema, and every consumer's setup docs.
+1. ~~**BITE RPC endpoint**~~ — **DECIDED: same as `config.rpcUrl`.** Every SKALE node serves the
+   `bite_*` methods, confirmed by calling `bite_getCraftedCtxs` against the ordinary public RPC.
+   `biteRpcUrl` was added and then removed; a second endpoint only creates two values that can
+   disagree, and it briefly did: CTX correlation was wired to `rpcUrl` while encryption used
+   `biteRpcUrl`.
 2. **Read UX shape** — separate tool/command for paid disclosure vs a flag on the existing
    one. My recommendation: separate, so the free read-only path stays free and non-optional
    in the plugin allowlist model.

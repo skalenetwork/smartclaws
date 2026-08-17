@@ -36,11 +36,14 @@ Carried forward, owned by no track:
 
 ### Corrections this document needs
 
-- **The legacy-registry contradiction.** Track 7 says preserve the user's registry address on
-  migration, while Track 3B queries both device sets and decision 3 resolves `publicKeyRegistry()`.
-  The deployed registry predates both and answers neither, so a preserved config plus the new SDK
-  reverts on ordinary discovery. Migration currently preserves the address and marks the hazard
-  with `TODO(legacy-registry):`; **3B must add explicit legacy tolerance or force the move.**
+- ~~**The legacy-registry contradiction.**~~ **Resolved by dropping backward compatibility
+  (2026-08-17).** Rather than reconciling "preserve the user's registry address" with code that
+  needs a post-encryption registry, pre-encryption deployments are simply unsupported: the live
+  legacy registry held one group, three agents and one channel — demo data on a testnet, not a user
+  base. Removing the compatibility path deletes the dual-path discovery, the revert-string error
+  classifier, and a latent bug where `resolveChannelEncrypted` called `isEncrypted()` on channels
+  that predate it. `networks.ts` rolls over to the new registry, and pre-v3 configs fail with a
+  "re-run init" message instead of being migrated onto a dead address.
 - **DEPLOY is mis-sequenced.** It is drawn as a leaf feeding only RELEASE, but the live lane
   cannot run until it lands, so following the graph literally means writing every consumer blind.
   Treat it as an early track.
@@ -103,7 +106,10 @@ flowchart TD
 ## Recommended decisions
 
 1. Plain channels remain the default. Encryption is opt-in with `--encrypted`.
-2. Add optional `Config.biteRpcUrl`; resolve BITE RPC as `biteRpcUrl || rpcUrl`.
+2. ~~Add optional `Config.biteRpcUrl`.~~ **Reversed 2026-08-17.** Every SKALE node serves the
+   `bite_*` methods — confirmed by calling `bite_getCraftedCtxs` against the ordinary public RPC —
+   so a separate BITE endpoint is unnecessary. The field was removed; it only created two
+   endpoints that could disagree. Build BITE clients from `rpcUrl`.
 3. Resolve `publicKeyRegistry()` from `SmartClaws` and memoize it in-process. Do
    not persist a second address that can disagree with the selected registry.
 4. Resolve and cache channel kind using `isEncrypted()`. Kind is immutable for a
@@ -172,19 +178,23 @@ Primary files:
 
 Recommended model:
 
+Amended 2026-08-17: no `biteRpcUrl`, and `encrypted` is **required** rather than optional. It was
+optional only to tolerate records written before the flag existed; with backward compatibility
+dropped there are none, so the required field makes "unknown kind" unrepresentable instead of a
+rule people must remember.
+
 ```ts
 interface Config {
   version: 3;
-  biteRpcUrl?: string;
-  // existing fields unchanged
+  // existing fields unchanged; no biteRpcUrl
 }
 
 interface DeviceFile {
-  encrypted?: boolean;
+  encrypted: boolean;
 }
 
 interface AgentFile {
-  encrypted?: boolean;
+  encrypted: boolean;
 }
 
 interface GroupFile {

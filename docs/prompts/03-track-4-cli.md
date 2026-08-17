@@ -20,7 +20,9 @@ Read-only: all of `packages/sdk`, `packages/core`, `packages/openclaw-plugin` (T
 - `device register --encrypted`, `agent register --encrypted`
 - `device reader add|remove|list --channel incoming|outgoing`, same for `agent`
 - `key register|show|remove` (new `key.ts`) against `PublicKeyRegistry`
-- `init --bite-rpc-url`, and `init --encrypted` applying to entities created in that invocation
+- `init --encrypted`, applying to entities created in that invocation. There is **no**
+  `--bite-rpc-url`: every SKALE node serves the `bite_*` methods, so a separate BITE endpoint does
+  not exist and `Config.biteRpcUrl` was removed.
 - `publish --wait` / `--no-wait`, **waiting by default**
 - `read --disclose`, with `--decrypt` as an optional alias
 
@@ -44,12 +46,11 @@ Registering a public key is a **transaction**, so it requires a funded wallet �
 completes before the wallet has any balance. Do not auto-register a key for a fresh wallet. Present
 `smartclaws key register` as a post-funding step in the guidance output instead.
 
-## Legacy registries
+## No legacy support
 
-Existing users' configs still point at the old registry, which has no `publicKeyRegistry()` and no
-encrypted device getters. Track 3B added detection and typed errors for this. Surface those as
-clear, actionable CLI messages — tell the user their registry predates encrypted channels and what
-to do — not as raw reverts or stack traces.
+Pre-encryption registries are not supported and there is no compatibility path. Do not add
+detection, fallbacks, or degraded modes. Likewise, a pre-v3 config file is not migrated — it must
+fail with a clear "re-run `smartclaws init`" message rather than being silently repaired.
 
 ## Testing
 
@@ -62,5 +63,5 @@ run, stop and ask, stating the cost and target.
 
 ## Report
 
-Files changed, the exact output strings for encrypted publish in both wait modes, how legacy
-registries are surfaced, and gate results verbatim.
+Files changed, the exact output strings for encrypted publish in both wait modes, and gate results
+verbatim.

@@ -34,7 +34,8 @@ entire allowlist model the skills teach. Mark the new tool `optional: true` in t
   that believes a dropped command succeeded will act on a world state that does not exist.
 - `smartclaws_wallet_info` — add public-key readiness and reader status for known channels, so an
   agent can self-diagnose why a disclosure failed instead of retrying blindly.
-- `plugin-config.ts` — add `biteRpcUrl`, mirrored in the manifest `configSchema`.
+- `plugin-config.ts` — no new endpoint field. Every SKALE node serves the `bite_*` methods, so
+  there is no separate BITE RPC and `Config.biteRpcUrl` was removed; the existing RPC URL is used.
 
 ## Manifest and versioning
 

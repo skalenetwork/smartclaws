@@ -1,6 +1,10 @@
 # Track 3B — SDK contracts, discovery, registration and readers
 
-**Start now.** This is the only unblocked track and everything else waits on it.
+> **SUPERSEDED — implemented, then amended.** 3B was completed, and a follow-up pass is removing
+> the backward-compatibility work described in section 1 below: pre-encryption registries are no
+> longer supported, `Config.biteRpcUrl` is gone, and `encrypted` became a required field. This file
+> is kept as the record of what the track originally asked for. **Do not implement it as written.**
+
 **Read [`00-DEPLOYMENT.md`](./00-DEPLOYMENT.md) first** — shared addresses, rules and gates.
 
 Spec: roadmap "Track 3B", propagation §3 (`contracts.ts` / `discovery.ts` sections).

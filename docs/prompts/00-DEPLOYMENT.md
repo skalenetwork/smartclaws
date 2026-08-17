@@ -29,9 +29,13 @@ discriminates, and the device group is genuinely mixed.
 
 Deployer / owner of all of the above: `0x10E2c6D3678e0231aaB8D0b51a265829fA100B63`.
 
-`packages/core/src/networks.ts` still points at the **old** registry
-(`0x2A49ADe245fE42E6C3eBC7972bB0Fe324fc923b5`) on purpose — see the legacy-registry hazard.
-Do not roll it over unless your task says to.
+This is the **only** registry. Pre-encryption deployments are explicitly not supported: there are
+no users to protect, so nothing degrades for an old registry — it simply fails. Do not add legacy
+detection, fallbacks, or compatibility branches.
+
+There is also **no separate BITE RPC**. Every SKALE node serves the `bite_*` methods, verified by
+calling `bite_getCraftedCtxs` against the plain RPC above. Build BITE clients from `config.rpcUrl`;
+`Config.biteRpcUrl` does not exist.
 
 ## Non-negotiable facts
 
@@ -46,6 +50,10 @@ Do not roll it over unless your task says to.
    costs nothing. Disclosure is a separate, paid, explicitly-authorized operation.
 4. **Reader ACLs are not AccessControl roles.** They live in an `EnumerableSet` on the channel.
 5. **Measure ciphertext in bytes, not hex characters.**
+6. **`encrypted` is required on `DeviceFile` and `AgentFile`**, not optional. Never reintroduce a
+   path that can leave it unset or default it to `false` — publishing plaintext framing to an
+   encrypted channel is the worst failure this system can produce, and the required field is what
+   makes that unrepresentable rather than merely discouraged.
 
 ## Gates — every session must leave these green
 

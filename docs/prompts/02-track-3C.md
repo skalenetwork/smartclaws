@@ -9,13 +9,29 @@ message was stored, and it spends real money on reads. Spec: roadmap "Track 3C",
 
 ```
 packages/sdk/src/services/channels.ts
-packages/sdk/src/index.ts                      (exports only)
 packages/sdk/tests/unit/channels.test.ts
 packages/sdk/tests/unit/publish-state.test.ts  (new)
 ```
 
 Read-only: `services/encryption.ts`, `ctx.ts`, `keys.ts`, `discovery.ts`, `readers.ts`,
-`contracts.ts`, `errors.ts`. They are finished — consume them.
+`contracts.ts`, `errors.ts`. Consume them; do not modify them.
+
+**Do not touch `packages/sdk/src/index.ts`**, even to add exports. A concurrent session is removing
+backward-compatibility code from that file, and it is the only place your work would collide.
+Export wiring is done separately once both land — write your module as if it were already exported
+and import by path in tests.
+
+Assume this API shape, which a concurrent removal is putting in place:
+
+- `Config` has **no** `biteRpcUrl`, and `resolveBiteRpcUrl` no longer exists. Every SKALE node
+  serves the `bite_*` methods, so build BITE clients from `config.rpcUrl`.
+- `encrypted` is a **required** field on `DeviceFile` and `AgentFile`. Never write a code path that
+  leaves it unset or defaults it to `false`.
+- There is no legacy-registry detection, no compatibility branch, and no pre-v3 config migration.
+  A registry that does not answer `publicKeyRegistry()` is simply an error.
+
+If you find any of those still present when you start, they are mid-removal — code against the
+target shape above and say so in your report rather than restoring the old form.
 
 ## 1. PublishState — the truthfulness contract
 
