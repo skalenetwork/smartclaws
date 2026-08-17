@@ -2,10 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { generatePrivateKey } from "viem/accounts";
 import {
     createDefaultConfig,
     homeFingerprint,
     saveConfig,
+    setViewKey,
     SmartClawsError,
     updateHomeConfig,
 } from "../../src/index.ts";
@@ -44,6 +46,37 @@ describe("home fingerprints and config updates", () => {
             "bridge-agent",
         );
         saveConfig(loaded, tempDir);
+        expect(homeFingerprint(tempDir)).not.toBe(first);
+    });
+
+    test("fingerprint changes when the active viewing key is replaced", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-fp-"));
+        generateWallet(tempDir);
+        setViewKey(generatePrivateKey(), tempDir);
+        const first = homeFingerprint(tempDir);
+
+        setViewKey(generatePrivateKey(), tempDir);
+        expect(homeFingerprint(tempDir)).not.toBe(first);
+    });
+
+    test("fingerprint changes when only a redacted RPC credential changes", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-fp-"));
+        const wallet = generateWallet(tempDir);
+        const config = createDefaultConfig(
+            "base-testnet",
+            "https://rpc.example.com?apikey=first-secret",
+            42,
+            "0xD8C252E8fbcB9Da1F3ac7b29795BC04dF48d282e",
+            "controller",
+            wallet.address,
+        );
+        saveConfig(config, tempDir);
+        const first = homeFingerprint(tempDir);
+
+        saveConfig(
+            { ...config, rpcUrl: "https://rpc.example.com?apikey=other-secret" },
+            tempDir,
+        );
         expect(homeFingerprint(tempDir)).not.toBe(first);
     });
 

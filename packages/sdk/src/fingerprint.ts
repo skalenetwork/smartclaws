@@ -4,6 +4,11 @@ import { join } from "node:path";
 import { CURRENT_CONFIG_VERSION, getConfigDir, tryLoadConfig } from "./config.js";
 import { SmartClawsError } from "./errors.js";
 import { redactRpcUrl } from "./rpc.js";
+import {
+    publicKeyFingerprint,
+    publicKeyFromPrivateKey,
+    viewingPrivateKey,
+} from "./services/keys.js";
 import { loadWallet } from "./wallet.js";
 
 function sha256Hex(value: string): string {
@@ -14,11 +19,21 @@ function canonical(value: unknown): string {
     return JSON.stringify(value);
 }
 
+function viewKeyPublicFingerprint(wallet: ReturnType<typeof loadWallet>): string | null {
+    if (!wallet) return null;
+    try {
+        return publicKeyFingerprint(publicKeyFromPrivateKey(viewingPrivateKey(wallet)));
+    } catch {
+        return "invalid";
+    }
+}
+
 export interface HomeFingerprintSnapshot {
     configVersion: number | null;
     staleConfig: boolean;
     walletAddress: string | null;
     hasSeparateViewKey: boolean;
+    viewKeyFingerprint: string | null;
     network: string;
     chainId: number;
     registry: string;
@@ -55,6 +70,7 @@ export function homeFingerprintSnapshot(homeDir?: string): HomeFingerprintSnapsh
         staleConfig: configExists && configVersion !== CURRENT_CONFIG_VERSION,
         walletAddress: wallet?.address ?? config?.walletAddress ?? null,
         hasSeparateViewKey: wallet?.viewPrivateKey !== undefined,
+        viewKeyFingerprint: viewKeyPublicFingerprint(wallet),
         network: config?.network ?? "",
         chainId: config?.chainId ?? 0,
         registry: config?.contractAddress ?? "",
@@ -70,7 +86,19 @@ export function homeFingerprintSnapshot(homeDir?: string): HomeFingerprintSnapsh
 
 /** Public HOME identity hash. Never includes private keys, paths, or raw credentials. */
 export function homeFingerprint(homeDir?: string): string {
-    return sha256Hex(canonical(homeFingerprintSnapshot(homeDir)));
+    const config = tryLoadConfig(homeDir);
+    const wallet = loadWallet(homeDir);
+    return sha256Hex(
+        canonical({
+            ...homeFingerprintSnapshot(homeDir),
+            // The public snapshot stays credential-free, while the final opaque
+            // digest still changes for every raw RPC URL change.
+            rpcUrlDigest: sha256Hex(config?.rpcUrl ?? ""),
+            // Invalid legacy wallet material must not make status unavailable;
+            // its opaque digest still participates in stale-state detection.
+            viewKeyDigest: sha256Hex(wallet ? viewingPrivateKey(wallet) : ""),
+        }),
+    );
 }
 
 export function requireHomeFingerprint(homeDir: string | undefined, expected: string): void {
