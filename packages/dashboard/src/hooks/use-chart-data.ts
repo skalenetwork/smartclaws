@@ -16,6 +16,7 @@ export function useChartData(messages: DecodedMessage[]): ChartSeries[] {
         const seriesMap = new Map<string, { ts: number; value: number }[]>();
 
         for (const msg of messages) {
+            if (msg.encrypted) continue;
             if (!msg.envelope) continue;
             const { ts, p } = msg.envelope;
             for (const [key, val] of Object.entries(p)) {

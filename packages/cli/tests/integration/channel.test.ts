@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { toBytes, toHex, type Address } from "viem";
 import { decode, encode } from "@smartclaws/core/envelope";
+import { type Address, toBytes, toHex } from "viem";
 import {
     createChannel,
     createOtherWalletChannel,

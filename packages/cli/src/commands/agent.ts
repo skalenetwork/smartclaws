@@ -3,6 +3,8 @@ import {
     type AgentPermissionRole,
     getAgentPath,
     grantAgentPermission,
+    grantAgentReader,
+    listAgentReaders,
     listAgents,
     loadAgent,
     publishAgentInbound,
@@ -10,9 +12,16 @@ import {
     registerAgent,
     resolveAgent,
     revokeAgentPermission,
+    revokeAgentReader,
     SmartClawsError,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
+import {
+    entityKindLabel,
+    parseChannelSide,
+    printPublishOutcome,
+    publishHeadline,
+} from "../format.ts";
 import { loadConfigOrExit, loadWalletOrExit } from "../runtime.ts";
 
 const DEFAULT_CHANNEL_CAPACITY = 1024 * 1024;
@@ -41,6 +50,7 @@ agentCommand
     .option("--name <name>", "Local agent name (also used as on-chain agentId; random if omitted)")
     .option("--metadata <string>", "Agent capability description", "")
     .option("--capacity <bytes>", "Channel capacity in bytes", String(DEFAULT_CHANNEL_CAPACITY))
+    .option("--encrypted", "Register with encrypted channels")
     .action(async (opts) => {
         const config = loadConfigOrExit();
         if (!config.contractAddress) {
@@ -65,6 +75,8 @@ agentCommand
             name,
             opts.metadata,
             BigInt(opts.capacity),
+            undefined,
+            opts.encrypted ? { encrypted: true } : {},
         );
 
         try {
@@ -81,6 +93,7 @@ agentCommand
 
         console.log("Agent registered:");
         console.log(`  Name:      ${agent.name}`);
+        console.log(`  Kind:      ${entityKindLabel(agent.encrypted)}`);
         console.log(`  Contract:  ${agent.agentContract}`);
         console.log(`  Outgoing:  ${agent.outgoingChannel}`);
         console.log(`  Incoming:  ${agent.incomingChannel}`);
@@ -96,7 +109,7 @@ agentCommand
             return;
         }
         for (const a of agents) {
-            console.log(a.name);
+            console.log(`${a.name} (${entityKindLabel(a.encrypted)})`);
             console.log(`  Contract:  ${a.agentContract}`);
             console.log(`  Outgoing:  ${a.outgoingChannel}`);
             console.log(`  Incoming:  ${a.incomingChannel}`);
@@ -114,10 +127,16 @@ agentCommand
     .requiredOption("--topic <topic>", "Message topic (e.g. decision.log)")
     .requiredOption("--data <json>", `Payload as JSON (e.g. '{"decision":"hold"}')`)
     .option("--from <name>", "Envelope 'dev' field (default: the agent name)")
+    .option("--wait", "Wait for CTX confirmation on encrypted publishes (default)")
+    .option(
+        "--no-wait",
+        "Return after the origin transaction; encrypted publishes report Scheduled, never Published",
+    )
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
         const payload = parsePayload(opts.data);
+        const wait = !process.argv.includes("--no-wait");
 
         try {
             const agent = await resolveAgent(opts.agent, config, wallet);
@@ -130,11 +149,17 @@ agentCommand
                 },
                 config,
                 wallet,
+                { wait },
             );
-            console.log(`Published ${result.dev}/${result.topic} to agent ${agent.name}`);
-            console.log(`  Channel: ${result.channel}`);
-            console.log(`  Tx:      ${result.txHash}`);
-            console.log(`  Status:  ${result.status}`);
+            const ok = printPublishOutcome(
+                result,
+                publishHeadline(
+                    result.status,
+                    `${result.dev}/${result.topic} to agent ${agent.name}`,
+                ),
+                [["Channel:", result.channel]],
+            );
+            if (!ok) process.exit(1);
         } catch (e: unknown) {
             console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
             process.exit(1);
@@ -148,10 +173,16 @@ agentCommand
     .requiredOption("--topic <topic>", "Message topic (e.g. task.assign)")
     .requiredOption("--data <json>", `Payload as JSON (e.g. '{"job":7}')`)
     .option("--from <name>", "Envelope 'dev' field (default: controller)", "controller")
+    .option("--wait", "Wait for CTX confirmation on encrypted publishes (default)")
+    .option(
+        "--no-wait",
+        "Return after the origin transaction; encrypted publishes report Scheduled, never Published",
+    )
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const wallet = loadWalletOrExit(config);
         const payload = parsePayload(opts.data);
+        const wait = !process.argv.includes("--no-wait");
 
         try {
             const agent = await resolveAgent(opts.agent, config, wallet);
@@ -164,11 +195,16 @@ agentCommand
                 },
                 config,
                 wallet,
+                { wait },
             );
-            console.log(`Notified ${agent.name}: ${result.dev}/${result.topic}`);
-            console.log(`  Channel: ${result.channel}`);
-            console.log(`  Tx:      ${result.txHash}`);
-            console.log(`  Status:  ${result.status}`);
+            const headline =
+                result.status === "scheduled"
+                    ? `Scheduled notify to ${agent.name}: ${result.dev}/${result.topic}`
+                    : result.status === "published"
+                      ? `Notified ${agent.name}: ${result.dev}/${result.topic}`
+                      : `Notify ${result.status}: ${agent.name}: ${result.dev}/${result.topic}`;
+            const ok = printPublishOutcome(result, headline, [["Channel:", result.channel]]);
+            if (!ok) process.exit(1);
         } catch (e: unknown) {
             console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
             process.exit(1);
@@ -200,7 +236,7 @@ agentCommand
             console.log(`  Tx:      ${result.txHash}`);
             console.log(`  Status:  ${result.status}`);
         } catch (e: unknown) {
-            console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
+            console.error(e instanceof Error ? e.message : String(e));
             process.exit(1);
         }
     });
@@ -226,11 +262,82 @@ agentCommand
             );
             console.log(`Revoked ${result.role} on ${result.agent.name}`);
             console.log(`  Agent:   ${result.agent.agentContract}`);
-            console.log(`  Account: ${result.account}`);
             console.log(`  Tx:      ${result.txHash}`);
             console.log(`  Status:  ${result.status}`);
         } catch (e: unknown) {
-            console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
+            console.error(e instanceof Error ? e.message : String(e));
+            process.exit(1);
+        }
+    });
+
+const agentReaderCommand = agentCommand
+    .command("reader")
+    .description("Manage encrypted-channel reader ACLs (not AccessControl roles)");
+
+agentReaderCommand
+    .command("add")
+    .description("Authorize a wallet to disclose messages on one agent channel")
+    .requiredOption("--agent <address-or-name>", "Agent contract address or local/on-chain name")
+    .requiredOption("--side <side>", "incoming or outgoing")
+    .requiredOption("--account <address>", "Reader wallet address")
+    .action(async (opts) => {
+        const config = loadConfigOrExit();
+        const wallet = loadWalletOrExit(config);
+        const side = parseChannelSide(opts.side);
+        try {
+            const result = await grantAgentReader(config, wallet, opts.agent, side, opts.account);
+            console.log(`Granted ${result.side} reader on agent`);
+            console.log(`  Agent:   ${result.agent}`);
+            console.log(`  Account: ${result.reader}`);
+            console.log(`  Tx:      ${result.txHash}`);
+            console.log(`  Status:  ${result.status}`);
+        } catch (e: unknown) {
+            console.error(e instanceof Error ? e.message : String(e));
+            process.exit(1);
+        }
+    });
+
+agentReaderCommand
+    .command("remove")
+    .description("Revoke disclosure access on one agent channel")
+    .requiredOption("--agent <address-or-name>", "Agent contract address or local/on-chain name")
+    .requiredOption("--side <side>", "incoming or outgoing")
+    .requiredOption("--account <address>", "Reader wallet address")
+    .action(async (opts) => {
+        const config = loadConfigOrExit();
+        const wallet = loadWalletOrExit(config);
+        const side = parseChannelSide(opts.side);
+        try {
+            const result = await revokeAgentReader(config, wallet, opts.agent, side, opts.account);
+            console.log(`Revoked ${result.side} reader on agent`);
+            console.log(`  Agent:   ${result.agent}`);
+            console.log(`  Account: ${result.reader}`);
+            console.log(`  Tx:      ${result.txHash}`);
+            console.log(`  Status:  ${result.status}`);
+        } catch (e: unknown) {
+            console.error(e instanceof Error ? e.message : String(e));
+            process.exit(1);
+        }
+    });
+
+agentReaderCommand
+    .command("list")
+    .description("List authorized readers on one agent channel")
+    .requiredOption("--agent <address-or-name>", "Agent contract address or local/on-chain name")
+    .requiredOption("--side <side>", "incoming or outgoing")
+    .action(async (opts) => {
+        const config = loadConfigOrExit();
+        const side = parseChannelSide(opts.side);
+        try {
+            const readers = await listAgentReaders(config, opts.agent, side);
+            if (readers.length === 0) {
+                console.log(`No ${side} readers.`);
+                return;
+            }
+            console.log(`${side} readers:`);
+            for (const reader of readers) console.log(`  ${reader}`);
+        } catch (e: unknown) {
+            console.error(e instanceof Error ? e.message : String(e));
             process.exit(1);
         }
     });

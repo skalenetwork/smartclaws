@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 interface ISmartClawsDeviceGroup {
-    event DeviceRegistered(address indexed device, string deviceId);
+    /// @param encrypted True when both of the device's channels are BITE-encrypted.
+    event DeviceRegistered(address indexed device, string deviceId, bool indexed encrypted);
     event DeviceUnregistered(address indexed device);
     event GroupDeactivated(address indexed group);
     event SkillsUpdated(string skills);
@@ -22,6 +23,11 @@ interface ISmartClawsDeviceGroup {
         address deviceAdmin,
         uint256 channelCapacity
     ) external returns (address device);
+    function registerEncryptedDevice(
+        string calldata deviceId,
+        address deviceAdmin,
+        uint256 channelCapacity
+    ) external returns (address device);
     function unregisterDevice(address device) external;
     function setSkills(string calldata skills_) external;
 
@@ -33,10 +39,22 @@ interface ISmartClawsDeviceGroup {
     function grantMaster(address device, address account) external;
     function revokeMaster(address device, address account) external;
 
+    // Reader passthroughs (owner-gated) onto a registered encrypted device.
+    function addIncomingReader(address device, address reader) external;
+    function removeIncomingReader(address device, address reader) external;
+    function addOutgoingReader(address device, address reader) external;
+    function removeOutgoingReader(address device, address reader) external;
+
     function deactivate() external;
 
     function isRegisteredDevice(address device) external view returns (bool);
     function getDevices() external view returns (address[] memory);
     function getDevices(uint256 offset, uint256 limit) external view returns (address[] memory);
     function getDeviceCount() external view returns (uint256);
+    function getEncryptedDevices() external view returns (address[] memory);
+    function getEncryptedDevices(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory);
+    function getEncryptedDeviceCount() external view returns (uint256);
 }

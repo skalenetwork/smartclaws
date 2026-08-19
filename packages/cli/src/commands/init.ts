@@ -1,5 +1,5 @@
 import { checkbox, confirm, input, password, select } from "@inquirer/prompts";
-import { DEFAULT_NETWORK, getNetwork, NETWORKS } from "@smartclaws/core/networks";
+import { DEFAULT_NETWORK, NETWORKS } from "@smartclaws/core/networks";
 import type {
     AgentFile,
     Config,
@@ -10,22 +10,27 @@ import type {
 } from "@smartclaws/core/types";
 import {
     assertHomeWallet,
+    buildHomeConfig,
     createBackup,
-    createDefaultConfig,
-    discoverDevices,
-    discoverGroups,
+    discoverDeviceSummaries,
+    discoverGroupSummaries,
     discoverOwnedAgents,
     enforceModeConstraints,
     generateWallet,
+    hasPublicKeyWithConfig,
     homeExists,
+    isSmartClawsMode,
     loadConfig,
     loadWallet,
+    readStaleConfigHints,
     registerAgent,
     registerDevice,
     registerGroup,
+    resetHomePreservingWallet,
     resolveAgent,
     resolveDevice,
     resolveGroup,
+    type StaleConfigHints,
     saveConfig,
     saveWallet,
     summarizeHome,
@@ -34,7 +39,6 @@ import {
 import { Command } from "commander";
 
 const DEFAULT_CHANNEL_CAPACITY = 1024 * 1024;
-const MODES: SmartClawsMode[] = ["controller", "bridge-agent", "master-agent"];
 
 interface InitOptions {
     home?: string;
@@ -57,6 +61,7 @@ interface InitOptions {
     yes?: boolean;
     verbose?: boolean;
     backup?: boolean;
+    encrypted?: boolean;
 }
 
 interface WalletState {
@@ -66,7 +71,7 @@ interface WalletState {
 }
 
 function isMode(value: string): value is SmartClawsMode {
-    return (MODES as string[]).includes(value);
+    return isSmartClawsMode(value);
 }
 
 function splitDevices(value: unknown): string[] {
@@ -96,13 +101,18 @@ function groupLabel(group: GroupFile, verbose: boolean): string {
     );
 }
 
+function registrationKind(encrypted: boolean | undefined): { encrypted?: boolean } {
+    return encrypted ? { encrypted: true } : {};
+}
+
 function deviceLabel(device: DeviceFile, verbose: boolean): string {
-    if (!verbose) return device.name;
-    return `${device.name} — ${device.deviceContract} — created ${describeDate(device.createdAt)}`;
+    const kind = device.encrypted ? "encrypted" : "plain";
+    if (!verbose) return `${device.name} (${kind})`;
+    return `${device.name} (${kind}) — ${device.deviceContract} — created ${describeDate(device.createdAt)}`;
 }
 
 function agentLabel(agent: AgentFile, verbose: boolean): string {
-    if (!verbose) return agent.name;
+    if (!verbose) return agent.encrypted ? `${agent.name} (encrypted)` : agent.name;
     return (
         agent.name +
         " — " +
@@ -205,24 +215,18 @@ function buildConfig(
     mode: SmartClawsMode,
     walletAddress: string,
     homeDir?: string,
+    hints?: StaleConfigHints,
 ): Config {
-    const existing = loadConfig(homeDir);
-    const network = getNetwork(opts.network ?? existing?.network ?? DEFAULT_NETWORK);
-    const rpcUrl = opts.rpcUrl ?? existing?.rpcUrl ?? network.rpcUrl;
-    const chainId = opts.chainId ? Number(opts.chainId) : existing?.chainId || network.chainId;
-    const contractAddress = opts.contract || existing?.contractAddress || network.registryAddress;
-    const config =
-        existing ??
-        createDefaultConfig(network.name, rpcUrl, chainId, contractAddress, mode, walletAddress);
-
-    config.version = 2;
-    config.network = network.name;
-    config.rpcUrl = rpcUrl;
-    config.chainId = chainId;
-    config.contractAddress = contractAddress;
-    config.walletAddress = config.walletAddress || walletAddress;
-    config.mode = mode;
-    return config;
+    return buildHomeConfig({
+        homeDir,
+        mode,
+        walletAddress,
+        network: opts.network,
+        rpcUrl: opts.rpcUrl,
+        chainId: opts.chainId ? Number(opts.chainId) : undefined,
+        registryAddress: opts.contract || undefined,
+        hints,
+    });
 }
 
 async function chooseGroup(
@@ -238,7 +242,9 @@ async function chooseGroup(
     if (opts.group) return resolveGroup(opts.group, config, wallet, homeDir);
     if (!interactive) return null;
 
-    const groups = await discoverGroups(config, wallet, homeDir).catch(() => [] as GroupFile[]);
+    const groups = await discoverGroupSummaries(config, wallet, homeDir).catch(
+        () => [] as GroupFile[],
+    );
     const choices = groups.map((group) => ({
         name: groupLabel(group, verbose),
         value: group.groupAddress,
@@ -283,15 +289,24 @@ async function chooseDevices(
                 opts.createDevice,
                 BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
                 homeDir,
+                registrationKind(opts.encrypted),
             ),
         );
     }
     if (devices.length > 0 || !interactive) return devices;
 
     if (!groupAddress) return devices;
-    const existing = await discoverDevices(config, groupAddress, wallet, homeDir).catch(
-        () => [] as DeviceFile[],
-    );
+    let showedProgress = false;
+    const existing = await discoverDeviceSummaries(
+        config,
+        groupAddress,
+        homeDir,
+        (loaded, total) => {
+            showedProgress = total > 0;
+            if (showedProgress) process.stderr.write(`\rLoading device names: ${loaded}/${total}`);
+        },
+    ).catch(() => [] as DeviceFile[]);
+    if (showedProgress) process.stderr.write("\n");
 
     if (mode === "bridge-agent") {
         const choices = existing.map((device) => ({
@@ -310,6 +325,7 @@ async function chooseDevices(
                     name,
                     BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
                     homeDir,
+                    registrationKind(opts.encrypted),
                 ),
             ];
         }
@@ -346,6 +362,7 @@ async function chooseDevices(
                 name,
                 BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
                 homeDir,
+                registrationKind(opts.encrypted),
             ),
         );
     }
@@ -372,6 +389,7 @@ async function chooseAgent(
             opts.metadata ?? "",
             BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
             homeDir,
+            registrationKind(opts.encrypted),
         );
     if (opts.agent) return resolveAgent(opts.agent, config, wallet, homeDir);
     if (!interactive) return null;
@@ -406,20 +424,31 @@ async function chooseAgent(
         metadata,
         BigInt(opts.capacity ?? DEFAULT_CHANNEL_CAPACITY),
         homeDir,
+        registrationKind(opts.encrypted),
     );
+}
+
+interface ExistingHomeOutcome {
+    /** False when the user declined; the caller exits without changes. */
+    proceed: boolean;
+    /** Local preferences salvaged from a stale config that was reset. */
+    hints?: StaleConfigHints;
 }
 
 /**
  * When a HOME already exists, show what's there, confirm in interactive mode,
- * and snapshot a backup before anything is mutated. Returns false when the user
- * declined (caller should exit without changes).
+ * and snapshot a backup before anything is mutated.
+ *
+ * A config from a superseded version is reset rather than migrated: the whole HOME is
+ * backed up and cleared apart from the wallet, because its cached group/device/agent
+ * records name contracts in the abandoned deployment. Only local preferences survive.
  */
 async function handleExistingHome(
     homeDir: string | undefined,
     opts: InitOptions,
     interactive: boolean,
-): Promise<boolean> {
-    if (!homeExists(homeDir)) return true;
+): Promise<ExistingHomeOutcome> {
+    if (!homeExists(homeDir)) return { proceed: true };
 
     const s = summarizeHome(homeDir);
     console.log("Existing SmartClaws HOME found:");
@@ -431,7 +460,10 @@ async function handleExistingHome(
     console.log(
         `  Records:   ${s.groupCount} group(s), ${s.deviceCount} device(s), ${s.agentCount} agent(s)`,
     );
-    if (s.migratedFromV1) console.log("  Note:      legacy v1 config will be upgraded to v2.");
+
+    if (s.staleConfig) {
+        return handleStaleHome(homeDir, opts, interactive, s.configVersion);
+    }
 
     if (interactive) {
         const proceed = await confirm({
@@ -440,7 +472,7 @@ async function handleExistingHome(
         });
         if (!proceed) {
             console.log("Left HOME unchanged.");
-            return false;
+            return { proceed: false };
         }
     }
 
@@ -452,7 +484,58 @@ async function handleExistingHome(
         const result = createBackup(homeDir);
         console.log(`Backup saved: ${result.path} (${result.fileCount} files)`);
     }
-    return true;
+    return { proceed: true };
+}
+
+async function handleStaleHome(
+    homeDir: string | undefined,
+    opts: InitOptions,
+    interactive: boolean,
+    configVersion: number | null,
+): Promise<ExistingHomeOutcome> {
+    const version = configVersion === null ? "an unreadable" : `a version ${configVersion}`;
+    console.log("");
+    console.log(`  This HOME has ${version} config, which this release cannot load.`);
+    console.log("  It will be backed up and re-created. Your wallet and address are kept;");
+    console.log("  the cached group, device and agent records are not — they name contracts");
+    console.log("  from a superseded deployment and would resolve to the wrong channels.");
+
+    // The backup becomes the only copy of the discarded records, so this is the one path
+    // where --no-backup would mean irreversible deletion. Refuse rather than honour it.
+    if (opts.backup === false) {
+        throw new Error(
+            "--no-backup cannot be used on a HOME that must be reset: the backup is the only " +
+                "copy of the records being discarded. Re-run without --no-backup.",
+        );
+    }
+
+    if (interactive) {
+        const proceed = await confirm({
+            message: "Back up and re-create this HOME?",
+            default: true,
+        });
+        if (!proceed) {
+            console.log("Left HOME unchanged.");
+            return { proceed: false };
+        }
+    }
+
+    // Read the salvageable preferences before the file is cleared.
+    const hints = readStaleConfigHints(homeDir) ?? undefined;
+    const { backup, walletPreserved } = resetHomePreservingWallet(homeDir);
+    console.log(`Backup saved: ${backup.path} (${backup.fileCount} files)`);
+    console.log(walletPreserved ? "Wallet preserved." : "No wallet found to preserve.");
+
+    // The mode is kept because silently downgrading a master-agent node to controller would
+    // change how it behaves without saying so. But the entities that mode requires lived in
+    // the old deployment, so they have to be re-created in this run or init will refuse.
+    if (hints?.mode && hints.mode !== "controller") {
+        console.log(
+            `Mode '${hints.mode}' is kept, but its agent/devices were part of the old deployment.`,
+        );
+        console.log("Re-attach or re-create them in this run (--create-agent, --create-device).");
+    }
+    return { proceed: true, hints };
 }
 
 function printSummary(
@@ -470,9 +553,48 @@ function printSummary(
     console.log(`  Wallet:    ${config.walletAddress}${generated ? " (generated)" : ""}`);
     console.log(`  Mode:      ${config.mode}`);
     if (group) console.log(`  Group:     ${group.name} (${group.groupAddress})`);
-    if (agent) console.log(`  Agent:     ${agent.name} (${agent.agentContract})`);
+    if (agent)
+        console.log(
+            `  Agent:     ${agent.name} (${agent.agentContract})${agent.encrypted ? " [encrypted]" : ""}`,
+        );
     if (devices.length > 0)
-        console.log(`  Devices:   ${devices.map((device) => device.name).join(", ")}`);
+        console.log(
+            `  Devices:   ${devices
+                .map((device) => (device.encrypted ? `${device.name} (encrypted)` : device.name))
+                .join(", ")}`,
+        );
+}
+
+/**
+ * Report whether the wallet can take part in encrypted channels. Registering a key is a
+ * transaction and needs a funded wallet, so init never auto-registers — especially not
+ * for a freshly generated wallet that still has zero balance.
+ */
+async function printEncryptionReadiness(
+    config: Config,
+    wallet: WalletFile,
+    generated: boolean,
+): Promise<void> {
+    let registered: boolean | undefined;
+    try {
+        registered = await hasPublicKeyWithConfig(config, wallet.address as `0x${string}`);
+    } catch {
+        // Never fail init over a diagnostic: the HOME is already written and valid.
+    }
+    if (registered === true) {
+        console.log("  Enc. key:  registered");
+        return;
+    }
+    if (registered === false) console.log("  Enc. key:  not registered");
+    if (generated) {
+        console.log("This wallet is unfunded. After it has sFUEL, register its public key:");
+        console.log("  smartclaws key register");
+        return;
+    }
+    if (registered === false) {
+        console.log("Register this wallet's public key with:");
+        console.log("  smartclaws key register");
+    }
 }
 
 export const initCommand = new Command("init")
@@ -507,6 +629,7 @@ export const initCommand = new Command("init")
     )
     .option("--yes", "Run non-interactively using provided flags/defaults")
     .option("--verbose", "Show addresses, owners, createdAt, and role data in interactive choices")
+    .option("--encrypted", "Create encrypted devices/agents in this invocation")
     .option("--no-backup", "Skip the automatic backup when re-initializing an existing HOME")
     .action(async (opts: InitOptions) => {
         try {
@@ -514,7 +637,9 @@ export const initCommand = new Command("init")
             const interactive = Boolean(process.stdin.isTTY && !opts.yes);
             const verbose = Boolean(opts.verbose || process.argv.includes("+info"));
 
-            if (!(await handleExistingHome(homeDir, opts, interactive))) return;
+            const existingHome = await handleExistingHome(homeDir, opts, interactive);
+            if (!existingHome.proceed) return;
+            const hints = existingHome.hints;
 
             let mode: SmartClawsMode;
             if (opts.mode) {
@@ -530,11 +655,11 @@ export const initCommand = new Command("init")
                     ],
                 });
             } else {
-                mode = loadConfig(homeDir)?.mode ?? "controller";
+                mode = loadConfig(homeDir)?.mode ?? hints?.mode ?? "controller";
             }
 
             const walletState = await createOrLoadWallet(homeDir, opts, interactive);
-            const config = buildConfig(opts, mode, walletState.wallet.address, homeDir);
+            const config = buildConfig(opts, mode, walletState.wallet.address, homeDir, hints);
             assertHomeWallet(config, walletState.wallet);
 
             const group = await chooseGroup(
@@ -578,6 +703,7 @@ export const initCommand = new Command("init")
             saveConfig(config, homeDir);
 
             printSummary(config, group, agent, devices, walletState.generated);
+            await printEncryptionReadiness(config, walletState.wallet, walletState.generated);
         } catch (err) {
             console.error(err instanceof Error ? err.message : String(err));
             process.exit(1);

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type SubjectRef, useAccessMatrix } from "@/hooks/use-access-matrix";
-import { roleMeta } from "@/lib/roles";
+import { READER_META, roleMeta } from "@/lib/roles";
 
 function SubjectLink({ subject }: { subject: SubjectRef }) {
     const path =
@@ -66,9 +66,39 @@ export function AccessPage() {
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-sm font-medium">{row.label}</span>
                                         <span className="text-muted-foreground/60 text-[11px]">
-                                            controls {row.grants.length}
+                                            controls {row.grants.length} · reads{" "}
+                                            {row.readerGrants.length}
                                         </span>
                                     </div>
+                                    {row.readerGrants.length > 0 && (
+                                        <div className="mt-3 border-t pt-2">
+                                            <p className="text-muted-foreground mb-1.5 text-[10px] font-medium uppercase tracking-wide">
+                                                Encrypted channel reader ACLs
+                                            </p>
+                                            <div className="space-y-1.5">
+                                                {row.readerGrants.map((grant) => (
+                                                    <div
+                                                        key={`reader-${grant.subject.address}-${grant.subject.kind}`}
+                                                        className="flex flex-wrap items-center gap-1.5"
+                                                    >
+                                                        <SubjectLink subject={grant.subject} />
+                                                        {grant.directions.map((direction) => (
+                                                            <Badge
+                                                                key={direction}
+                                                                variant="outline"
+                                                                className="px-2 py-0.5 text-[10px]"
+                                                                title={
+                                                                    READER_META[direction].grants
+                                                                }
+                                                            >
+                                                                {READER_META[direction].label}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     <p className="text-muted-foreground/70 mt-0.5 font-mono text-[11px] break-all">
                                         {row.account}
                                     </p>

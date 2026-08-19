@@ -1,6 +1,8 @@
-import { loadAgent, publishAgentInbound, SmartClawsError } from "@smartclaws/sdk";
+import { publishAgentInbound, resolveAgent } from "@smartclaws/sdk";
 import { Type } from "typebox";
-import { requireWallet, resolveConfig } from "../plugin-config.js";
+import { requireWallet, resolveConfig, resolvedHome } from "../plugin-config.js";
+import { throwIfAborted } from "./guards.js";
+import { presentPublishResult } from "./result.js";
 import type { SmartClawsToolFactory } from "./types.js";
 
 export function notifyTool(tool: SmartClawsToolFactory) {
@@ -8,7 +10,7 @@ export function notifyTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_notify",
         label: "SmartClaws Notify",
         description:
-            "Send a message to another agent's incoming channel (requires SENDER_ROLE on that agent). Signs a transaction and returns its hash.",
+            "Send a message to another agent's incoming channel (requires SENDER_ROLE on that agent). Auto-detects plain vs encrypted. Encrypted notifies wait for CTX confirmation by default and return PublishState, callback deposit, and CTX hashes. `scheduled` means the origin tx was accepted, not that the message is stored — never treat it as published.",
         optional: true,
         parameters: Type.Object({
             agent: Type.String({ description: "Target agent name or contract address (0x...)." }),
@@ -21,33 +23,33 @@ export function notifyTool(tool: SmartClawsToolFactory) {
                     description: "Envelope `dev` identity of the sender (default: controller).",
                 }),
             ),
+            wait: Type.Optional(
+                Type.Boolean({
+                    description:
+                        "Wait for CTX confirmation on encrypted notifies (default true). A timeout remains status=scheduled and is never rewritten as published.",
+                }),
+            ),
         }),
         execute: async (params, config, context) => {
-            context.signal?.throwIfAborted();
+            throwIfAborted(context.signal);
             const cfg = resolveConfig(config);
-            const wallet = requireWallet(config.smartclawsHome);
-
-            const agent = loadAgent(params.agent, config.smartclawsHome);
-            const agentAddress = (agent?.agentContract ?? params.agent) as `0x${string}`;
-            if (!agentAddress.startsWith("0x")) {
-                throw new SmartClawsError(
-                    "ENTITY_NOT_FOUND",
-                    `Agent '${params.agent}' not found.`,
+            const wallet = requireWallet(config);
+            const home = resolvedHome(config);
+            const options = { wait: params.wait ?? true };
+            const agent = await resolveAgent(params.agent, cfg, wallet, home);
+            throwIfAborted(context.signal);
+            return presentPublishResult(
+                await publishAgentInbound(
                     {
-                        agent: params.agent,
+                        agentAddress: agent.agentContract as `0x${string}`,
+                        topic: params.topic,
+                        payload: params.payload,
+                        from: params.from ?? "controller",
                     },
-                );
-            }
-
-            return await publishAgentInbound(
-                {
-                    agentAddress,
-                    topic: params.topic,
-                    payload: params.payload,
-                    from: params.from ?? "controller",
-                },
-                cfg,
-                wallet,
+                    cfg,
+                    wallet,
+                    options,
+                ),
             );
         },
     });

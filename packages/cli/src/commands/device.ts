@@ -1,12 +1,16 @@
 import {
     type DevicePermissionRole,
     grantDevicePermission,
+    grantDeviceReader,
+    listDeviceReaders,
     listDevices,
     loadDevice,
     registerDevice,
     revokeDevicePermission,
+    revokeDeviceReader,
 } from "@smartclaws/sdk";
 import { Command } from "commander";
+import { entityKindLabel, parseChannelSide } from "../format.ts";
 import { loadConfigOrExit, loadWalletOrExit } from "../runtime.ts";
 
 const DEFAULT_CHANNEL_CAPACITY = 1024 * 1024;
@@ -19,6 +23,7 @@ deviceCommand
     .description("Register a new device in the attached device group")
     .requiredOption("--name <name>", "Device name/identifier")
     .option("--capacity <bytes>", "Channel capacity in bytes", String(DEFAULT_CHANNEL_CAPACITY))
+    .option("--encrypted", "Register with encrypted channels")
     .action(async (opts) => {
         const config = loadConfigOrExit();
         const groupAddress = config.attachedGroupAddress || config.deviceGroupAddress;
@@ -45,10 +50,13 @@ deviceCommand
             groupAddress,
             opts.name,
             BigInt(opts.capacity),
+            undefined,
+            opts.encrypted ? { encrypted: true } : {},
         );
 
         console.log("Device registered:");
         console.log(`  Name:      ${device.name}`);
+        console.log(`  Kind:      ${entityKindLabel(device.encrypted)}`);
         console.log(`  Contract:  ${device.deviceContract}`);
         console.log(`  Outgoing:  ${device.outgoingChannel}`);
         console.log(`  Incoming:  ${device.incomingChannel}`);
@@ -130,12 +138,90 @@ deviceCommand
             return;
         }
         for (const d of devices) {
-            console.log(d.name);
+            console.log(`${d.name} (${entityKindLabel(d.encrypted)})`);
             console.log(`  Contract:  ${d.deviceContract}`);
             if (d.groupAddress) console.log(`  Group:     ${d.groupAddress}`);
             console.log(`  Outgoing:  ${d.outgoingChannel}`);
             console.log(`  Incoming:  ${d.incomingChannel}`);
             if (d.createdAt)
                 console.log(`  Created:   ${new Date(d.createdAt * 1000).toISOString()}`);
+        }
+    });
+
+const deviceReaderCommand = deviceCommand
+    .command("reader")
+    .description("Manage encrypted-channel reader ACLs (not AccessControl roles)");
+
+deviceReaderCommand
+    .command("add")
+    .description("Authorize a wallet to disclose messages on one device channel")
+    .requiredOption("--device <address-or-name>", "Device contract address or local/on-chain name")
+    .requiredOption("--side <side>", "incoming or outgoing")
+    .requiredOption("--account <address>", "Reader wallet address")
+    .action(async (opts) => {
+        const config = loadConfigOrExit();
+        const wallet = loadWalletOrExit(config);
+        const side = parseChannelSide(opts.side);
+        try {
+            const result = await grantDeviceReader(config, wallet, opts.device, side, opts.account);
+            console.log(`Granted ${result.side} reader on device`);
+            console.log(`  Device:  ${result.device}`);
+            console.log(`  Account: ${result.reader}`);
+            console.log(`  Tx:      ${result.txHash}`);
+            console.log(`  Status:  ${result.status}`);
+        } catch (e: unknown) {
+            console.error(e instanceof Error ? e.message : String(e));
+            process.exit(1);
+        }
+    });
+
+deviceReaderCommand
+    .command("remove")
+    .description("Revoke disclosure access on one device channel")
+    .requiredOption("--device <address-or-name>", "Device contract address or local/on-chain name")
+    .requiredOption("--side <side>", "incoming or outgoing")
+    .requiredOption("--account <address>", "Reader wallet address")
+    .action(async (opts) => {
+        const config = loadConfigOrExit();
+        const wallet = loadWalletOrExit(config);
+        const side = parseChannelSide(opts.side);
+        try {
+            const result = await revokeDeviceReader(
+                config,
+                wallet,
+                opts.device,
+                side,
+                opts.account,
+            );
+            console.log(`Revoked ${result.side} reader on device`);
+            console.log(`  Device:  ${result.device}`);
+            console.log(`  Account: ${result.reader}`);
+            console.log(`  Tx:      ${result.txHash}`);
+            console.log(`  Status:  ${result.status}`);
+        } catch (e: unknown) {
+            console.error(e instanceof Error ? e.message : String(e));
+            process.exit(1);
+        }
+    });
+
+deviceReaderCommand
+    .command("list")
+    .description("List authorized readers on one device channel")
+    .requiredOption("--device <address-or-name>", "Device contract address or local/on-chain name")
+    .requiredOption("--side <side>", "incoming or outgoing")
+    .action(async (opts) => {
+        const config = loadConfigOrExit();
+        const side = parseChannelSide(opts.side);
+        try {
+            const readers = await listDeviceReaders(config, opts.device, side);
+            if (readers.length === 0) {
+                console.log(`No ${side} readers.`);
+                return;
+            }
+            console.log(`${side} readers:`);
+            for (const reader of readers) console.log(`  ${reader}`);
+        } catch (e: unknown) {
+            console.error(e instanceof Error ? e.message : String(e));
+            process.exit(1);
         }
     });

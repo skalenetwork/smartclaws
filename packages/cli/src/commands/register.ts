@@ -4,7 +4,9 @@ import { Command } from "commander";
 import { loadConfigOrExit, loadWalletOrExit } from "../runtime.ts";
 
 export const registerCommand = new Command("register")
-    .description("Register a new device group on-chain")
+    .description(
+        "Register a new device group on-chain. A group can host both plain and encrypted devices.",
+    )
     .option("--name <name>", "Custom group name (random if not set)")
     .option("--skills <skills>", "Skills description", "")
     .action(async (opts) => {

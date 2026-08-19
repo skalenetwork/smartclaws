@@ -3,11 +3,29 @@ import {
     type Config,
     loadConfig,
     loadWallet,
+    SmartClawsError,
     type WalletFile,
 } from "@smartclaws/sdk";
 
 export function loadConfigOrExit(): Config {
-    const config = loadConfig();
+    let config: Config | null;
+    try {
+        config = loadConfig();
+    } catch (error) {
+        // A stale HOME is not an uninitialized one, and the difference decides what the
+        // user should do next. Without this branch the raw error escapes commander and
+        // prints a stack trace over the guidance.
+        if (error instanceof SmartClawsError && error.code === "CONFIG_VERSION_UNSUPPORTED") {
+            console.error(
+                "This SmartClaws HOME was created by an older version and cannot be loaded.",
+            );
+            console.error(
+                "Run 'smartclaws init' to re-create it. A backup is saved first and your wallet is preserved.",
+            );
+            process.exit(1);
+        }
+        throw error;
+    }
     if (!config) {
         console.error("Not initialized. Run 'smartclaws init' first.");
         process.exit(1);

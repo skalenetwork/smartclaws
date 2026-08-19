@@ -1,0 +1,4 @@
+[test]
+# Unit tests mock @smartclaws/sdk process-wide. Keep the default runner on
+# tests/unit so `bun test` cannot load integration tests into the same process.
+root = "tests/unit"

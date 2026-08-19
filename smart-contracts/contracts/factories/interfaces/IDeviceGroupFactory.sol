@@ -18,6 +18,7 @@ interface IDeviceGroupFactory {
         string calldata skills,
         address registry,
         IChannelFactory channelFactory,
+        IChannelFactory encryptedChannelFactory,
         IDeviceFactory deviceFactory
     ) external returns (ISmartClawsDeviceGroup deviceGroup);
 }

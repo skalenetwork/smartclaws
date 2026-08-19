@@ -1,4 +1,4 @@
-import { Home, LayoutDashboard, Box, Cpu, Wrench, Rocket, Radio, Monitor } from "lucide-react";
+import { Box, Cpu, Home, LayoutDashboard, Monitor, Radio, Rocket, Wrench } from "lucide-react";
 import { useLocation } from "react-router";
 import logoSvg from "@/assets/logo.svg";
 import { useHeaderActions } from "./header-context";

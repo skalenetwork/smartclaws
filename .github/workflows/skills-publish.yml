@@ -38,7 +38,10 @@ jobs:
         run: |
           # A "skill" is any directory under skills/ that contains a SKILL.md.
           all_skill_dirs() {
-            find skills -type f -name SKILL.md -exec dirname {} \; | sort -u
+            # TODO: publish NovaPM once its executable SDS011 adapter is restored and tested.
+            find skills -type f -name SKILL.md \
+              ! -path 'skills/devices/novapm-sds011/SKILL.md' \
+              -exec dirname {} \; | sort -u
           }
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then

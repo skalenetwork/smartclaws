@@ -54,6 +54,26 @@ describe("resolveChannel", () => {
         }
     });
 
+    test("refuses to return an undefined channel from a summary record", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        ensureConfigDir(tempDir);
+        saveDevice(
+            {
+                hydration: "summary",
+                name: "sensor-summary",
+                deviceContract: "0xsummary",
+                encrypted: false,
+            },
+            tempDir,
+        );
+        try {
+            resolveChannel({ device: "sensor-summary" }, tempDir);
+            throw new Error("expected throw");
+        } catch (e) {
+            expect((e as SmartClawsError).code).toBe("ENTITY_NOT_HYDRATED");
+        }
+    });
+
     test("resolves a registered device to its outgoing channel", () => {
         tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
         process.env.SMARTCLAWS_HOME = tempDir;
@@ -63,6 +83,7 @@ describe("resolveChannel", () => {
             deviceContract: "0xdev",
             incomingChannel: "0xin",
             outgoingChannel: "0xout",
+            encrypted: false,
         });
         const resolved = resolveChannel({ device: "sensor-1" });
         expect(resolved.channelAddress).toBe("0xout");
@@ -79,11 +100,106 @@ describe("resolveChannel", () => {
                 deviceContract: "0xd",
                 incomingChannel: "0xi",
                 outgoingChannel: "0xo2",
+                encrypted: false,
             },
             tempDir,
         );
         const resolved = resolveChannel({ device: "sensor-2" }, tempDir);
         expect(resolved.channelAddress).toBe("0xo2");
+    });
+
+    test("resolves both sides of a device pair by name", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        ensureConfigDir(tempDir);
+        saveDevice(
+            {
+                name: "sensor-3",
+                deviceContract: "0xdev3",
+                incomingChannel: "0xin3",
+                outgoingChannel: "0xout3",
+                encrypted: true,
+            },
+            tempDir,
+        );
+
+        // Outgoing stays the default so existing callers are unaffected.
+        expect(resolveChannel({ device: "sensor-3" }, tempDir)).toMatchObject({
+            channelAddress: "0xout3",
+            side: "outgoing",
+        });
+        // Commands sent to the device live on incoming, and must be reachable by name.
+        expect(resolveChannel({ device: "sensor-3", side: "incoming" }, tempDir)).toMatchObject({
+            channelAddress: "0xin3",
+            side: "incoming",
+        });
+    });
+
+    test("resolves both sides of an agent pair by name", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        ensureConfigDir(tempDir);
+        saveAgent(
+            {
+                name: "controller-1",
+                agentId: "controller-1",
+                metadata: "",
+                agentContract: "0xagent1",
+                incomingChannel: "0xainbox",
+                outgoingChannel: "0xalog",
+                encrypted: true,
+            },
+            tempDir,
+        );
+
+        expect(resolveChannel({ agent: "controller-1" }, tempDir)).toMatchObject({
+            channelAddress: "0xalog",
+            side: "outgoing",
+            agent: "controller-1",
+            agentAddress: "0xagent1",
+        });
+        // notify() delivers here, so an agent's inbox must be readable by name too.
+        expect(resolveChannel({ agent: "controller-1", side: "incoming" }, tempDir)).toMatchObject({
+            channelAddress: "0xainbox",
+            side: "incoming",
+        });
+    });
+
+    test("throws ENTITY_NOT_FOUND for an unknown agent", () => {
+        tempDir = mkdtempSync(join(tmpdir(), "smartclaws-test-"));
+        try {
+            resolveChannel({ agent: "ghost" }, tempDir);
+            throw new Error("expected throw");
+        } catch (e) {
+            expect((e as SmartClawsError).code).toBe("ENTITY_NOT_FOUND");
+        }
+    });
+
+    test("rejects more than one target", () => {
+        for (const target of [
+            { device: "d", agent: "a" },
+            { agent: "a", channel: "0x1" },
+            { device: "d", agent: "a", channel: "0x1" },
+        ]) {
+            try {
+                resolveChannel(target);
+                throw new Error("expected throw");
+            } catch (e) {
+                expect((e as SmartClawsError).code).toBe("INVALID_TARGET");
+            }
+        }
+    });
+
+    test("rejects `side` with a direct channel address rather than ignoring it", () => {
+        // Silently dropping an explicit side is how a caller ends up reading the wrong
+        // mailbox without noticing.
+        try {
+            resolveChannel({
+                channel: "0x1111111111111111111111111111111111111111",
+                side: "incoming",
+            });
+            throw new Error("expected throw");
+        } catch (e) {
+            expect((e as SmartClawsError).code).toBe("INVALID_TARGET");
+        }
     });
 });
 
@@ -132,6 +248,7 @@ describe("local cache filenames", () => {
                 deviceContract: "0x00000000000000000000000000000000000000d1",
                 incomingChannel: "0x00000000000000000000000000000000000000d2",
                 outgoingChannel: "0x00000000000000000000000000000000000000d3",
+                encrypted: false,
             },
             tempDir,
         );
@@ -153,6 +270,7 @@ describe("local cache filenames", () => {
                 agentContract: "0x00000000000000000000000000000000000000a1",
                 incomingChannel: "0x00000000000000000000000000000000000000a2",
                 outgoingChannel: "0x00000000000000000000000000000000000000a3",
+                encrypted: false,
             },
             tempDir,
         );

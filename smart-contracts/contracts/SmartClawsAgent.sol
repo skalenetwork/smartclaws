@@ -6,6 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ISmartClawsAgent} from "./interfaces/ISmartClawsAgent.sol";
 import {ISmartClawsChannel} from "./interfaces/ISmartClawsChannel.sol";
+import {ISmartClawsChannelEncrypted} from "./interfaces/ISmartClawsChannelEncrypted.sol";
 import {IChannelFactory} from "./factories/interfaces/IChannelFactory.sol";
 import {InvalidRegistryAddress} from "./Errors.sol";
 
@@ -87,9 +88,12 @@ contract SmartClawsAgent is Ownable2Step, AccessControlEnumerable, ISmartClawsAg
      */
     function publishOutbound(
         bytes calldata payload
-    ) external override whenActive onlyRole(PUBLISHER_ROLE) {
-        outgoingChannel.publishMessage(payload);
-        emit AgentOutboundPublished(address(this), address(outgoingChannel), msg.sender);
+    ) external payable override whenActive onlyRole(PUBLISHER_ROLE) {
+        if (_publishMessage(outgoingChannel, payload)) {
+            emit AgentOutboundPublished(address(this), address(outgoingChannel), msg.sender);
+        } else {
+            emit AgentOutboundScheduled(address(this), address(outgoingChannel), msg.sender);
+        }
     }
 
     /**
@@ -98,9 +102,28 @@ contract SmartClawsAgent is Ownable2Step, AccessControlEnumerable, ISmartClawsAg
      */
     function publishInbound(
         bytes calldata payload
-    ) external override whenActive onlyRole(SENDER_ROLE) {
-        incomingChannel.publishMessage(payload);
-        emit AgentInboundPublished(address(this), address(incomingChannel), msg.sender);
+    ) external payable override whenActive onlyRole(SENDER_ROLE) {
+        if (_publishMessage(incomingChannel, payload)) {
+            emit AgentInboundPublished(address(this), address(incomingChannel), msg.sender);
+        } else {
+            emit AgentInboundScheduled(address(this), address(incomingChannel), msg.sender);
+        }
+    }
+
+    function addIncomingReader(address reader) external override onlyRegistryOwnerOrAgentAdmin {
+        _encryptedChannel(incomingChannel).addReader(reader);
+    }
+
+    function removeIncomingReader(address reader) external override onlyRegistryOwnerOrAgentAdmin {
+        _encryptedChannel(incomingChannel).removeReader(reader);
+    }
+
+    function addOutgoingReader(address reader) external override onlyRegistryOwnerOrAgentAdmin {
+        _encryptedChannel(outgoingChannel).addReader(reader);
+    }
+
+    function removeOutgoingReader(address reader) external override onlyRegistryOwnerOrAgentAdmin {
+        _encryptedChannel(outgoingChannel).removeReader(reader);
     }
 
     /**
@@ -157,6 +180,30 @@ contract SmartClawsAgent is Ownable2Step, AccessControlEnumerable, ISmartClawsAg
         bytes4 interfaceId
     ) public view override(AccessControlEnumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    function _publishMessage(ISmartClawsChannel channel, bytes calldata payload) private returns (bool publishedNow) {
+        if (channel.isEncrypted()) {
+            ISmartClawsChannelEncrypted(address(channel)).publishMessageFor{value: msg.value}(
+                payload,
+                msg.sender
+            );
+            return false;
+        } else {
+            require(
+                msg.value == 0,
+                ISmartClawsChannel.NativeValueNotAccepted(msg.value)
+            );
+            channel.publishMessage(payload);
+            return true;
+        }
+    }
+
+    function _encryptedChannel(
+        ISmartClawsChannel channel
+    ) private pure returns (ISmartClawsChannelEncrypted encryptedChannel) {
+        require(channel.isEncrypted(), ISmartClawsChannel.EncryptedOperationUnsupported());
+        return ISmartClawsChannelEncrypted(address(channel));
     }
 
     function _transferOwnership(address newOwner) internal override {

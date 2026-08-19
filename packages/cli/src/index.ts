@@ -5,6 +5,7 @@ import { backupCommand } from "./commands/backup.ts";
 import { deviceCommand } from "./commands/device.ts";
 import { discoverCommand } from "./commands/discover.ts";
 import { initCommand } from "./commands/init.ts";
+import { keyCommand } from "./commands/key.ts";
 import { publishCommand } from "./commands/publish.ts";
 import { readCommand } from "./commands/read.ts";
 import { registerCommand } from "./commands/register.ts";
@@ -27,6 +28,7 @@ program.addCommand(discoverCommand);
 program.addCommand(syncCommand);
 program.addCommand(whoamiCommand);
 program.addCommand(walletCommand);
+program.addCommand(keyCommand);
 program.addCommand(backupCommand);
 
 program.parse();

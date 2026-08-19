@@ -1,6 +1,6 @@
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, KeyRound } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import type { Address } from "viem";
 import { AccessPanel } from "@/components/shared/access-panel";
 import { AddressAvatar } from "@/components/shared/address-avatar";
@@ -10,21 +10,24 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
 import { useDeviceDetail } from "@/hooks/use-device-detail";
 
 export function DeviceDetailPage() {
     const { address } = useParams<{ address: string }>();
+    const location = useLocation();
     if (!address) return null;
 
+    const channelKind = (location.state as { channelKind?: ChannelKind } | null)?.channelKind;
+
     // Key forces full remount when navigating between devices
-    return <DeviceDetailContent key={address} address={address} />;
+    return <DeviceDetailContent key={address} address={address} knownKind={channelKind} />;
 }
 
-function DeviceDetailContent({ address }: { address: string }) {
-    const { incomingChannel, outgoingChannel, deviceId, group, isLoading } = useDeviceDetail(
-        address as Address,
-    );
+function DeviceDetailContent({ address, knownKind }: { address: string; knownKind?: ChannelKind }) {
+    const { incomingChannel, outgoingChannel, channelKind, deviceId, group, isLoading } =
+        useDeviceDetail(address as Address, knownKind);
     const [activeTab, setActiveTab] = useState("outgoing");
 
     // `access` is not a channel tab, so no address bar is shown for it.
@@ -36,7 +39,7 @@ function DeviceDetailContent({ address }: { address: string }) {
               : undefined;
 
     // Fetch 1 message from outgoing to get device name
-    const { messages: nameMessages } = useChannelMessages(outgoingChannel, 1);
+    const { messages: nameMessages } = useChannelMessages(outgoingChannel, 1, channelKind);
     const devName = deviceId ?? nameMessages[0]?.envelope?.dev;
 
     if (isLoading) {
@@ -95,7 +98,7 @@ function DeviceDetailContent({ address }: { address: string }) {
 
                 <TabsContent value="outgoing">
                     {outgoingChannel ? (
-                        <ChannelView address={outgoingChannel} />
+                        <ChannelView address={outgoingChannel} channelKind={channelKind} />
                     ) : (
                         <Card>
                             <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -107,7 +110,7 @@ function DeviceDetailContent({ address }: { address: string }) {
 
                 <TabsContent value="incoming">
                     {incomingChannel ? (
-                        <ChannelView address={incomingChannel} />
+                        <ChannelView address={incomingChannel} channelKind={channelKind} />
                     ) : (
                         <Card>
                             <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -118,7 +121,11 @@ function DeviceDetailContent({ address }: { address: string }) {
                 </TabsContent>
 
                 <TabsContent value="access">
-                    <AccessPanel subject={address as Address} kind="device" />
+                    <AccessPanel
+                        subject={address as Address}
+                        kind="device"
+                        channelKind={channelKind}
+                    />
                 </TabsContent>
             </Tabs>
         </div>

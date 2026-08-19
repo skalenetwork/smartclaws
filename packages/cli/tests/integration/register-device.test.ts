@@ -2,8 +2,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Address, decodeEventLog, keccak256, toHex } from "viem";
+import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json";
+import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json";
+import SmartClawsDeviceGroupABI from "@smartclaws/core/abi/SmartClawsDeviceGroup.json";
 import { createDefaultConfig, loadDevice, saveConfig } from "@smartclaws/sdk";
+import { type Address, decodeEventLog, getContract, keccak256, toHex } from "viem";
 import {
     account,
     deployRegistry,
@@ -11,10 +14,6 @@ import {
     publicClient,
     walletClient,
 } from "../setup.ts";
-import SmartClawsABI from "@smartclaws/core/abi/SmartClaws.json";
-import SmartClawsDeviceABI from "@smartclaws/core/abi/SmartClawsDevice.json";
-import SmartClawsDeviceGroupABI from "@smartclaws/core/abi/SmartClawsDeviceGroup.json";
-import { getContract } from "viem";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";
 const ANVIL_CHAIN_ID = 31337;

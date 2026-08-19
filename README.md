@@ -8,8 +8,8 @@ agent decisions.
 The project includes Solidity contracts, a TypeScript CLI and SDK, an OpenClaw
 plugin, operational skills, and a small set of hardware/simulation scripts.
 
-For a visual walkthrough — the control loop, the on-chain objects, permissions,
-and the optional Pairpoint signing and private-inference layers — open
+For a visual walkthrough — the control loop, the on-chain objects, plain and encrypted
+channels, permissions, and the optional Pairpoint signing and private-inference layers — open
 [`ARCHITECTURE.html`](ARCHITECTURE.html) in a browser. GitHub shows that file as
 source rather than rendering it, so view it locally or through GitHub Pages.
 
@@ -45,7 +45,7 @@ Messages use a compact envelope shape:
 | `packages/core/` | Shared TypeScript types, envelope encoding, names, network config, and ABI JSON. |
 | `packages/sdk/` | TypeScript SDK for config, wallets, discovery, reads, publishes, role grants, and backups. |
 | `packages/cli/` | `smartclaws` command-line binary built on the SDK. |
-| `packages/openclaw-plugin/` | OpenClaw tools: wallet info, read, publish, notify. |
+| `packages/openclaw-plugin/` | OpenClaw tools for setup, identity, publish/read/disclose, authority, keys, and recovery. |
 | `packages/dashboard/` | Frontend dashboard package. |
 | `skills/` | Device contracts and operational OpenClaw skills. |
 | `open-claw-setups/` | Example full agent workspaces/templates. |
@@ -163,26 +163,28 @@ openclaw plugins inspect smartclaws --runtime
 ```
 
 Restart or reload the OpenClaw Gateway after installing or updating the plugin.
-Configure it with a SmartClaws home and network:
+The plugin can initialize a generated-wallet HOME without the CLI. Start with
+`smartclaws_setup_status`, then `smartclaws_initialize` on a named network.
+Private-key import is not a model-visible tool.
+
+Plugin config (operator-owned; agent tools mutate HOME config only):
 
 ```jsonc
 {
   "smartclawsHome": "~/.smartclaws",
-  "network": "base-testnet"
+  "network": "base-testnet",
+  "allowPrivateRpc": false
 }
 ```
 
-The plugin exposes four tools:
+Custom RPC overrides are privileged (HTTP(S) only; private/loopback/metadata
+hosts require `allowPrivateRpc`). See `packages/openclaw-plugin/README.md` for
+the full tool inventory, optional-tool policy, and permission recipes.
 
-| Tool | Purpose |
-| --- | --- |
-| `smartclaws_wallet_info` | Read configured wallet address and balance. |
-| `smartclaws_read` | Read and decode messages from device or channel targets. |
-| `smartclaws_publish` | Publish device telemetry, agent outbound logs, or direct channel envelopes. |
-| `smartclaws_notify` | Publish to another agent's incoming channel. |
-
-Write tools are optional and must be explicitly enabled in the OpenClaw
-configuration before an agent can call them.
+Read-only diagnostics are non-optional. Write tools (`initialize`, register,
+publish, disclose, roles, keys, backups, …) are optional and must be
+explicitly enabled in OpenClaw tool policy. `scheduled` is never `published`.
+Skills under `skills/` are deferred until this tool contract is released.
 
 ## Skills
 
@@ -194,9 +196,11 @@ clawhub install smartclaws
 clawhub install smartclaws-master-agent
 clawhub install smartclaws-bridge-agent
 clawhub install smartclaws-device-shelly-plug-s-gen3
-clawhub install smartclaws-device-novapm-sds011
 clawhub install nearai-verify
 ```
+
+The NovaPM/SDS011 device contract remains source-only until its executable
+serial adapter is restored and tested.
 
 Use `smartclaws` first for onboarding. Then install one role skill
 (`smartclaws-master-agent` or `smartclaws-bridge-agent`) and one device contract
@@ -213,7 +217,8 @@ The same skills are available in the repo for local development:
 
 The current operational pattern is:
 
-1. Use `skills/smartclaws/` to create a `SMARTCLAWS.md` wiring file.
+1. Use `skills/smartclaws/` to go from the onboarding skill to a working agent
+   of one job (`SETUP.md`), including a `SMARTCLAWS.md` with the owner's goal.
 2. Add the relevant device skill from `skills/devices/`.
 3. Use `smartclaws-bridge-agent` for hardware/API telemetry bridges.
 4. Use `smartclaws-master-agent` for control decisions and on-chain audit logs.

@@ -5,6 +5,8 @@ import { type Address, type Hex, hexToBytes, zeroAddress } from "viem";
 import { useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
+import { useChannelActivityTimes } from "@/hooks/use-channel-activity";
+import type { ChannelKind } from "@/hooks/use-channel-kind";
 
 export interface DeviceInfo {
     address: Address;
@@ -14,6 +16,7 @@ export interface DeviceInfo {
     createdAt?: bigint;
     lastMessageTs?: number;
     devName?: string;
+    channelKind: ChannelKind;
 }
 
 export function useGroupDetail(groupAddress: Address) {
@@ -26,6 +29,7 @@ export function useGroupDetail(groupAddress: Address) {
             { ...contract, functionName: "active" },
             { ...contract, functionName: "owner" },
             { ...contract, functionName: "getDevices" },
+            { ...contract, functionName: "getEncryptedDevices" },
         ],
         query: { refetchInterval: 15_000, placeholderData: keepPreviousData },
     });
@@ -34,7 +38,19 @@ export function useGroupDetail(groupAddress: Address) {
     const skills = meta?.[1]?.result as string | undefined;
     const active = meta?.[2]?.result as boolean | undefined;
     const owner = meta?.[3]?.result as Address | undefined;
-    const deviceAddresses = (meta?.[4]?.result as Address[] | undefined) ?? [];
+    const plainAddresses = (meta?.[4]?.result as Address[] | undefined) ?? [];
+    const encryptedAddresses = (meta?.[5]?.result as Address[] | undefined) ?? [];
+    const discoveredDevices = useMemo(() => {
+        const byAddress = new Map<string, { address: Address; channelKind: ChannelKind }>();
+        for (const address of plainAddresses) {
+            byAddress.set(address.toLowerCase(), { address, channelKind: "plain" });
+        }
+        for (const address of encryptedAddresses) {
+            byAddress.set(address.toLowerCase(), { address, channelKind: "encrypted" });
+        }
+        return [...byAddress.values()];
+    }, [plainAddresses, encryptedAddresses]);
+    const deviceAddresses = discoveredDevices.map((device) => device.address);
 
     const { data: deviceDetails, isLoading: isLoadingDevices } = useReadContracts({
         contracts: deviceAddresses.flatMap((addr) => [
@@ -100,17 +116,25 @@ export function useGroupDetail(groupAddress: Address) {
         },
     });
 
+    const activity = useChannelActivityTimes(
+        outgoingChannels.map((address, index) => ({
+            address,
+            latestOffset: latestOffsets?.[index]?.result as bigint | undefined,
+            enabled: discoveredDevices[index]?.channelKind === "encrypted",
+        })),
+    );
+
     const devices: DeviceInfo[] = deviceAddresses.map((addr, i) => {
         const deviceId = deviceDetails?.[i * 4]?.result as string | undefined;
         const incomingChannel = deviceDetails?.[i * 4 + 1]?.result as Address | undefined;
         const outgoingChannel = deviceDetails?.[i * 4 + 2]?.result as Address | undefined;
         const createdAt = deviceDetails?.[i * 4 + 3]?.result as bigint | undefined;
 
-        let lastMessageTs: number | undefined;
+        let lastMessageTs = activity.timestamps[i];
         let devName: string | undefined;
         try {
             const raw = latestMessages?.[i]?.result as [Hex[], bigint[]] | undefined;
-            if (raw?.[0]?.[0]) {
+            if (discoveredDevices[i]?.channelKind === "plain" && raw?.[0]?.[0]) {
                 const envelope = decode(hexToBytes(raw[0][0]));
                 lastMessageTs = envelope.ts;
                 devName = envelope.dev;
@@ -127,6 +151,7 @@ export function useGroupDetail(groupAddress: Address) {
             createdAt,
             lastMessageTs,
             devName: devName ?? deviceId,
+            channelKind: discoveredDevices[i]?.channelKind ?? "plain",
         };
     });
 
@@ -136,6 +161,8 @@ export function useGroupDetail(groupAddress: Address) {
         active,
         owner,
         devices,
+        plainDeviceCount: plainAddresses.length,
+        encryptedDeviceCount: encryptedAddresses.length,
         isLoading: isLoadingMeta || isLoadingDevices,
     };
 }

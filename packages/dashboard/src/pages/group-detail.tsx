@@ -102,7 +102,11 @@ function GroupDetailContent({ address }: { address: string }) {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {devices.map((device) => (
-                                <Link key={device.address} to={`/devices/${device.address}`}>
+                                <Link
+                                    key={device.address}
+                                    to={`/devices/${device.address}`}
+                                    state={{ channelKind: device.channelKind }}
+                                >
                                     <Card className="hover:shadow-md transition-shadow duration-200 cursor-pointer p-0 relative">
                                         <CardContent className="p-4 space-y-3">
                                             {(() => {
@@ -128,6 +132,12 @@ function GroupDetailContent({ address }: { address: string }) {
                                                         {device.devName ||
                                                             `${device.address.slice(0, 14)}...${device.address.slice(-4)}`}
                                                     </p>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="mt-1 px-1.5 py-0 text-[9px]"
+                                                    >
+                                                        {device.channelKind}
+                                                    </Badge>
                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                         <Calendar className="h-3 w-3 text-muted-foreground" />
                                                         <span className="text-xs text-muted-foreground truncate">

@@ -26,6 +26,23 @@ export const AGENT_ROLES = {
 
 export type SubjectKind = "device" | "agent";
 export type RoleName = keyof typeof DEVICE_ROLES | keyof typeof AGENT_ROLES;
+export type ReaderDirection = "incoming" | "outgoing";
+
+export interface ReaderMeta {
+    label: string;
+    grants: string;
+}
+
+export const READER_META: Record<ReaderDirection, ReaderMeta> = {
+    incoming: {
+        label: "Incoming reader",
+        grants: "May request paid disclosure of encrypted incoming-channel messages",
+    },
+    outgoing: {
+        label: "Outgoing reader",
+        grants: "May request paid disclosure of encrypted outgoing-channel messages",
+    },
+};
 
 export interface RoleMeta {
     /** Short label shown on the badge. */

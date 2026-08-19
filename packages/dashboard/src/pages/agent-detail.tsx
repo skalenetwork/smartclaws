@@ -30,6 +30,7 @@ function AgentDetailContent({ address }: { address: Address }) {
         active,
         incomingChannel,
         outgoingChannel,
+        channelKind,
         lastMessageTs,
         isLoading,
     } = useAgentDetail(address);
@@ -132,7 +133,11 @@ function AgentDetailContent({ address }: { address: Address }) {
 
                 <TabsContent value="outgoing">
                     {outgoingChannel ? (
-                        <ChannelView address={outgoingChannel} variant="compact" />
+                        <ChannelView
+                            address={outgoingChannel}
+                            variant="compact"
+                            channelKind={channelKind}
+                        />
                     ) : (
                         <Card>
                             <CardContent className="text-muted-foreground py-12 text-center text-sm">
@@ -144,7 +149,11 @@ function AgentDetailContent({ address }: { address: Address }) {
 
                 <TabsContent value="incoming">
                     {incomingChannel ? (
-                        <ChannelView address={incomingChannel} variant="compact" />
+                        <ChannelView
+                            address={incomingChannel}
+                            variant="compact"
+                            channelKind={channelKind}
+                        />
                     ) : (
                         <Card>
                             <CardContent className="text-muted-foreground py-12 text-center text-sm">
@@ -155,7 +164,7 @@ function AgentDetailContent({ address }: { address: Address }) {
                 </TabsContent>
 
                 <TabsContent value="access">
-                    <AccessPanel subject={address} kind="agent" />
+                    <AccessPanel subject={address} kind="agent" channelKind={channelKind} />
                 </TabsContent>
             </Tabs>
         </div>

@@ -1,4 +1,12 @@
-import { ChevronRight, ChevronsDown, Database, Hash, Loader2, MessageSquare } from "lucide-react";
+import {
+    ChevronRight,
+    ChevronsDown,
+    Database,
+    Hash,
+    Loader2,
+    LockKeyhole,
+    MessageSquare,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { Address } from "viem";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -15,6 +23,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useChannelCapacity } from "@/hooks/use-channel-capacity";
+import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
 
 function formatBytes(bytes: bigint): string {
@@ -63,9 +72,9 @@ function highlightJson(json: string): ReactNode[] {
     const regex =
         /("(?:\\.|[^"\\])*")\s*(:)?|(\b(?:true|false|null)\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],:])/g;
     let lastIndex = 0;
-    let match: RegExpExecArray | null;
+    let match = regex.exec(json);
 
-    while ((match = regex.exec(json)) !== null) {
+    while (match !== null) {
         if (match.index > lastIndex) {
             parts.push(json.slice(lastIndex, match.index));
         }
@@ -107,6 +116,7 @@ function highlightJson(json: string): ReactNode[] {
             );
         }
         lastIndex = match.index + full.length;
+        match = regex.exec(json);
     }
     if (lastIndex < json.length) {
         parts.push(json.slice(lastIndex));
@@ -122,9 +132,14 @@ interface ChannelViewProps {
      * and the message list, with nothing between them.
      */
     variant?: "full" | "compact";
+    channelKind?: ChannelKind;
 }
 
-export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
+export function ChannelView({
+    address,
+    variant = "full",
+    channelKind: knownKind,
+}: ChannelViewProps) {
     const isCompact = variant === "compact";
     const {
         messages,
@@ -135,7 +150,9 @@ export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
         isLoadingMore,
         canLoadMore,
         loadMore,
-    } = useChannelMessages(address);
+        channelKind,
+        isEncrypted,
+    } = useChannelMessages(address, 20, knownKind);
     const { hasPruned } = useChannelCapacity(address);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -176,7 +193,7 @@ export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
                     accent="indigo"
                 />
                 <StatCard
-                    title="Storage Used"
+                    title={isEncrypted ? "Stored Ciphertext" : "Storage Used"}
                     value={totalBytes !== undefined ? formatBytes(totalBytes) : "0 B"}
                     icon={Database}
                     accent="amber"
@@ -188,7 +205,7 @@ export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
                                 {capacityPercent !== null ? `${capacityPercent}%` : "N/A"}
                             </div>
                             <span className="text-[10px] sm:text-xs text-muted-foreground/80">
-                                Capacity
+                                {isEncrypted ? "Ciphertext capacity" : "Capacity"}
                             </span>
                         </div>
                         {maxCapacity !== undefined && (
@@ -287,7 +304,12 @@ export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
                                                 #{key}
                                             </TableCell>
                                             <TableCell className="py-2 px-3">
-                                                {msg.envelope ? (
+                                                {msg.encrypted ? (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        <LockKeyhole className="mr-1 h-3 w-3" />
+                                                        Ciphertext
+                                                    </Badge>
+                                                ) : msg.envelope ? (
                                                     <Badge variant="secondary" className="text-xs">
                                                         {msg.envelope.topic}
                                                     </Badge>
@@ -301,14 +323,18 @@ export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
                                                 )}
                                             </TableCell>
                                             <TableCell className="py-2 px-3 text-xs font-mono text-muted-foreground max-w-72 truncate">
-                                                {msg.envelope
-                                                    ? compactJson(msg.envelope.p)
-                                                    : msg.raw.slice(0, 40) + "…"}
+                                                {msg.encrypted
+                                                    ? `${msg.ciphertextBytes ?? 0} bytes · ${msg.raw.slice(0, 24)}…`
+                                                    : msg.envelope
+                                                      ? compactJson(msg.envelope.p)
+                                                      : `${msg.raw.slice(0, 40)}…`}
                                             </TableCell>
                                             <TableCell className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
-                                                {msg.envelope
-                                                    ? formatTimestamp(msg.envelope.ts)
-                                                    : "—"}
+                                                {msg.encrypted
+                                                    ? "Encrypted"
+                                                    : msg.envelope
+                                                      ? formatTimestamp(msg.envelope.ts)
+                                                      : "—"}
                                             </TableCell>
                                             <TableCell className="py-2 px-3 text-xs text-muted-foreground">
                                                 {msg.envelope?.dev ?? "—"}
@@ -327,13 +353,25 @@ export function ChannelView({ address, variant = "full" }: ChannelViewProps) {
                                                 <TableCell colSpan={6} className="p-0">
                                                     <pre className="text-xs font-mono bg-muted/30 rounded-lg p-3 m-2 overflow-x-auto leading-relaxed">
                                                         {highlightJson(
-                                                            msg.envelope
+                                                            msg.encrypted
                                                                 ? JSON.stringify(
-                                                                      msg.envelope,
+                                                                      {
+                                                                          encrypted: true,
+                                                                          ciphertextBytes:
+                                                                              msg.ciphertextBytes,
+                                                                          rawHex: msg.raw,
+                                                                          channelKind,
+                                                                      },
                                                                       null,
                                                                       2,
                                                                   )
-                                                                : msg.raw,
+                                                                : msg.envelope
+                                                                  ? JSON.stringify(
+                                                                        msg.envelope,
+                                                                        null,
+                                                                        2,
+                                                                    )
+                                                                  : msg.raw,
                                                         )}
                                                     </pre>
                                                 </TableCell>

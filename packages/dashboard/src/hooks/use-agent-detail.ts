@@ -4,6 +4,7 @@ import { type Address, type Hex, hexToBytes, zeroAddress } from "viem";
 import { useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
+import { useChannelKind } from "@/hooks/use-channel-kind";
 
 /** Metadata and liveness for a single agent. */
 export function useAgentDetail(agentAddress: Address) {
@@ -23,6 +24,7 @@ export function useAgentDetail(agentAddress: Address) {
     });
 
     const outgoingChannel = data?.[6]?.result as Address | undefined;
+    const { kind: channelKind, isLoading: isLoadingKind } = useChannelKind(outgoingChannel);
 
     const { data: offsetData } = useReadContracts({
         contracts: [
@@ -62,7 +64,9 @@ export function useAgentDetail(agentAddress: Address) {
     let lastMessageTs: number | undefined;
     try {
         const raw = messageData?.[0]?.result as [Hex[], bigint[]] | undefined;
-        if (raw?.[0]?.[0]) lastMessageTs = decode(hexToBytes(raw[0][0])).ts;
+        if (channelKind === "plain" && raw?.[0]?.[0]) {
+            lastMessageTs = decode(hexToBytes(raw[0][0])).ts;
+        }
     } catch {
         // ignore decode errors
     }
@@ -75,7 +79,8 @@ export function useAgentDetail(agentAddress: Address) {
         createdAt: data?.[4]?.result as bigint | undefined,
         incomingChannel: data?.[5]?.result as Address | undefined,
         outgoingChannel,
+        channelKind,
         lastMessageTs,
-        isLoading,
+        isLoading: isLoading || isLoadingKind,
     };
 }

@@ -116,6 +116,13 @@ describe("SmartClawsDevice", function () {
             expect(await outgoing.getMessageCount()).to.equal(1);
         });
 
+        it("should not emit DeviceTelemetryScheduled for plaintext channels", async function () {
+            await device.connect(deviceAdmin).grantRole(ROLES.PUBLISHER, publisher.address);
+            await expect(
+                device.connect(publisher).publishTelemetry(ethersLib.toUtf8Bytes("temp:24")),
+            ).to.not.emit(device, "DeviceTelemetryScheduled");
+        });
+
         it("should reject telemetry from a non-publisher", async function () {
             await expect(
                 device.connect(publisher).publishTelemetry(ethersLib.toUtf8Bytes("x")),
@@ -135,6 +142,13 @@ describe("SmartClawsDevice", function () {
                 device.connect(master).publishCommand(ethersLib.toUtf8Bytes("reboot")),
             ).to.emit(incoming, "MessagePublished");
             expect(await incoming.getMessageCount()).to.equal(1);
+        });
+
+        it("should not emit DeviceCommandScheduled for plaintext channels", async function () {
+            await device.connect(deviceAdmin).grantRole(ROLES.MASTER, master.address);
+            await expect(
+                device.connect(master).publishCommand(ethersLib.toUtf8Bytes("reboot")),
+            ).to.not.emit(device, "DeviceCommandScheduled");
         });
 
         it("should reject commands from a non-master", async function () {

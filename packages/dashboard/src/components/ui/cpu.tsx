@@ -85,9 +85,12 @@ const CpuIcon = forwardRef<CpuIconHandle, CpuIconProps>(
                 className={cn(className)}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
+                role="img"
+                aria-label="CPU"
                 {...props}
             >
                 <svg
+                    aria-hidden="true"
                     fill="none"
                     height={size}
                     stroke="currentColor"

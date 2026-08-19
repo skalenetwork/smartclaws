@@ -5,7 +5,14 @@ import { useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
 import { type AccountLabel, useAccessGraph } from "@/hooks/use-access-graph";
-import { ROLE_ORDER, type RoleName, roleHash, type SubjectKind } from "@/lib/roles";
+import { type ChannelKind, useChannelKinds } from "@/hooks/use-channel-kind";
+import {
+    type ReaderDirection,
+    ROLE_ORDER,
+    type RoleName,
+    roleHash,
+    type SubjectKind,
+} from "@/lib/roles";
 
 export interface AccessHolder {
     account: Address;
@@ -14,6 +21,12 @@ export interface AccessHolder {
     roles: RoleName[];
     /** True if any held role permits writing messages. */
     canWrite: boolean;
+}
+
+export interface AccessReader {
+    account: Address;
+    label: string;
+    directions: ReaderDirection[];
 }
 
 /**
@@ -25,14 +38,59 @@ export interface AccessHolder {
 export function useAccessRoles(
     subject: Address | undefined,
     kind: SubjectKind,
+    knownChannelKind?: ChannelKind,
 ): {
     holders: AccessHolder[];
+    readers: AccessReader[];
     candidateCount: number;
     isLoading: boolean;
 } {
     const { candidates, isLoading: isLoadingGraph } = useAccessGraph();
     const roles = ROLE_ORDER[kind];
     const abi = kind === "device" ? abis.device : abis.agent;
+
+    const { data: channelData, isLoading: isLoadingChannels } = useReadContracts({
+        contracts: [
+            {
+                address: subject,
+                abi,
+                functionName: "getIncomingMessagesChannel",
+                chainId: chain.id,
+            },
+            {
+                address: subject,
+                abi,
+                functionName: "getOutgoingMessagesChannel",
+                chainId: chain.id,
+            },
+        ],
+        query: { enabled: !!subject, staleTime: Number.POSITIVE_INFINITY },
+    });
+    const channels = [
+        channelData?.[0]?.result as Address | undefined,
+        channelData?.[1]?.result as Address | undefined,
+    ];
+    const resolvedKinds = useChannelKinds(knownChannelKind ? [] : channels);
+    const channelKinds = knownChannelKind
+        ? [knownChannelKind, knownChannelKind]
+        : resolvedKinds.kinds;
+
+    const { data: readerData, isLoading: isLoadingReaders } = useReadContracts({
+        contracts: channels.map((address) => ({
+            address,
+            abi: abis.channelEncrypted,
+            functionName: "getReaders",
+            args: [],
+            chainId: chain.id,
+        })),
+        query: {
+            enabled: channels.some(
+                (address, index) => !!address && channelKinds[index] === "encrypted",
+            ),
+            refetchInterval: 30_000,
+            placeholderData: keepPreviousData,
+        },
+    });
 
     // One hasRole read per (candidate, role) pair.
     const pairs = useMemo(
@@ -87,9 +145,42 @@ export function useAccessRoles(
         );
     }, [pairs, data, roles]);
 
+    const readers = useMemo<AccessReader[]>(() => {
+        const byAccount = new Map<string, AccessReader>();
+        const directions: ReaderDirection[] = ["incoming", "outgoing"];
+
+        directions.forEach((direction, index) => {
+            if (channelKinds[index] !== "encrypted") return;
+            const addresses = (readerData?.[index]?.result as Address[] | undefined) ?? [];
+            for (const account of addresses) {
+                const key = account.toLowerCase();
+                const known = candidates.find(
+                    (candidate) => candidate.address.toLowerCase() === key,
+                );
+                const existing = byAccount.get(key);
+                if (existing) {
+                    existing.directions.push(direction);
+                } else {
+                    byAccount.set(key, {
+                        account,
+                        label: known?.label ?? "external reader",
+                        directions: [direction],
+                    });
+                }
+            }
+        });
+        return [...byAccount.values()].sort((a, b) => a.label.localeCompare(b.label));
+    }, [candidates, channelKinds, readerData]);
+
     return {
         holders,
+        readers,
         candidateCount: candidates.length,
-        isLoading: isLoadingGraph || isLoading,
+        isLoading:
+            isLoadingGraph ||
+            isLoading ||
+            isLoadingChannels ||
+            resolvedKinds.isLoading ||
+            isLoadingReaders,
     };
 }

@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseEther, type Address } from "viem";
 import { createClient, createDefaultConfig, generateWallet, saveConfig } from "@smartclaws/sdk";
+import { type Address, parseEther } from "viem";
 import { publicClient, walletClient } from "../setup.ts";
 
 const ANVIL_RPC = "http://127.0.0.1:8545";

@@ -11,7 +11,7 @@ contract-enforced roles.
 - `packages/sdk/`: TypeScript SDK for config, wallets, discovery, reads, writes,
   role grants, and backups.
 - `packages/cli/`: `smartclaws` CLI built on the SDK.
-- `packages/openclaw-plugin/`: OpenClaw tools: wallet info, read, publish, notify.
+- `packages/openclaw-plugin/`: OpenClaw tools for setup, identity, publish/read/disclose, authority, keys, and recovery.
 - `skills/`: ClawHub-published onboarding, operational, and device skills.
 - `open-claw-setups/`: example agent workspace templates.
 - `dev/`: local hardware/simulation helpers only.
@@ -40,6 +40,7 @@ bun install
 bun run build:packages
 bun run build:cli
 bun run test:sdk
+bun run test:plugin
 bun run test:cli
 bun run test:contracts
 bun run lint

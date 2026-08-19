@@ -7,6 +7,8 @@ import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
 import { useAllDevices } from "@/hooks/use-access-graph";
 import { type AgentInfo, useAgents } from "@/hooks/use-agents";
+import { useChannelActivityTimes } from "@/hooks/use-channel-activity";
+import { useChannelKinds } from "@/hooks/use-channel-kind";
 import { DEVICE_ROLES } from "@/lib/roles";
 
 export interface AgentLiveness {
@@ -138,6 +140,7 @@ export function useAgentLiveness(): {
             placeholderData: keepPreviousData,
         },
     });
+    const channelKinds = useChannelKinds(deviceChannels.map((entry) => entry.channel));
 
     const { data: messages } = useReadContracts({
         contracts: deviceChannels.map(({ channel }, i) => ({
@@ -154,9 +157,18 @@ export function useAgentLiveness(): {
         },
     });
 
+    const activity = useChannelActivityTimes(
+        deviceChannels.map((entry, index) => ({
+            address: entry.channel,
+            latestOffset: offsets?.[index]?.result as bigint | undefined,
+            enabled: channelKinds.kinds[index] === "encrypted",
+        })),
+    );
+
     const channelTimestamps = useMemo(
         () =>
             deviceChannels.map((_entry, i) => {
+                if (channelKinds.kinds[i] === "encrypted") return activity.timestamps[i];
                 try {
                     const raw = messages?.[i]?.result as [Hex[], bigint[]] | undefined;
                     if (raw?.[0]?.[0]) return decode(hexToBytes(raw[0][0])).ts;
@@ -165,7 +177,7 @@ export function useAgentLiveness(): {
                 }
                 return undefined;
             }),
-        [deviceChannels, messages],
+        [deviceChannels, messages, channelKinds.kinds, activity.timestamps],
     );
 
     const liveness = useMemo(() => {

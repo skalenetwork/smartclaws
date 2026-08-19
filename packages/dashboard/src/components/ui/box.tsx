@@ -75,9 +75,12 @@ const BoxIcon = forwardRef<BoxIconHandle, BoxIconProps>(
                 className={cn(className)}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
+                role="img"
+                aria-label="Box"
                 {...props}
             >
                 <svg
+                    aria-hidden="true"
                     fill="none"
                     height={size}
                     stroke="currentColor"

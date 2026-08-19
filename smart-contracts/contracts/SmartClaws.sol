@@ -8,11 +8,13 @@ import {ISmartClaws} from "./interfaces/ISmartClaws.sol";
 import {ISmartClawsChannel} from "./interfaces/ISmartClawsChannel.sol";
 import {ISmartClawsDeviceGroup} from "./interfaces/ISmartClawsDeviceGroup.sol";
 import {ISmartClawsAgent} from "./interfaces/ISmartClawsAgent.sol";
+import {IPublicKeyRegistry} from "./interfaces/IPublicKeyRegistry.sol";
 import {IChannelFactory} from "./factories/interfaces/IChannelFactory.sol";
 import {IDeviceFactory} from "./factories/interfaces/IDeviceFactory.sol";
 import {IDeviceGroupFactory} from "./factories/interfaces/IDeviceGroupFactory.sol";
 import {IAgentFactory} from "./factories/interfaces/IAgentFactory.sol";
-import {InvalidFactoryAddress} from "./Errors.sol";
+import {IPublicKeyRegistryFactory} from "./factories/interfaces/IPublicKeyRegistryFactory.sol";
+import {InvalidFactoryAddress, InvalidRegistryAddress} from "./Errors.sol";
 
 /**
  * @title SmartClaws
@@ -27,9 +29,13 @@ contract SmartClaws is ISmartClaws {
     using Pagination for EnumerableSet.AddressSet;
 
     IChannelFactory public immutable channelFactory;
+    IChannelFactory public immutable encryptedChannelFactory;
     IDeviceFactory public immutable deviceFactory;
     IDeviceGroupFactory public immutable deviceGroupFactory;
     IAgentFactory public immutable agentFactory;
+    // TODO: remove registry factory — the registry is now deployed and passed in directly.
+    IPublicKeyRegistryFactory public immutable override publicKeyRegistryFactory;
+    IPublicKeyRegistry public immutable override publicKeyRegistry;
 
     EnumerableSet.AddressSet private _channels;
     EnumerableSet.AddressSet private _deviceGroups;
@@ -37,19 +43,28 @@ contract SmartClaws is ISmartClaws {
 
     constructor(
         IChannelFactory channelFactory_,
+        IChannelFactory encryptedChannelFactory_,
         IDeviceFactory deviceFactory_,
         IDeviceGroupFactory deviceGroupFactory_,
-        IAgentFactory agentFactory_
+        IAgentFactory agentFactory_,
+        IPublicKeyRegistryFactory publicKeyRegistryFactory_,
+        IPublicKeyRegistry publicKeyRegistry_
     ) {
         require(address(channelFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(encryptedChannelFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(deviceFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(deviceGroupFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(agentFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(publicKeyRegistryFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(publicKeyRegistry_) != address(0), InvalidRegistryAddress(address(0)));
 
         channelFactory = channelFactory_;
+        encryptedChannelFactory = encryptedChannelFactory_;
         deviceFactory = deviceFactory_;
         deviceGroupFactory = deviceGroupFactory_;
         agentFactory = agentFactory_;
+        publicKeyRegistryFactory = publicKeyRegistryFactory_;
+        publicKeyRegistry = publicKeyRegistry_;
     }
 
     // --- Channel Management ---
@@ -64,9 +79,20 @@ contract SmartClaws is ISmartClaws {
         address ownerAddress,
         uint256 maxCapacityBytes
     ) external override returns (address channel) {
-        channel = address(channelFactory.createChannel(ownerAddress, maxCapacityBytes, address(this)));
-        assert(_channels.add(channel));
-        emit ChannelCreated(channel, ownerAddress);
+        return _createChannel(channelFactory, ownerAddress, maxCapacityBytes);
+    }
+
+    /**
+     * @notice Deploys a new BITE-encrypted channel (SmartClawsChannelEncrypted) and registers it.
+     * @param ownerAddress Initial wallet address granted administrative control.
+     * @param maxCapacityBytes Total byte limit for the channel before pruning begins.
+     * @return channel Address of the newly deployed encrypted channel contract.
+     */
+    function createEncryptedChannel(
+        address ownerAddress,
+        uint256 maxCapacityBytes
+    ) external override returns (address channel) {
+        return _createChannel(encryptedChannelFactory, ownerAddress, maxCapacityBytes);
     }
 
     /**
@@ -87,6 +113,9 @@ contract SmartClaws is ISmartClaws {
 
     /**
      * @notice Registers a new device group.
+     * @dev The group receives both the plain and encrypted channel factories, so
+     *      it can register individually plain or BITE-encrypted devices via
+     *      SmartClawsDeviceGroup.registerDevice / registerEncryptedDevice.
      * @param deviceGroupName Human-readable name for the group.
      * @param skills_ Capability description (e.g., SKILLS.md content or hash).
      * @return deviceGroup Address of the newly deployed DeviceGroup contract.
@@ -102,6 +131,7 @@ contract SmartClaws is ISmartClaws {
                 skills_,
                 address(this),
                 channelFactory,
+                encryptedChannelFactory,
                 deviceFactory
             )
         );
@@ -142,18 +172,22 @@ contract SmartClaws is ISmartClaws {
         string calldata metadata,
         uint256 channelCapacity
     ) external override returns (address agent) {
-        agent = address(
-            agentFactory.createAgent({
-                initialOwner: msg.sender,
-                channelCapacity: channelCapacity,
-                registry: address(this),
-                channelFactory: channelFactory,
-                agentId: agentId,
-                metadata: metadata
-            })
-        );
-        assert(_agents.add(agent));
-        emit AgentRegistered(agent, agentId, metadata);
+        return _registerAgent(channelFactory, agentId, metadata, channelCapacity);
+    }
+
+    /**
+     * @notice Registers a new OpenClaw AI Agent whose channels are BITE-encrypted.
+     * @param agentId Human-readable agent identifier.
+     * @param metadata Agent capability description or configuration.
+     * @param channelCapacity Byte capacity for the agent's channels.
+     * @return agent Address of the newly deployed Agent contract.
+     */
+    function registerEncryptedAgent(
+        string calldata agentId,
+        string calldata metadata,
+        uint256 channelCapacity
+    ) external override returns (address agent) {
+        return _registerAgent(encryptedChannelFactory, agentId, metadata, channelCapacity);
     }
 
     /**
@@ -240,5 +274,44 @@ contract SmartClaws is ISmartClaws {
 
     function isRegisteredAgent(address agent) external view override returns (bool) {
         return _agents.contains(agent);
+    }
+
+    // --- Internal helpers ---
+    // Plain and encrypted entry points share these; only the factory differs.
+    // The factory is also what the emitted `encrypted` flag is derived from, so
+    // the event can never disagree with the channels that were actually built.
+
+    function _isEncrypted(IChannelFactory factory) private view returns (bool) {
+        return address(factory) == address(encryptedChannelFactory);
+    }
+
+    function _createChannel(
+        IChannelFactory factory,
+        address ownerAddress,
+        uint256 maxCapacityBytes
+    ) private returns (address channel) {
+        channel = address(factory.createChannel(ownerAddress, maxCapacityBytes, address(this)));
+        assert(_channels.add(channel));
+        emit ChannelCreated(channel, ownerAddress, _isEncrypted(factory));
+    }
+
+    function _registerAgent(
+        IChannelFactory factory,
+        string calldata agentId,
+        string calldata metadata,
+        uint256 channelCapacity
+    ) private returns (address agent) {
+        agent = address(
+            agentFactory.createAgent({
+                initialOwner: msg.sender,
+                channelCapacity: channelCapacity,
+                registry: address(this),
+                channelFactory: factory,
+                agentId: agentId,
+                metadata: metadata
+            })
+        );
+        assert(_agents.add(agent));
+        emit AgentRegistered(agent, agentId, metadata, _isEncrypted(factory));
     }
 }

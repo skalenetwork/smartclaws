@@ -77,6 +77,10 @@ contract SmartClawsChannel is Ownable, Pausable, ISmartClawsChannel {
 
     // --- Write Operations ---
 
+    function isEncrypted() external pure override returns (bool) {
+        return false;
+    }
+
     /**
      * @notice Permanently disables future writes. Reads remain functional.
      * @dev Callable by owner or registry (for unregistration flows).
@@ -111,7 +115,8 @@ contract SmartClawsChannel is Ownable, Pausable, ISmartClawsChannel {
      */
     function publishMessage(
         bytes calldata payload
-    ) external override whenWritesEnabled whenNotPaused onlyAuthorized {
+    ) external payable override whenWritesEnabled whenNotPaused onlyAuthorized {
+        require(msg.value == 0, NativeValueNotAccepted(msg.value));
         uint256 pSize = payload.length;
         require(pSize != 0, EmptyPayload());
         require(pSize <= maxCapacityBytes, PayloadExceedsCapacity(pSize, maxCapacityBytes));

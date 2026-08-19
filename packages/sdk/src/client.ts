@@ -1,6 +1,7 @@
 import { NETWORKS } from "@smartclaws/core/networks";
 import type { Config } from "@smartclaws/core/types";
 import { createPublicClient, defineChain, http, type PublicClient } from "viem";
+import { getRpcFetch } from "./rpc.js";
 
 export function createClient(config: Config): PublicClient {
     const network = NETWORKS[config.network];
@@ -19,5 +20,8 @@ export function createClient(config: Config): PublicClient {
         },
     });
 
-    return createPublicClient({ chain, transport: http(config.rpcUrl) });
+    return createPublicClient({
+        chain,
+        transport: http(config.rpcUrl, { fetchFn: getRpcFetch(config) }),
+    });
 }

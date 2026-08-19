@@ -148,14 +148,39 @@ the SDK first when an agent tool and CLI command need the same operation.
 - Call SDK services.
 - Return JSON-compatible results.
 
-It currently exposes:
+It currently exposes a full tool catalog. Read-only diagnostics are non-optional.
+Anything that signs, spends, mutates HOME state, authority, keys, or backups is
+`optional: true`. Existing names `smartclaws_wallet_info`, `smartclaws_access_check`,
+`smartclaws_read`, `smartclaws_disclose`, `smartclaws_publish`, and
+`smartclaws_notify` remain stable.
 
 | Tool | Mode | Notes |
 | --- | --- | --- |
-| `smartclaws_wallet_info` | read | Returns address and balance; never returns a private key. |
-| `smartclaws_read` | read | Reads decoded channel messages. No wallet required. |
-| `smartclaws_publish` | write, optional | Publishes an envelope through a device, the caller's agent (outbound), or a direct channel. Returns transaction status. |
-| `smartclaws_notify` | write, optional | Publishes to another agent's incoming channel (SmartClawsAgent.publishInbound; requires SENDER_ROLE). Returns transaction status. |
+| `smartclaws_setup_status` | read | Setup state machine; works with no HOME. |
+| `smartclaws_wallet_info` | read | Address, balance, key readiness. Never a private key. |
+| `smartclaws_list_local` | read | Cached entities. No paths. |
+| `smartclaws_discover` | read | Paginated on-chain discovery. |
+| `smartclaws_access_check` | read | Paginated per-channel read access. |
+| `smartclaws_read` | read | Free ciphertext-or-decoded messages. Wallet-free. |
+| `smartclaws_reader_list` | read | Reader ACLs, not AccessControl roles. |
+| `smartclaws_backup_list` | read | Backup names and fingerprints. No paths. |
+| `smartclaws_initialize` | write, optional | Fresh HOME + generated wallet. Named networks only. |
+| `smartclaws_configure` | write, optional | HOME config patch. Custom RPC is privileged. |
+| `smartclaws_attach` | write, optional | Local attachments; registration recovery. |
+| `smartclaws_sync` | write, optional | Bounded cache refresh. |
+| `smartclaws_home_reset` | write, optional | Preserve wallet; clear deployment-bound state. |
+| `smartclaws_register_group` / `_device` / `_agent` | write, optional | Named on-chain registration. |
+| `smartclaws_role_grant` / `_revoke` | write, optional | AccessControl roles. |
+| `smartclaws_reader_grant` / `_revoke` | write, optional | Encrypted-channel reader ACLs. |
+| `smartclaws_view_key_*` | write, optional | Generate, rotate, register, forget, remove. No model-visible key import. |
+| `smartclaws_disclose` | write, optional | Paid disclosure. |
+| `smartclaws_publish` | write, optional | Device telemetry, agent outbound, or direct channel. `scheduled` is not published. |
+| `smartclaws_notify` | write, optional | Agent inbound. |
+| `smartclaws_backup_create` / `_clean` / `_restore` | write, optional | Local snapshots. No paths or secrets in results. |
+
+The plugin cannot change OpenClaw tool policy. Tools never accept a per-call HOME
+path. Private-key import stays CLI-only. Device skills remain deferred until this
+tool contract is released; `skills/**` is expected to be temporarily stale.
 
 Tool names are stable public API. Keep them lowercase, unique, specific, and
 backward-compatible once released.
@@ -310,28 +335,12 @@ Restart or reload the OpenClaw Gateway after installing the plugin.
 
 ## Planned Tool Surface
 
-Start small and keep tool contracts stable.
+Tool names are stable public API. Keep them lowercase, unique, specific, and
+backward-compatible once released. The catalog above is the released surface;
+do not reintroduce a generic CLI/exec tool. Write tools stay optional.
 
-Implemented:
-
-- `smartclaws_wallet_info`
-- `smartclaws_read`
-- `smartclaws_publish` (device telemetry, agent outbound, or direct channel)
-- `smartclaws_notify` (agent inbound / agent-to-agent)
-
-Likely future read/status tools:
-
-- `smartclaws_list_devices`
-
-Likely future setup/write tools:
-
-- `smartclaws_init`
-- `smartclaws_register_group`
-- `smartclaws_register_device`
-- `smartclaws_grant_role` (device publisher/master and agent publisher/sender/admin)
-
-Write tools should be optional and should return transaction hashes, receipt
-status, and relevant addresses.
+Device skills should stay thin and domain-specific after this release. They are
+not updated in the same change as the tool contract.
 
 ## SmartClaws HOME Policy
 

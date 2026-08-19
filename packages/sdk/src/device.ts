@@ -1,10 +1,14 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DeviceFile } from "@smartclaws/core/types";
+import type { DeviceFile, HydratedDeviceFile } from "@smartclaws/core/types";
 import { getAddress, isAddress } from "viem";
 import { ensureConfigDir, getConfigDir } from "./config.js";
 
-export type { DeviceFile };
+export type { DeviceFile, HydratedDeviceFile };
+
+export function isHydratedDevice(device: DeviceFile): device is HydratedDeviceFile {
+    return Boolean(device.incomingChannel && device.outgoingChannel);
+}
 
 function devicesDir(homeDir?: string): string {
     return join(getConfigDir(homeDir), "devices");
@@ -22,10 +26,23 @@ export function saveDevice(device: DeviceFile, homeDir?: string): void {
     ensureConfigDir(homeDir);
     const dir = devicesDir(homeDir);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(
-        devicePath(device.deviceContract, homeDir),
-        `${JSON.stringify(device, null, 2)}\n`,
-    );
+    const path = devicePath(device.deviceContract, homeDir);
+    const existing = existsSync(path)
+        ? (JSON.parse(readFileSync(path, "utf-8")) as DeviceFile)
+        : undefined;
+    const record =
+        existing && isHydratedDevice(existing) && !isHydratedDevice(device)
+            ? {
+                  ...existing,
+                  ...device,
+                  hydration: existing.hydration,
+                  incomingChannel: existing.incomingChannel,
+                  outgoingChannel: existing.outgoingChannel,
+                  capabilities: existing.capabilities,
+                  createdAt: existing.createdAt,
+              }
+            : device;
+    writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
 }
 
 export function loadDevice(addressOrName: string, homeDir?: string): DeviceFile | null {

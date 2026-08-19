@@ -5,15 +5,22 @@ import { type Address, type Hex, hexToBytes, zeroAddress } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
+import { type ChannelKind, useChannelKind } from "@/hooks/use-channel-kind";
 
 export interface DecodedMessage {
     offset: bigint;
     envelope: Envelope | null;
     raw: string;
+    encrypted: boolean;
+    ciphertextBytes?: number;
     error?: string;
 }
 
-export function useChannelMessages(channelAddress: Address | undefined, initialCount = 20) {
+export function useChannelMessages(
+    channelAddress: Address | undefined,
+    initialCount = 20,
+    knownKind?: ChannelKind,
+) {
     const [count, setCount] = useState(initialCount);
     const enabled = Boolean(channelAddress);
     const contract = {
@@ -21,6 +28,10 @@ export function useChannelMessages(channelAddress: Address | undefined, initialC
         abi: abis.channel,
         chainId: chain.id,
     } as const;
+    const { kind: channelKind, isLoading: isLoadingKind } = useChannelKind(
+        channelAddress,
+        knownKind,
+    );
 
     // Track previous address so we can keep data on refetch but clear on channel switch
     const prevAddressRef = useRef(channelAddress);
@@ -76,25 +87,35 @@ export function useChannelMessages(channelAddress: Address | undefined, initialC
     });
 
     const messages: DecodedMessage[] = useMemo(() => {
-        if (!rawMessages) return [];
+        if (!rawMessages || !channelKind) return [];
         const [payloads, offsets] = rawMessages as [Hex[], bigint[]];
         return payloads
             .map((payload, i) => {
                 const bytes = hexToBytes(payload);
+                if (channelKind === "encrypted") {
+                    return {
+                        offset: offsets[i],
+                        envelope: null,
+                        raw: payload,
+                        encrypted: true,
+                        ciphertextBytes: bytes.length,
+                    };
+                }
                 try {
                     const envelope = decode(bytes);
-                    return { offset: offsets[i], envelope, raw: payload };
+                    return { offset: offsets[i], envelope, raw: payload, encrypted: false };
                 } catch (e) {
                     return {
                         offset: offsets[i],
                         envelope: null,
                         raw: payload,
+                        encrypted: false,
                         error: e instanceof Error ? e.message : "decode error",
                     };
                 }
             })
             .reverse();
-    }, [rawMessages]);
+    }, [rawMessages, channelKind]);
 
     const canLoadMore = messageCount !== undefined && messages.length < Number(messageCount);
     const loadingMoreRef = useRef(false);
@@ -116,7 +137,9 @@ export function useChannelMessages(channelAddress: Address | undefined, initialC
         oldestOffset,
         maxCapacity,
         totalBytes,
-        isLoading: isLoadingStats || isLoadingMessages,
+        channelKind,
+        isEncrypted: channelKind === "encrypted",
+        isLoading: isLoadingKind || isLoadingStats || isLoadingMessages,
         isLoadingMore,
         canLoadMore,
         loadMore,

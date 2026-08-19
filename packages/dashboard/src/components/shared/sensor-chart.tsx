@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
 import { BarChart3, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
     Area,
     Bar,

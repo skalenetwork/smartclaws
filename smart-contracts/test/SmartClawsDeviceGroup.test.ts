@@ -1,7 +1,14 @@
 import { expect } from "chai";
 import { ethers as ethersLib } from "ethers";
+import { anyValue } from "@nomicfoundation/hardhat-ethers-chai-matchers/withArgs";
 import type { SmartClaws, SmartClawsDeviceGroup } from "../types/ethers-contracts/index.js";
-import { ROLES, loadFixture, deployDeviceGroupFixture, registerDevice } from "./helpers/deploy.js";
+import {
+    ROLES,
+    loadFixture,
+    deployDeviceGroupFixture,
+    registerDevice,
+    registerEncryptedDevice,
+} from "./helpers/deploy.js";
 
 const CAPACITY = 1024;
 
@@ -65,7 +72,9 @@ describe("SmartClawsDeviceGroup", function () {
         it("should register a device and track it", async function () {
             const tx = await group.registerDevice("dev-1", deviceAdmin.address, CAPACITY);
             const receipt = await tx.wait();
-            await expect(tx).to.emit(group, "DeviceRegistered");
+            await expect(tx)
+                .to.emit(group, "DeviceRegistered")
+                .withArgs(anyValue, "dev-1", false);
 
             expect(await group.getDeviceCount()).to.equal(1);
             const [deviceAddr] = await group.getDevices();
@@ -154,6 +163,42 @@ describe("SmartClawsDeviceGroup", function () {
         });
     });
 
+    describe("registerEncryptedDevice", function () {
+        it("should register an encrypted device and track it separately from plain devices", async function () {
+            const { device, incoming, outgoing } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "enc-1",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            const deviceAddr = await device.getAddress();
+
+            expect(await group.getEncryptedDeviceCount()).to.equal(1);
+            expect(await group.getDeviceCount()).to.equal(0);
+            expect(await group.getEncryptedDevices()).to.deep.equal([deviceAddr]);
+            expect(await group.isRegisteredDevice(deviceAddr)).to.equal(true);
+            expect(await incoming.isEncrypted()).to.equal(true);
+            expect(await outgoing.isEncrypted()).to.equal(true);
+        });
+
+        it("should reject registration from a non-owner", async function () {
+            await expect(
+                group
+                    .connect(other)
+                    .registerEncryptedDevice("enc-1", deviceAdmin.address, CAPACITY),
+            ).to.be.revertedWithCustomError(group, "OwnableUnauthorizedAccount");
+        });
+
+        it("should reject registration after the group is deactivated", async function () {
+            await registry.connect(owner).unregisterDeviceGroup(await group.getAddress());
+            await expect(
+                group.registerEncryptedDevice("enc-1", deviceAdmin.address, CAPACITY),
+            ).to.be.revertedWithCustomError(group, "GroupInactive");
+        });
+    });
+
     describe("Role passthroughs", function () {
         it("should let the owner manage roles when the group is the device admin", async function () {
             // deviceAdmin == 0 -> group holds DEVICE_ADMIN, so passthroughs work.
@@ -238,6 +283,110 @@ describe("SmartClawsDeviceGroup", function () {
         });
     });
 
+    describe("Reader passthroughs", function () {
+        it("should let the owner manage readers when the group is the device admin", async function () {
+            // deviceAdmin == 0 -> group holds DEVICE_ADMIN. Without these passthroughs
+            // this device's readers would be unreachable without re-appointing an EOA.
+            const { device, incoming, outgoing } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "enc-1",
+                ethersLib.ZeroAddress,
+                CAPACITY,
+            );
+            const deviceAddr = await device.getAddress();
+
+            await expect(group.addIncomingReader(deviceAddr, other.address))
+                .to.emit(incoming, "ReaderAdded")
+                .withArgs(other.address);
+            expect(await incoming.isAuthorizedReader(other.address)).to.equal(true);
+            expect(await outgoing.isAuthorizedReader(other.address)).to.equal(false);
+
+            await expect(group.addOutgoingReader(deviceAddr, publisher.address))
+                .to.emit(outgoing, "ReaderAdded")
+                .withArgs(publisher.address);
+            expect(await outgoing.isAuthorizedReader(publisher.address)).to.equal(true);
+            expect(await incoming.isAuthorizedReader(publisher.address)).to.equal(false);
+
+            await expect(group.removeIncomingReader(deviceAddr, other.address))
+                .to.emit(incoming, "ReaderRemoved")
+                .withArgs(other.address);
+            expect(await incoming.isAuthorizedReader(other.address)).to.equal(false);
+
+            await expect(group.removeOutgoingReader(deviceAddr, publisher.address))
+                .to.emit(outgoing, "ReaderRemoved")
+                .withArgs(publisher.address);
+            expect(await outgoing.isAuthorizedReader(publisher.address)).to.equal(false);
+        });
+
+        it("should revert when an external entity is the device admin", async function () {
+            const { device } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "enc-1",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            // Group is only DEFAULT_ADMIN here, so the device rejects the call.
+            await expect(
+                group.addIncomingReader(await device.getAddress(), other.address),
+            ).to.be.revertedWithCustomError(device, "AccessControlUnauthorizedAccount");
+        });
+
+        it("should let the owner override by re-appointing the device admin", async function () {
+            const groupAddr = await group.getAddress();
+            const { device, incoming } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "enc-1",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            const deviceAddr = await device.getAddress();
+
+            await group.grantDeviceAdmin(deviceAddr, groupAddr); // self-appoint
+            await group.addIncomingReader(deviceAddr, other.address);
+            expect(await incoming.isAuthorizedReader(other.address)).to.equal(true);
+        });
+
+        it("should revert for a plain device", async function () {
+            const { device, incoming } = await registerDevice(
+                ethers,
+                group,
+                owner,
+                "dev-1",
+                ethersLib.ZeroAddress,
+                CAPACITY,
+            );
+            await expect(
+                group.addIncomingReader(await device.getAddress(), other.address),
+            ).to.be.revertedWithCustomError(incoming, "EncryptedOperationUnsupported");
+        });
+
+        it("should reject reader passthroughs from a non-owner", async function () {
+            const { device } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "enc-1",
+                ethersLib.ZeroAddress,
+                CAPACITY,
+            );
+            await expect(
+                group.connect(other).addIncomingReader(await device.getAddress(), other.address),
+            ).to.be.revertedWithCustomError(group, "OwnableUnauthorizedAccount");
+        });
+
+        it("should reject reader passthroughs for an unregistered device", async function () {
+            await expect(
+                group.addOutgoingReader(other.address, publisher.address),
+            ).to.be.revertedWithCustomError(group, "DeviceNotRegistered");
+        });
+    });
+
     describe("unregisterDevice", function () {
         it("should unregister, emit, and disable the device channels", async function () {
             const { device, incoming, outgoing } = await registerDevice(
@@ -280,6 +429,36 @@ describe("SmartClawsDeviceGroup", function () {
             await expect(
                 group.connect(other).unregisterDevice(await device.getAddress()),
             ).to.be.revertedWithCustomError(group, "OwnableUnauthorizedAccount");
+        });
+
+        it("should only remove the encrypted device from the encrypted set, leaving plain devices untouched", async function () {
+            const { device: plainDevice } = await registerDevice(
+                ethers,
+                group,
+                owner,
+                "dev-plain",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            const { device: encDevice } = await registerEncryptedDevice(
+                ethers,
+                group,
+                owner,
+                "dev-enc",
+                deviceAdmin.address,
+                CAPACITY,
+            );
+            const plainAddr = await plainDevice.getAddress();
+            const encAddr = await encDevice.getAddress();
+
+            await expect(group.unregisterDevice(encAddr))
+                .to.emit(group, "DeviceUnregistered")
+                .withArgs(encAddr);
+
+            expect(await group.isRegisteredDevice(encAddr)).to.equal(false);
+            expect(await group.getEncryptedDeviceCount()).to.equal(0);
+            expect(await group.isRegisteredDevice(plainAddr)).to.equal(true);
+            expect(await group.getDevices()).to.deep.equal([plainAddr]);
         });
     });
 

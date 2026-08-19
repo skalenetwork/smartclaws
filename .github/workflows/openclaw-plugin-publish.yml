@@ -127,6 +127,10 @@ jobs:
         working-directory: packages/openclaw-plugin
         run: bun run check
 
+      - name: Run plugin unit tests
+        working-directory: packages/openclaw-plugin
+        run: bun test
+
       - name: Run SDK tests
         run: bun run test:sdk
 

@@ -1,0 +1,141 @@
+{
+  "abi": [
+    {
+      "inputs": [],
+      "name": "InvalidPublicKey",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "PublicKeyNotRegistered",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "x",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "y",
+          "type": "bytes32"
+        }
+      ],
+      "name": "PublicKeyRegistered",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "PublicKeyRemoved",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "getPublicKey",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "x",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "y",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct PublicKey",
+          "name": "publicKey",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "hasPublicKey",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "x",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "y",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct PublicKey",
+          "name": "publicKey",
+          "type": "tuple"
+        }
+      ],
+      "name": "registerPublicKey",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "removePublicKey",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b506103a38061001f6000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c8063737dccca14610051578063857cdbb814610066578063a061bc7414610099578063bcd01879146100a1575b600080fd5b61006461005f366004610322565b6100dd565b005b61007961007436600461033d565b610179565b604080518251815260209283015192810192909252015b60405180910390f35b61006461020b565b6100cd6100af36600461033d565b6001600160a01b031660009081526001602052604090205460ff1690565b6040519015158152602001610090565b6100ec81356020830135610298565b6101095760405163145a1fdd60e31b815260040160405180910390fd5b33600081815260208181526040808320853580825586840135600192830181905582855294839020805460ff191690921790915581519081529182019290925281517f857427b1f3d6fc86cfeeb2c86d75772cf01de4519a0ff8d413418b55e7680745929181900390910190a250565b60408051808201909152600080825260208201526001600160a01b038216600090815260016020526040902054829060ff166101d9576040516305ba9b5560e21b81526001600160a01b0390911660048201526024015b60405180910390fd5b50506001600160a01b031660009081526020818152604091829020825180840190935280548352600101549082015290565b3360008181526001602052604090205460ff16610247576040516305ba9b5560e21b81526001600160a01b0390911660048201526024016101d0565b50336000818152602081815260408083208381556001908101849055909152808220805460ff19169055517fc5a9b8041ef11732e7dd7043167d8c22db5c7ea99dcd38dce401effacf8a29bf9190a2565b600082826401000003d019821015806102b757506401000003d0198110155b156102c75760009250505061031c565b811580156102d3575080155b156102e35760009250505061031c565b60006401000003d019828309905060006401000003d019846401000003d0198687090990506401000003d0196007820882149450505050505b92915050565b6000604082840312801561033557600080fd5b509092915050565b60006020828403121561034f57600080fd5b81356001600160a01b038116811461036657600080fd5b939250505056fea2646970667358221220ed5eb7bbe1e96602d9cdb31c4195af8ad59cfef826bf674c40a2067f1375286164736f6c634300081c0033"
+}
