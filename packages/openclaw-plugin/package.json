@@ -1,6 +1,6 @@
 {
     "name": "smartclaws-openclaw-plugin",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "type": "module",
     "description": "Publish and read IoT data on SKALE through SmartClaws, as OpenClaw agent tools.",
     "license": "LGPL-3.0-or-later",
@@ -24,7 +24,7 @@
         }
     },
     "scripts": {
-        "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:openclaw --external:openclaw/* --outfile=dist/index.js",
+        "build": "node esbuild.config.mjs",
         "test": "bun test tests/unit/",
         "test:integration": "cd tests/integration && bun test",
         "manifest": "openclaw plugins build --root . --entry ./dist/index.js",

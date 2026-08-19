@@ -1,6 +1,6 @@
 {
     "name": "@skalenetwork/smartclaws-contracts",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "type": "module",
     "license": "LGPL-3.0-or-later",
     "scripts": {

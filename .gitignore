@@ -28,6 +28,7 @@ wallets/
 **/controller/config.json
 **/controller/devices/
 .smartclaws-demo/
+open-claw-setups/master-v1/smartclaws-home/
 
 # OS
 .DS_Store
