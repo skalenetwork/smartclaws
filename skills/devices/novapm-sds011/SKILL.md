@@ -14,6 +14,12 @@ metadata:
 
 # NovaPM SDS011 Device Contract
 
+> **TODO — not release-ready:** restore and package the executable SDS011
+> serial adapter (including dependencies, wake/read/sleep framing, and setup
+> instructions). This contract documents the required behavior, but by itself
+> cannot read physical hardware. CI intentionally does not publish this skill
+> until that adapter is restored and tested.
+
 This is a device contract skill. It does not install SmartClaws or define an
 agent role. Use it with `smartclaws-bridge-agent` for publishing telemetry and
 with `smartclaws-master-agent` for reading/auditing air-quality data.

@@ -61,9 +61,9 @@ Existing names are stable: `smartclaws_wallet_info`, `smartclaws_access_check`,
 | `smartclaws_view_key_generate` | write (`optional`) | Create a local viewing key when none exists. |
 | `smartclaws_view_key_rotate` | write (`optional`) | Replace it after a backup. Abandons in-flight disclosures. |
 | `smartclaws_view_key_register` | write (`optional`) | Register the active viewing public key and verify the postcondition. |
-| `smartclaws_view_key_forget` | write (`optional`) | Drop the separate local key; signing key resumes. |
+| `smartclaws_view_key_forget` | write (`optional`) | Drop the local viewing key. Disclose/register fail until generate. |
 | `smartclaws_view_key_remove` | write (`optional`) | Remove the on-chain public key; local material unchanged. |
-| `smartclaws_disclose` | write (`optional`) | Paid two-phase disclosure. Batch 1–10. `scheduled`/timeout is not success. |
+| `smartclaws_disclose` | write (`optional`) | Open encrypted messages. Batch 1–10. Timeout is not success; do not retry the same offsets as a new write. |
 | `smartclaws_publish` | write (`optional`) | Device telemetry, agent outbound, or explicit channel. `scheduled` is never `published`. |
 | `smartclaws_notify` | write (`optional`) | Agent inbound (`publishInbound`). Requires `SENDER_ROLE`. |
 | `smartclaws_backup_create` | write (`optional`) | Local snapshot. Contains the signing key. Returns a name, not a path. |
@@ -116,8 +116,8 @@ is true. Limits have hard internal ceilings even if configured higher.
 
 ### Viewing keys
 
-Paid disclosure decrypts with a **viewing key**, which is the wallet's signing key
-unless a separate one is configured. The registry stores whatever public key an
+Disclosure decrypts with a **viewing key**, which must be generated separately
+from the wallet's signing key. The registry stores whatever public key an
 account registers and does not prove ownership, so the two can disagree. Check
 `smartclaws_wallet_info.registeredKeyOpensDisclosures` before disclosing.
 

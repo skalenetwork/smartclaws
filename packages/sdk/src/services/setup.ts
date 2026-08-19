@@ -153,6 +153,19 @@ function permissionIncomplete(
     return false;
 }
 
+function localViewKeyFields(wallet: WalletFile): {
+    viewKeyMissing: boolean;
+    fingerprint: string | null;
+} {
+    if (wallet.viewPrivateKey === undefined) {
+        return { viewKeyMissing: true, fingerprint: null };
+    }
+    return {
+        viewKeyMissing: false,
+        fingerprint: publicKeyFingerprint(publicKeyFromPrivateKey(viewingPrivateKey(wallet))),
+    };
+}
+
 export async function getSetupStatus(input: GetSetupStatusInput) {
     const homeDir = input.homeDir;
     const summary = summarizeHome(homeDir);
@@ -181,8 +194,8 @@ export async function getSetupStatus(input: GetSetupStatusInput) {
     let key: {
         registered: boolean | null;
         matchesViewKey: boolean | null;
-        usesSigningKey: boolean;
-        fingerprint: string;
+        viewKeyMissing: boolean;
+        fingerprint: string | null;
     } | null = null;
 
     const exists =
@@ -245,13 +258,13 @@ export async function getSetupStatus(input: GetSetupStatusInput) {
             rpcError = redactErrorMessage(error instanceof Error ? error.message : String(error));
         }
 
-        if (rpcOk) {
+        if (rpcOk && wallet.viewPrivateKey !== undefined) {
             try {
                 const status = await getViewKeyStatus(effectiveConfig, wallet);
                 key = {
                     registered: status.registered,
                     matchesViewKey: status.matchesViewKey,
-                    usesSigningKey: status.usesSigningKey,
+                    viewKeyMissing: status.viewKeyMissing,
                     fingerprint: publicKeyFingerprint(status.localPublicKey),
                 };
             } catch (error) {
@@ -262,20 +275,14 @@ export async function getSetupStatus(input: GetSetupStatusInput) {
                 key = {
                     registered: null,
                     matchesViewKey: null,
-                    usesSigningKey: wallet.viewPrivateKey === undefined,
-                    fingerprint: publicKeyFingerprint(
-                        publicKeyFromPrivateKey(viewingPrivateKey(wallet)),
-                    ),
+                    ...localViewKeyFields(wallet),
                 };
             }
         } else {
             key = {
                 registered: null,
                 matchesViewKey: null,
-                usesSigningKey: wallet.viewPrivateKey === undefined,
-                fingerprint: publicKeyFingerprint(
-                    publicKeyFromPrivateKey(viewingPrivateKey(wallet)),
-                ),
+                ...localViewKeyFields(wallet),
             };
         }
 
@@ -340,12 +347,27 @@ export async function getSetupStatus(input: GetSetupStatusInput) {
                 spends: true,
             });
         }
+
+        // A missing view key never blocks a plain-only HOME; disclose and register still
+        // fail closed at call time. Surfaced as a warning so encrypted flows know to generate one.
+        if (
+            wallet.viewPrivateKey === undefined &&
+            (state === "ready" || state === "permission-incomplete")
+        ) {
+            issues.push({
+                code: "NO_VIEW_KEY",
+                severity: "warning",
+                recommendedTool: "smartclaws_view_key_generate",
+                requiresOwnerAuthorization: true,
+                signs: false,
+                spends: false,
+            });
+        }
     } else if (wallet && !key) {
         key = {
             registered: null,
             matchesViewKey: null,
-            usesSigningKey: wallet.viewPrivateKey === undefined,
-            fingerprint: publicKeyFingerprint(publicKeyFromPrivateKey(viewingPrivateKey(wallet))),
+            ...localViewKeyFields(wallet),
         };
     }
 

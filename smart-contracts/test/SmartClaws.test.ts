@@ -18,6 +18,7 @@ describe("SmartClaws", function () {
     let ethers: any;
     let registry: SmartClaws;
     let factories: string[];
+    let publicKeyRegistry: string;
     let owner: any;
     let other: any;
 
@@ -25,6 +26,7 @@ describe("SmartClaws", function () {
         const fx = await loadFixture(deploySystemFixture);
         ethers = fx.ethers;
         registry = fx.registry;
+        publicKeyRegistry = fx.publicKeyRegistry;
         factories = [
             fx.channelFactory,
             fx.encryptedChannelFactory,
@@ -46,6 +48,10 @@ describe("SmartClaws", function () {
             expect(await registry.publicKeyRegistryFactory()).to.equal(factories[5]);
         });
 
+        it("should store the PublicKeyRegistry address", async function () {
+            expect(await registry.publicKeyRegistry()).to.equal(publicKeyRegistry);
+        });
+
         const slots = [
             "channel",
             "encryptedChannel",
@@ -57,13 +63,21 @@ describe("SmartClaws", function () {
         slots.forEach((label, index) => {
             it(`should reject a zero ${label} factory`, async function () {
                 const SmartClawsFactory = await ethers.getContractFactory("SmartClaws");
-                const args = [...factories];
+                const publicKeyRegistry = await registry.publicKeyRegistry();
+                const args = [...factories, publicKeyRegistry];
                 args[index] = ethersLib.ZeroAddress;
                 await expect(SmartClawsFactory.deploy(...args)).to.be.revertedWithCustomError(
                     registry,
                     "InvalidFactoryAddress",
                 );
             });
+        });
+
+        it("should reject a zero PublicKeyRegistry", async function () {
+            const SmartClawsFactory = await ethers.getContractFactory("SmartClaws");
+            await expect(
+                SmartClawsFactory.deploy(...factories, ethersLib.ZeroAddress),
+            ).to.be.revertedWithCustomError(registry, "InvalidRegistryAddress");
         });
     });
 

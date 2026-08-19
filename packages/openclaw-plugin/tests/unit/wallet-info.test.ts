@@ -18,8 +18,13 @@ const KEY_STATUS = {
     registry: "0x00000000000000000000000000000000000000e0",
     registered: true,
     matchesViewKey: true,
-    usesSigningKey: true,
+    viewKeyMissing: false,
     localPublicKey: { x: `0x${"11".repeat(32)}`, y: `0x${"22".repeat(32)}` },
+};
+
+const WALLET_WITH_VIEW_KEY = {
+    ...WALLET,
+    viewPrivateKey: "0x02",
 };
 
 async function loadWalletInfoSpec() {
@@ -27,7 +32,8 @@ async function loadWalletInfoSpec() {
     return walletInfoTool(toolFactory as never) as ToolSpec;
 }
 
-async function run() {
+async function run(wallet = WALLET) {
+    loadWallet.mockImplementationOnce(() => wallet);
     const spec = await loadWalletInfoSpec();
     return (await spec.execute({}, { smartclawsHome: "/tmp/smartclaws-test" }, {})) as Record<
         string,
@@ -47,6 +53,16 @@ describe("smartclaws_wallet_info", () => {
         listDevices.mockReturnValue([]);
         listAgents.mockReturnValue([]);
         getViewKeyStatus.mockImplementation(async () => KEY_STATUS);
+    });
+
+    test("reports wallet identity without requiring a viewing key", async () => {
+        const result = await run();
+
+        expect(getWalletInfo).toHaveBeenCalled();
+        expect(getViewKeyStatus).not.toHaveBeenCalled();
+        expect(result.publicKeyRegistered).toBeNull();
+        expect(result.registeredKeyOpensDisclosures).toBeNull();
+        expect(result.usesSeparateViewKey).toBeNull();
     });
 
     test("reports key readiness without walking every known entity", async () => {
@@ -69,9 +85,9 @@ describe("smartclaws_wallet_info", () => {
             },
         ]);
 
-        const result = await run();
+        const result = await run(WALLET_WITH_VIEW_KEY);
 
-        expect(getWalletInfo).toHaveBeenCalledWith(CONFIG, WALLET);
+        expect(getWalletInfo).toHaveBeenCalledWith(CONFIG, WALLET_WITH_VIEW_KEY);
         expect(result.publicKeyRegistered).toBe(true);
         // Identity and balance must not cost a round-trip per entity. Access moved to
         // smartclaws_access_check, which can also be asked about one entity.
@@ -86,10 +102,10 @@ describe("smartclaws_wallet_info", () => {
             ...KEY_STATUS,
             registered: true,
             matchesViewKey: false,
-            usesSigningKey: false,
+            viewKeyMissing: false,
         }));
 
-        const result = await run();
+        const result = await run(WALLET_WITH_VIEW_KEY);
 
         // The exact state behind a disclosure that succeeds, costs the fee, and returns
         // something unreadable. "Registered" alone cannot tell you that.
@@ -105,7 +121,7 @@ describe("smartclaws_wallet_info", () => {
             matchesViewKey: false,
         }));
 
-        const result = await run();
+        const result = await run(WALLET_WITH_VIEW_KEY);
 
         expect(result.publicKeyRegistered).toBe(false);
         expect(result.registeredKeyOpensDisclosures).toBe(false);

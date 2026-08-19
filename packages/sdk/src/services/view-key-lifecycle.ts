@@ -19,7 +19,7 @@ function activeFingerprint(homeDir: string): string {
 export function generateViewKeyIfAbsent(homeDir: string): {
     fingerprint: string;
     registrationRequired: true;
-    usesSigningKey: false;
+    viewKeyMissing: false;
 } {
     const wallet = requireWallet(homeDir);
     if (wallet.viewPrivateKey !== undefined) {
@@ -32,7 +32,7 @@ export function generateViewKeyIfAbsent(homeDir: string): {
     return {
         fingerprint: activeFingerprint(homeDir),
         registrationRequired: true,
-        usesSigningKey: false,
+        viewKeyMissing: false,
     };
 }
 
@@ -74,21 +74,19 @@ export function forgetViewKeyChecked(homeDir: string): {
     fingerprint: string;
     backupName: string;
     registrationRequired: true;
-    usesSigningKey: true;
+    viewKeyMissing: true;
 } {
     const wallet = requireWallet(homeDir);
     if (wallet.viewPrivateKey === undefined) {
-        throw new SmartClawsError(
-            "INVALID_TARGET",
-            "No separate viewing key is stored; the signing key is already the viewing key.",
-        );
+        throw new SmartClawsError("INVALID_TARGET", "No viewing key is stored.");
     }
+    const fingerprint = activeFingerprint(homeDir);
     const backup = createBackup(homeDir);
     removeViewKey(homeDir);
     return {
-        fingerprint: activeFingerprint(homeDir),
+        fingerprint,
         backupName: presentCreatedBackup(backup, homeDir).name,
         registrationRequired: true,
-        usesSigningKey: true,
+        viewKeyMissing: true,
     };
 }

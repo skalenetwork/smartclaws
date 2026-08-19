@@ -86,7 +86,7 @@ export function viewKeyForgetTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_view_key_forget",
         label: "SmartClaws View Key Forget",
         description:
-            "Delete the separate local viewing key after a safety backup so the signing key resumes that role. Returns registrationRequired: true. Never returns private keys. No automatic retries.",
+            "Delete the local viewing key after a safety backup. Disclose and register fail until a new one is generated. Returns registrationRequired: true. Never returns private keys. No automatic retries.",
         optional: true,
         parameters: Type.Object({}),
         execute: async (_params, config, context) => {

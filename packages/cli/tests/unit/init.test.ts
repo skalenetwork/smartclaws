@@ -102,7 +102,7 @@ describe("init command", () => {
         expect(result.exitCode).toBe(0);
 
         const config = JSON.parse(readFileSync(join(tempDir, "config.json"), "utf-8"));
-        expect(config.contractAddress).toBe("0xD8C252E8fbcB9Da1F3ac7b29795BC04dF48d282e");
+        expect(config.contractAddress).toBe("0x6988aCA51c7D0b08d6FE35039278631BD95BC064");
     });
 
     test("resets a stale HOME, keeping the wallet and dropping the old deployment", async () => {
@@ -147,7 +147,7 @@ describe("init command", () => {
         const config = JSON.parse(readFileSync(join(tempDir, "config.json"), "utf-8"));
         expect(config.version).toBe(3);
         // The superseded registry must not be carried forward, but the local preference is.
-        expect(config.contractAddress).toBe("0xD8C252E8fbcB9Da1F3ac7b29795BC04dF48d282e");
+        expect(config.contractAddress).toBe("0x6988aCA51c7D0b08d6FE35039278631BD95BC064");
         expect(config.mode).toBe("controller");
         expect(config.attachedGroupAddress).toBe("");
         // Records naming the old deployment are gone from the HOME, kept only in the backup.

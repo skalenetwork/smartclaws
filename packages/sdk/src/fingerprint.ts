@@ -20,7 +20,7 @@ function canonical(value: unknown): string {
 }
 
 function viewKeyPublicFingerprint(wallet: ReturnType<typeof loadWallet>): string | null {
-    if (!wallet) return null;
+    if (!wallet?.viewPrivateKey) return null;
     try {
         return publicKeyFingerprint(publicKeyFromPrivateKey(viewingPrivateKey(wallet)));
     } catch {
@@ -96,7 +96,7 @@ export function homeFingerprint(homeDir?: string): string {
             rpcUrlDigest: sha256Hex(config?.rpcUrl ?? ""),
             // Invalid legacy wallet material must not make status unavailable;
             // its opaque digest still participates in stale-state detection.
-            viewKeyDigest: sha256Hex(wallet ? viewingPrivateKey(wallet) : ""),
+            viewKeyDigest: sha256Hex(wallet?.viewPrivateKey ?? ""),
         }),
     );
 }

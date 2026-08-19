@@ -16,7 +16,7 @@ export const NETWORKS: Record<string, Network> = {
         chainName: "skale-base-testnet",
         explorerUrl: "https://base-sepolia-testnet-explorer.skalenodes.com",
         nativeCurrency: { name: "CREDITS", symbol: "CREDITS", decimals: 18 },
-        registryAddress: "0xD8C252E8fbcB9Da1F3ac7b29795BC04dF48d282e",
+        registryAddress: "0x6988aCA51c7D0b08d6FE35039278631BD95BC064",
     },
 };
 

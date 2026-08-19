@@ -90,7 +90,7 @@ export const getViewKeyStatus = mock(async () => ({
     registry: "0x00000000000000000000000000000000000000e0",
     registered: false,
     matchesViewKey: false,
-    usesSigningKey: true,
+    viewKeyMissing: true,
     localPublicKey: { x: `0x${"11".repeat(32)}`, y: `0x${"22".repeat(32)}` },
 }));
 export const getDeviceReaderStatus = mock(async () => ({
@@ -345,7 +345,7 @@ export const assertNotSelfReaderRevocation = mock(
 export const generateViewKeyIfAbsent = mock(() => ({
     fingerprint: "aa".repeat(8),
     registrationRequired: true as const,
-    usesSigningKey: false as const,
+    viewKeyMissing: false as const,
 }));
 export const rotateViewKeyChecked = mock(() => ({
     fingerprint: "bb".repeat(8),
@@ -357,7 +357,7 @@ export const forgetViewKeyChecked = mock(() => ({
     fingerprint: "cc".repeat(8),
     backupName: "backup-20260101-000000Z",
     registrationRequired: true as const,
-    usesSigningKey: true as const,
+    viewKeyMissing: true as const,
 }));
 export const registerActiveViewKey = mock(async () => ({
     registry: "0x00000000000000000000000000000000000000e0",

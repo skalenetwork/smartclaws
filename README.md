@@ -8,8 +8,8 @@ agent decisions.
 The project includes Solidity contracts, a TypeScript CLI and SDK, an OpenClaw
 plugin, operational skills, and a small set of hardware/simulation scripts.
 
-For a visual walkthrough — the control loop, the on-chain objects, permissions,
-and the optional Pairpoint signing and private-inference layers — open
+For a visual walkthrough — the control loop, the on-chain objects, plain and encrypted
+channels, permissions, and the optional Pairpoint signing and private-inference layers — open
 [`ARCHITECTURE.html`](ARCHITECTURE.html) in a browser. GitHub shows that file as
 source rather than rendering it, so view it locally or through GitHub Pages.
 
@@ -196,9 +196,11 @@ clawhub install smartclaws
 clawhub install smartclaws-master-agent
 clawhub install smartclaws-bridge-agent
 clawhub install smartclaws-device-shelly-plug-s-gen3
-clawhub install smartclaws-device-novapm-sds011
 clawhub install nearai-verify
 ```
+
+The NovaPM/SDS011 device contract remains source-only until its executable
+serial adapter is restored and tested.
 
 Use `smartclaws` first for onboarding. Then install one role skill
 (`smartclaws-master-agent` or `smartclaws-bridge-agent`) and one device contract
@@ -215,7 +217,8 @@ The same skills are available in the repo for local development:
 
 The current operational pattern is:
 
-1. Use `skills/smartclaws/` to create a `SMARTCLAWS.md` wiring file.
+1. Use `skills/smartclaws/` to go from the onboarding skill to a working agent
+   of one job (`SETUP.md`), including a `SMARTCLAWS.md` with the owner's goal.
 2. Add the relevant device skill from `skills/devices/`.
 3. Use `smartclaws-bridge-agent` for hardware/API telemetry bridges.
 4. Use `smartclaws-master-agent` for control decisions and on-chain audit logs.

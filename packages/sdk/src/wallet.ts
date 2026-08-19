@@ -70,7 +70,7 @@ export function generateViewKey(homeDir?: string): WalletFile {
     return setViewKey(generatePrivateKey(), homeDir);
 }
 
-/** Drop the viewing key; the signing key resumes that role. */
+/** Drop the viewing key. Disclose and register fail until a new one is generated. */
 export function removeViewKey(homeDir?: string): WalletFile {
     const { viewPrivateKey: _dropped, ...rest } = requireWalletFile(homeDir);
     return saveWallet(rest, homeDir);

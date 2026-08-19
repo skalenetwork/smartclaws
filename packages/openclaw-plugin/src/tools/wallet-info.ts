@@ -17,16 +17,20 @@ export function walletInfoTool(tool: SmartClawsToolFactory) {
             const cfg = resolveConfig(config);
             const wallet = requireWallet(config);
             const info = await getWalletInfo(cfg, wallet);
-            const key = await getViewKeyStatus(cfg, wallet);
+            const key = wallet.viewPrivateKey ? await getViewKeyStatus(cfg, wallet) : null;
             throwIfAborted(context.signal);
 
             return jsonCompatible({
                 ...info,
                 network: cfg.network,
                 chainId: cfg.chainId,
-                publicKeyRegistered: key.registered,
-                registeredKeyOpensDisclosures: key.registered ? key.matchesViewKey : false,
-                usesSeparateViewKey: !key.usesSigningKey,
+                publicKeyRegistered: key?.registered ?? null,
+                registeredKeyOpensDisclosures: key
+                    ? key.registered
+                        ? key.matchesViewKey
+                        : false
+                    : null,
+                usesSeparateViewKey: key ? !key.viewKeyMissing : null,
             });
         },
     });

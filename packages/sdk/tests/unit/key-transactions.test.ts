@@ -25,6 +25,7 @@ const CONFIG: Config = {
 const WALLET: WalletFile = {
     address: "0x0000000000000000000000000000000000000002",
     privateKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+    viewPrivateKey: "0x0000000000000000000000000000000000000000000000000000000000000002",
 };
 
 const TX = `0x${"cd".repeat(32)}` as const;
@@ -47,7 +48,7 @@ describe("viewing-key transactions", () => {
         spyOn(contracts, "getPublicClient").mockReturnValue({} as never);
         spyOn(keys, "registerPublicKey").mockResolvedValue(TX);
         spyOn(keys, "hasPublicKey").mockResolvedValue(true);
-        const local = keys.publicKeyFromPrivateKey(WALLET.privateKey as `0x${string}`);
+        const local = keys.publicKeyFromPrivateKey(WALLET.viewPrivateKey as `0x${string}`);
         spyOn(keys, "getPublicKey").mockResolvedValue(local);
 
         const result = await registerActiveViewKey(CONFIG, WALLET);

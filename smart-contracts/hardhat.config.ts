@@ -19,7 +19,7 @@ export default defineConfig({
             name: "SKALE Base Testnet",
             chainType: "generic",
             blockExplorers: {
-                etherscan: {
+                blockscout: {
                     url: "https://base-sepolia-testnet-explorer.skalenodes.com",
                     apiUrl: "https://base-sepolia-testnet-explorer.skalenodes.com/api",
                 },
@@ -27,8 +27,8 @@ export default defineConfig({
         },
     },
     verify: {
-        etherscan: { apiKey: "empty" },
-        blockscout: { enabled: false },
+        blockscout: { enabled: true },
+        etherscan: { enabled: false },
         sourcify: { enabled: false },
     },
     networks: {

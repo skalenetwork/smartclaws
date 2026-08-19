@@ -16,7 +16,7 @@ export function readTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_read",
         label: "SmartClaws Read",
         description:
-            "Read recent messages from a device or agent channel, or a direct channel address. Free, wallet-free, and never optional. `side` picks which half of the entity's pair: `outgoing` (default) is what the entity published; `incoming` is what was sent to it (device commands, agent notifications). Encrypted channels return labelled ciphertext (`encrypted`, `ciphertextBytes`, raw hex) — that is a successful read, not a decode error. Empty channels still report `encrypted` when the channel kind is known. Paid decryption is a separate tool (`smartclaws_disclose`).",
+            "Read recent messages from a device or agent channel, or a direct channel address. No wallet required. `side` picks which half of the entity's pair: `outgoing` (default) is what the entity published; `incoming` is what was sent to it (device commands, agent notifications). Encrypted channels return labelled ciphertext (`encrypted`, `ciphertextBytes`, raw hex) — that is a successful read, not a decode error. Empty channels still report `encrypted` when the channel kind is known. To get plaintext on an encrypted channel, use `smartclaws_disclose`.",
         parameters: Type.Object({
             device: Type.Optional(Type.String({ description: "Local device name." })),
             agent: Type.Optional(Type.String({ description: "Local agent name or address." })),

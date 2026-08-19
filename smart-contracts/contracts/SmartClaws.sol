@@ -14,7 +14,7 @@ import {IDeviceFactory} from "./factories/interfaces/IDeviceFactory.sol";
 import {IDeviceGroupFactory} from "./factories/interfaces/IDeviceGroupFactory.sol";
 import {IAgentFactory} from "./factories/interfaces/IAgentFactory.sol";
 import {IPublicKeyRegistryFactory} from "./factories/interfaces/IPublicKeyRegistryFactory.sol";
-import {InvalidFactoryAddress} from "./Errors.sol";
+import {InvalidFactoryAddress, InvalidRegistryAddress} from "./Errors.sol";
 
 /**
  * @title SmartClaws
@@ -33,6 +33,7 @@ contract SmartClaws is ISmartClaws {
     IDeviceFactory public immutable deviceFactory;
     IDeviceGroupFactory public immutable deviceGroupFactory;
     IAgentFactory public immutable agentFactory;
+    // TODO: remove registry factory — the registry is now deployed and passed in directly.
     IPublicKeyRegistryFactory public immutable override publicKeyRegistryFactory;
     IPublicKeyRegistry public immutable override publicKeyRegistry;
 
@@ -46,7 +47,8 @@ contract SmartClaws is ISmartClaws {
         IDeviceFactory deviceFactory_,
         IDeviceGroupFactory deviceGroupFactory_,
         IAgentFactory agentFactory_,
-        IPublicKeyRegistryFactory publicKeyRegistryFactory_
+        IPublicKeyRegistryFactory publicKeyRegistryFactory_,
+        IPublicKeyRegistry publicKeyRegistry_
     ) {
         require(address(channelFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(encryptedChannelFactory_) != address(0), InvalidFactoryAddress(address(0)));
@@ -54,6 +56,7 @@ contract SmartClaws is ISmartClaws {
         require(address(deviceGroupFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(agentFactory_) != address(0), InvalidFactoryAddress(address(0)));
         require(address(publicKeyRegistryFactory_) != address(0), InvalidFactoryAddress(address(0)));
+        require(address(publicKeyRegistry_) != address(0), InvalidRegistryAddress(address(0)));
 
         channelFactory = channelFactory_;
         encryptedChannelFactory = encryptedChannelFactory_;
@@ -61,7 +64,7 @@ contract SmartClaws is ISmartClaws {
         deviceGroupFactory = deviceGroupFactory_;
         agentFactory = agentFactory_;
         publicKeyRegistryFactory = publicKeyRegistryFactory_;
-        publicKeyRegistry = publicKeyRegistryFactory_.createPublicKeyRegistry();
+        publicKeyRegistry = publicKeyRegistry_;
     }
 
     // --- Channel Management ---

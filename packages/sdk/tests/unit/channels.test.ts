@@ -51,6 +51,11 @@ const WALLET: WalletFile = {
     privateKey: `0x${"11".repeat(32)}`,
 };
 
+const VIEW_WALLET: WalletFile = {
+    ...WALLET,
+    viewPrivateKey: `0x${"22".repeat(32)}`,
+};
+
 const CHANNEL = getAddress("0x00000000000000000000000000000000000000c1");
 const DEVICE = getAddress("0x00000000000000000000000000000000000000d1");
 const AGENT = getAddress("0x00000000000000000000000000000000000000a1");
@@ -509,7 +514,7 @@ describe("discloseMessages", () => {
             await discloseMessages(
                 { channelAddress: CHANNEL, fromOffset: 0, count: 1 },
                 CONFIG,
-                WALLET,
+                VIEW_WALLET,
             );
             throw new Error("expected throw");
         } catch (error) {
@@ -536,6 +541,22 @@ describe("discloseMessages", () => {
         expect(write).not.toHaveBeenCalled();
     });
 
+    test("fails with NO_VIEW_KEY before sending a transaction", async () => {
+        spyOn(contracts, "resolveChannelEncrypted").mockResolvedValue(true);
+        const write = spyOn(contracts, "getEncryptedChannelContract");
+        try {
+            await discloseMessages(
+                { channelAddress: CHANNEL, fromOffset: 0, count: 1 },
+                CONFIG,
+                WALLET,
+            );
+            throw new Error("expected throw");
+        } catch (error) {
+            expect((error as SmartClawsError).code).toBe("NO_VIEW_KEY");
+        }
+        expect(write).not.toHaveBeenCalled();
+    });
+
     test("fails with NOT_A_READER before sending a transaction", async () => {
         spyOn(contracts, "resolveChannelEncrypted").mockResolvedValue(true);
         spyOn(readers, "isAuthorizedReader").mockResolvedValue(false);
@@ -544,7 +565,7 @@ describe("discloseMessages", () => {
             await discloseMessages(
                 { channelAddress: CHANNEL, fromOffset: 0, count: 1 },
                 CONFIG,
-                WALLET,
+                VIEW_WALLET,
             );
             throw new Error("expected throw");
         } catch (error) {
@@ -566,7 +587,7 @@ describe("discloseMessages", () => {
             await discloseMessages(
                 { channelAddress: CHANNEL, fromOffset: 0, count: 1 },
                 CONFIG,
-                WALLET,
+                VIEW_WALLET,
             );
             throw new Error("expected throw");
         } catch (error) {
@@ -627,7 +648,7 @@ describe("discloseMessages", () => {
         const result = await discloseMessages(
             { channelAddress: CHANNEL, fromOffset: 0, count: 1 },
             CONFIG,
-            WALLET,
+            VIEW_WALLET,
         );
 
         expect(writes[0]?.tx.gasPrice).toBe(GAS_PRICE);
@@ -680,7 +701,7 @@ describe("discloseMessages", () => {
             await discloseMessages(
                 { channelAddress: CHANNEL, fromOffset: 0, count: 1 },
                 CONFIG,
-                WALLET,
+                { ...WALLET, viewPrivateKey: WALLET.privateKey },
             );
             throw new Error("expected throw");
         } catch (error) {

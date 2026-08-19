@@ -58,6 +58,13 @@ describe("key register|show|remove (anvil)", () => {
     });
 
     test("show reports not registered, then register, show, remove", async () => {
+        const missingKey = await runCli(["key", "show"], tempDir);
+        expect(missingKey.exitCode).toBe(1);
+        expect(missingKey.stderr).toContain("No viewing key is stored");
+
+        const generated = await runCli(["key", "generate"], tempDir);
+        expect(generated.exitCode).toBe(0);
+
         const missing = await runCli(["key", "show"], tempDir);
         expect(missing.exitCode).toBe(0);
         expect(missing.stdout).toContain("Registered: no");
@@ -66,6 +73,7 @@ describe("key register|show|remove (anvil)", () => {
         const registered = await runCli(["key", "register"], tempDir);
         expect(registered.exitCode).toBe(0);
         expect(registered.stdout).toContain("Public key registered");
+        expect(registered.stdout).toContain("Key:      view key");
         expect(registered.stdout).toMatch(/Tx:\s+0x[0-9a-fA-F]+/);
 
         const shown = await runCli(["key", "show"], tempDir);
@@ -82,6 +90,9 @@ describe("key register|show|remove (anvil)", () => {
         const after = await runCli(["key", "show"], tempDir);
         expect(after.exitCode).toBe(0);
         expect(after.stdout).toContain("Registered: no");
+
+        const forgotten = await runCli(["key", "forget"], tempDir);
+        expect(forgotten.exitCode).toBe(0);
     });
 
     /**
@@ -90,12 +101,15 @@ describe("key register|show|remove (anvil)", () => {
      * only place this is visible before paying.
      */
     test("show reports a registered key the local view key cannot open", async () => {
+        const generated = await runCli(["key", "generate"], tempDir);
+        expect(generated.exitCode).toBe(0);
+
         const registered = await runCli(["key", "register"], tempDir);
         expect(registered.exitCode).toBe(0);
-        expect(registered.stdout).toContain("Key:      signing key");
+        expect(registered.stdout).toContain("Key:      view key");
 
         // Rotating locally without re-registering leaves the registry on the old key.
-        const rotated = await runCli(["key", "generate"], tempDir);
+        const rotated = await runCli(["key", "generate", "--force"], tempDir);
         expect(rotated.exitCode).toBe(0);
 
         const stale = await runCli(["key", "show"], tempDir);

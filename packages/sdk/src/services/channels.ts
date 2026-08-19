@@ -547,6 +547,7 @@ export async function discloseMessages(
         });
     }
 
+    const viewKey = keys.viewingPrivateKey(wallet);
     const reader = getAddress(wallet.address);
     const { publicClient } = contracts.getClients(config, wallet);
 
@@ -635,11 +636,7 @@ export async function discloseMessages(
     disclosed.sort((left, right) => left.offset - right.offset);
 
     const messages: ReadMessage[] = disclosed.map((item) => {
-        const env = keys.decryptDisclosedEnvelope(
-            keys.viewingPrivateKey(wallet),
-            item.encryptedPayload,
-            decode,
-        );
+        const env = keys.decryptDisclosedEnvelope(viewKey, item.encryptedPayload, decode);
         return {
             offset: item.offset,
             rawHex: item.encryptedPayload,

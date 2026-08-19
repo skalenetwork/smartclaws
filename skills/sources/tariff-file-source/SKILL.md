@@ -18,10 +18,20 @@ on-chain messages, or define an agent role. Use it with
 
 ## Source
 
-The setup must provide the tariff snapshot file path in `SMARTCLAWS.md`.
+This is optional and setup-specific. It is not part of the generic
+`SMARTCLAWS.md` template. If this skill is installed, add a `tariff` block to
+the workspace `SMARTCLAWS.md`:
 
-Read the file directly with normal file-reading tools. Do not use SmartClaws
-channel reads for this source; tariff data is local/off-chain.
+```yaml
+tariff:
+  skill: smartclaws-tariff-file-source
+  source: local-file
+  snapshotFile: ./state/tariff.json
+  staleAfterSeconds: 120
+```
+
+Read the file at `snapshotFile` with normal file-reading tools. Do not use
+SmartClaws channel reads for this source; tariff data is local/off-chain.
 
 For human-in-the-loop demos, a `staleAfterSeconds` value around `120` is a good
 default: lenient enough for multi-tool agent cycles, still short enough to catch

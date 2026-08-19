@@ -38,7 +38,7 @@ export interface WalletFile {
      * ownership, so viewing can be decoupled from signing: register a key used only for
      * reading and rotate it freely without changing the wallet address — which matters
      * because reader ACLs are keyed by address, so a new address would lose every grant.
-     * Absent means the signing key is also the viewing key.
+     * Absent means disclose and register cannot run until one is generated.
      */
     viewPrivateKey?: string;
 }

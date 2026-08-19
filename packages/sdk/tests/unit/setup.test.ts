@@ -13,7 +13,7 @@ import {
     SmartClawsError,
 } from "../../src/index.ts";
 import { getSetupStatus } from "../../src/services/setup.ts";
-import { generateWallet } from "../../src/wallet.ts";
+import { generateWallet, generateViewKey } from "../../src/wallet.ts";
 
 function tempHome(): string {
     return mkdtempSync(join(tmpdir(), "smartclaws-setup-"));
@@ -109,6 +109,7 @@ describe("getSetupStatus", () => {
             mode: "controller",
             network: "base-testnet",
         });
+        generateViewKey(tempDir);
         const walletService = await import("../../src/services/wallet.ts");
         const keyTx = await import("../../src/services/key-transactions.ts");
         spyOn(walletService, "getWalletInfo").mockResolvedValue({
@@ -122,7 +123,7 @@ describe("getSetupStatus", () => {
             registry: "0x00000000000000000000000000000000000000e0",
             registered: false,
             matchesViewKey: false,
-            usesSigningKey: true,
+            viewKeyMissing: false,
             localPublicKey: { x: `0x${"11".repeat(32)}`, y: `0x${"22".repeat(32)}` },
             fingerprint: "abcdabcdabcdabcd",
         });
@@ -140,6 +141,7 @@ describe("getSetupStatus", () => {
             mode: "controller",
             network: "base-testnet",
         });
+        generateViewKey(tempDir);
         const walletService = await import("../../src/services/wallet.ts");
         const keyTx = await import("../../src/services/key-transactions.ts");
         spyOn(walletService, "getWalletInfo").mockResolvedValue({
@@ -153,7 +155,7 @@ describe("getSetupStatus", () => {
             registry: "0x00000000000000000000000000000000000000e0",
             registered: true,
             matchesViewKey: true,
-            usesSigningKey: true,
+            viewKeyMissing: false,
             localPublicKey: { x: `0x${"11".repeat(32)}`, y: `0x${"22".repeat(32)}` },
             fingerprint: "abcdabcdabcdabcd",
         });
@@ -171,6 +173,7 @@ describe("getSetupStatus", () => {
             mode: "controller",
             network: "base-testnet",
         });
+        generateViewKey(tempDir);
         const walletService = await import("../../src/services/wallet.ts");
         const keyTx = await import("../../src/services/key-transactions.ts");
         spyOn(walletService, "getWalletInfo").mockResolvedValue({
@@ -184,13 +187,38 @@ describe("getSetupStatus", () => {
             registry: "0x00000000000000000000000000000000000000e0",
             registered: true,
             matchesViewKey: false,
-            usesSigningKey: false,
+            viewKeyMissing: false,
             localPublicKey: { x: `0x${"11".repeat(32)}`, y: `0x${"22".repeat(32)}` },
             fingerprint: "abcdabcdabcdabcd",
         });
 
         const status = await getSetupStatus({ homeDir: tempDir });
         expect(status.state).toBe("public-key-mismatch");
+    });
+
+    test("classifies a funded HOME without a viewing key", async () => {
+        tempDir = tempHome();
+        const initialized = initializeHome({
+            homeDir: tempDir,
+            mode: "controller",
+            network: "base-testnet",
+        });
+        const walletService = await import("../../src/services/wallet.ts");
+        spyOn(walletService, "getWalletInfo").mockResolvedValue({
+            address: initialized.walletAddress,
+            balanceWei: "1",
+            balance: "0",
+            symbol: "CREDITS",
+        });
+
+        const status = await getSetupStatus({ homeDir: tempDir });
+        expect(status.state).toBe("ready");
+        expect(status.ready).toBe(true);
+        const viewKeyIssue = status.issues.find((issue) => issue.code === "NO_VIEW_KEY");
+        expect(viewKeyIssue?.severity).toBe("warning");
+        expect(viewKeyIssue?.recommendedTool).toBe("smartclaws_view_key_generate");
+        expect(status.key?.viewKeyMissing).toBe(true);
+        expect(status.key?.fingerprint).toBeNull();
     });
 
     test("does not leak URL credentials in rpc diagnostics", async () => {

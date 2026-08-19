@@ -84,11 +84,12 @@ export interface DeployedSystem {
     deviceGroupFactory: string;
     agentFactory: string;
     publicKeyRegistryFactory: string;
+    publicKeyRegistry: string;
 }
 
 /**
  * Deploys the factories and a SmartClaws registry wired to them.
- * Single source of truth for protocol deployment.
+ * PublicKeyRegistry is a top-level EOA create so explorers can index it.
  */
 export async function deploySystem(ethers: any): Promise<DeployedSystem> {
     const deployOne = async (name: string): Promise<string> => {
@@ -104,6 +105,7 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
     const deviceGroupFactory = await deployOne("DeviceGroupFactory");
     const agentFactory = await deployOne("AgentFactory");
     const publicKeyRegistryFactory = await deployOne("PublicKeyRegistryFactory");
+    const publicKeyRegistry = await deployOne("PublicKeyRegistry");
 
     const SmartClawsFactory = await ethers.getContractFactory("SmartClaws");
     const registry: SmartClaws = await SmartClawsFactory.deploy(
@@ -113,6 +115,7 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
         deviceGroupFactory,
         agentFactory,
         publicKeyRegistryFactory,
+        publicKeyRegistry,
     );
     await registry.waitForDeployment();
 
@@ -124,6 +127,7 @@ export async function deploySystem(ethers: any): Promise<DeployedSystem> {
         deviceGroupFactory,
         agentFactory,
         publicKeyRegistryFactory,
+        publicKeyRegistry,
     };
 }
 

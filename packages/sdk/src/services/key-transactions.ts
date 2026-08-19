@@ -25,8 +25,8 @@ export interface ViewKeyStatus {
     registered: boolean;
     /** Whether the registered key is the one this wallet's viewing key can open. */
     matchesViewKey: boolean;
-    /** False once a separate viewing key is configured. */
-    usesSigningKey: boolean;
+    /** True when no viewing key is stored (disclose/register cannot run). */
+    viewKeyMissing: boolean;
     localPublicKey: Secp256k1PublicKey;
     registeredPublicKey?: Secp256k1PublicKey;
     fingerprint: string;
@@ -46,7 +46,7 @@ export async function getViewKeyStatus(config: Config, wallet: WalletFile): Prom
     const client = getPublicClient(config);
     const viewKey = viewingPrivateKey(wallet);
     const localPublicKey = publicKeyFromPrivateKey(viewKey);
-    const usesSigningKey = wallet.viewPrivateKey === undefined;
+    const viewKeyMissing = wallet.viewPrivateKey === undefined;
     const fingerprint = publicKeyFingerprint(localPublicKey);
 
     if (!(await hasPublicKey(client, registry, account))) {
@@ -55,7 +55,7 @@ export async function getViewKeyStatus(config: Config, wallet: WalletFile): Prom
             registry,
             registered: false,
             matchesViewKey: false,
-            usesSigningKey,
+            viewKeyMissing,
             localPublicKey,
             fingerprint,
         };
@@ -66,7 +66,7 @@ export async function getViewKeyStatus(config: Config, wallet: WalletFile): Prom
         registry,
         registered: true,
         matchesViewKey: publicKeyMatches(registeredPublicKey, viewKey),
-        usesSigningKey,
+        viewKeyMissing,
         localPublicKey,
         registeredPublicKey,
         fingerprint,

@@ -75,18 +75,19 @@ keyCommand
 
 keyCommand
     .command("forget")
-    .description("Delete the local viewing key; the signing key resumes that role")
+    .description(
+        "Delete the local viewing key. Disclose and register fail until you generate a new one.",
+    )
     .action(() => {
         loadConfigOrExit();
         try {
             if (loadWallet()?.viewPrivateKey === undefined) {
-                console.log("No view key stored; the signing key is already the viewing key.");
+                console.log("No viewing key stored.");
                 return;
             }
             removeViewKey();
-            console.log("View key deleted. The signing key is the viewing key again.");
-            console.log("Re-register so the registry matches:");
-            console.log("  smartclaws key register");
+            console.log("Viewing key deleted. Generate a new one before disclose or register:");
+            console.log("  smartclaws key generate");
         } catch (e: unknown) {
             console.error(e instanceof SmartClawsError ? e.message : (e as Error).message);
             process.exit(1);
@@ -103,7 +104,7 @@ keyCommand
             const result = await registerActiveViewKey(config, wallet);
             console.log("Public key registered");
             console.log(`  Account:  ${wallet.address}`);
-            console.log(`  Key:      ${wallet.viewPrivateKey ? "view key" : "signing key"}`);
+            console.log(`  Key:      view key`);
             console.log(`  Registry: ${result.registry}`);
             console.log(`  Tx:       ${result.txHash}`);
         } catch (e: unknown) {
@@ -122,7 +123,7 @@ keyCommand
             const status = await getViewKeyStatus(config, wallet);
             console.log(`  Account:   ${status.account}`);
             console.log(`  Registry:  ${status.registry}`);
-            console.log(`  View key:  ${status.usesSigningKey ? "signing key" : "separate"}`);
+            console.log(`  View key:  ${status.viewKeyMissing ? "missing" : "separate"}`);
 
             if (!status.registered) {
                 console.log("  Registered: no");

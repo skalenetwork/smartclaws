@@ -15,7 +15,7 @@
         "compile": "cd smart-contracts && bun run compile",
         "export-abi": "cd smart-contracts && bun run compile && bash scripts/export-abi.sh",
         "test:contracts": "cd smart-contracts && bun test",
-        "test:cli": "cd packages/cli && bun test",
+        "test:cli": "cd packages/cli && bun run test",
         "test:sdk": "cd packages/sdk && bun test",
         "test:plugin": "cd packages/openclaw-plugin && bun test",
         "test:nearai-plugin": "cd packages/nearai-verify-plugin && bun test",

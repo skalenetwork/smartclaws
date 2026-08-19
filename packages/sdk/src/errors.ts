@@ -27,6 +27,7 @@ export type SmartClawsErrorCode =
     | "CHANNEL_KIND_MISMATCH"
     | "TRANSACTION_REVERTED"
     | "NOT_A_READER"
+    | "NO_VIEW_KEY"
     | "NO_PUBLIC_KEY"
     | "INSUFFICIENT_FEE"
     | "READ_BATCH_LIMIT"

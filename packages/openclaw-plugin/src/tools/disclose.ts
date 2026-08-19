@@ -16,7 +16,7 @@ export function discloseTool(tool: SmartClawsToolFactory) {
         name: "smartclaws_disclose",
         label: "SmartClaws Disclose",
         description:
-            "Paid two-phase disclosure of encrypted channel messages: signs requestMessages, waits for the CTX, then decrypts. Requires reader authorization and a registered public key, checked before spending. Count must be 1–10; larger ranges are not split into several paid transactions. `side` picks which half of a device/agent pair to disclose — `outgoing` (default) or `incoming`. Use smartclaws_read for free ciphertext inspection.",
+            "Open encrypted channel messages: signs requestMessages, waits for the CTX, then decrypts. Requires a local viewing key, reader authorization, and a registered public key. Count must be 1–10; larger ranges are not split into several transactions. `side` picks which half of a device/agent pair to disclose — `outgoing` (default) or `incoming`. On encrypted channels this is how you get plaintext; `smartclaws_read` returns labelled ciphertext.",
         optional: true,
         parameters: Type.Object({
             device: Type.Optional(Type.String({ description: "Local device name." })),

@@ -55,6 +55,11 @@ function printPublicKeyGuidance(): void {
     console.error("  smartclaws key register");
 }
 
+function printViewKeyGuidance(): void {
+    console.error("No viewing key is stored. Disclosure cannot run until one is generated.");
+    console.error("  smartclaws key generate");
+}
+
 async function quoteDisclosureDeposit(
     channelAddress: `0x${string}`,
     fromOffset: number,
@@ -288,6 +293,10 @@ export const readCommand = new Command("read")
         } catch (e: unknown) {
             if (e instanceof SmartClawsError && e.code === "NOT_A_READER") {
                 printReaderGuidance(loadWalletOrExit(config).address, readSide);
+                process.exit(1);
+            }
+            if (e instanceof SmartClawsError && e.code === "NO_VIEW_KEY") {
+                printViewKeyGuidance();
                 process.exit(1);
             }
             if (e instanceof SmartClawsError && e.code === "NO_PUBLIC_KEY") {

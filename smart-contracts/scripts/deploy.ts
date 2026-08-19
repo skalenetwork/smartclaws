@@ -1,12 +1,5 @@
 import hre from "hardhat";
-import { verifyContract } from "@nomicfoundation/hardhat-verify/verify";
-
-interface VerificationTarget {
-    address: string;
-    constructorArgs: unknown[];
-    contract: string;
-    label: string;
-}
+import { verifyAllContracts, type VerificationTarget } from "./verification-utils.js";
 
 async function main() {
     const { ethers } = await hre.network.create();
@@ -40,6 +33,7 @@ async function main() {
     const deviceGroupFactory = await deployFactory("DeviceGroupFactory");
     const agentFactory = await deployFactory("AgentFactory");
     const publicKeyRegistryFactory = await deployFactory("PublicKeyRegistryFactory");
+    const publicKeyRegistryAddress = await deployFactory("PublicKeyRegistry");
 
     // --- Deploy registry ---
     const SmartClaws = await ethers.getContractFactory("SmartClaws");
@@ -50,12 +44,11 @@ async function main() {
         deviceGroupFactory,
         agentFactory,
         publicKeyRegistryFactory,
+        publicKeyRegistryAddress,
     );
     await registry.waitForDeployment();
     const registryAddress = await registry.getAddress();
     console.log("SmartClaws registry deployed to:", registryAddress);
-    const publicKeyRegistryAddress = await registry.publicKeyRegistry();
-    console.log("PublicKeyRegistry deployed to:", publicKeyRegistryAddress);
 
     const getEventAddress = (
         receipt: { logs: readonly any[] } | null,
@@ -141,11 +134,7 @@ async function main() {
     console.log("Device incoming channel deployed to:", deviceIncomingChannelAddress);
     console.log("Device outgoing channel deployed to:", deviceOutgoingChannelAddress);
 
-    // The encrypted counterparts. Without these, SmartClawsChannelEncrypted bytecode is
-    // never deployed by this script, so it is never seeded into Blockscout and the
-    // encrypted paths stay unexercised until something downstream tries them on a live
-    // chain. They also give the SDK/CLI a real encrypted target to develop against, which
-    // matters because BITE cannot be simulated locally.
+
     const encryptedChannelTx = await registry.createEncryptedChannel(
         deployer.address,
         verificationCapacity,
@@ -238,8 +227,6 @@ async function main() {
 
     // Verify every contract deployed by this script, including contracts created
     // internally by a factory call.
-    console.log("\nWaiting for Blockscout to index contracts...");
-    await new Promise((r) => setTimeout(r, 10_000));
 
     const channelContract = "contracts/SmartClawsChannel.sol:SmartClawsChannel";
     const channelConstructorArgs = [deployer.address, verificationCapacity, registryAddress];
@@ -308,6 +295,7 @@ async function main() {
                 deviceGroupFactory,
                 agentFactory,
                 publicKeyRegistryFactory,
+                publicKeyRegistryAddress,
             ],
             contract: "contracts/SmartClaws.sol:SmartClaws",
         },
@@ -445,31 +433,7 @@ async function main() {
         },
     ];
 
-    const verificationFailures: string[] = [];
-    for (const target of verificationTargets) {
-        try {
-            await verifyContract(
-                {
-                    address: target.address,
-                    constructorArgs: target.constructorArgs,
-                    contract: target.contract,
-                    provider: "etherscan",
-                },
-                hre,
-            );
-            console.log(`${target.label} verified on Blockscout`);
-        } catch (e: any) {
-            verificationFailures.push(
-                `${target.label} (${target.address}): ${e?.message ?? String(e)}`,
-            );
-        }
-    }
-
-    if (verificationFailures.length !== 0) {
-        throw new Error(`Blockscout verification failed:\n${verificationFailures.join("\n")}`);
-    }
-
-    console.log(`\nVerified all ${verificationTargets.length} deployed contracts on Blockscout`);
+    await verifyAllContracts(hre, verificationTargets);
 }
 
 main().catch((error) => {

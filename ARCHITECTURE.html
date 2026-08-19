@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SmartClaws &#8212; How It Works</title>
-<meta name="description" content="How the SmartClaws on-chain IoT stack works: the control loop, the on-chain objects, permissions, and the optional Pairpoint and private-inference layers." />
+<meta name="description" content="How the SmartClaws on-chain IoT stack works: the control loop, the on-chain objects, plain and encrypted channels, permissions, and the optional Pairpoint and private-inference layers." />
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -361,7 +361,7 @@
     <p class="standfirst">
       An IoT stack where the SKALE blockchain replaces the cloud broker. Devices publish
       what they measured, controllers publish what they decided, and the permissions live
-      in the contracts.
+      in the contracts. A channel can also be sealed, so only its readers can open it.
     </p>
   </header>
 
@@ -582,6 +582,11 @@
             commands &amp; decisions
           </li>
         </ul>
+        <p class="caption">
+          This is the loop on <strong>plain</strong> channels, where reading is simply reading.
+          A channel can instead be registered <strong>encrypted</strong> — the loop keeps its
+          shape, but steps 3 and 5 change character. That is &#167;04 onward.
+        </p>
       </div>
     </figure>
   </section>
@@ -591,17 +596,22 @@
     <h2><span class="num">02</span>What sits on the chain</h2>
     <p>
       Four kinds of object, all created through one registry. Every device and every agent
-      owns exactly two channels — one it writes, one that is written to it.
+      owns exactly two channels &#8212; one it writes, one that is written to it &#8212; and is
+      registered <strong>plain</strong> or <strong>encrypted</strong>, once, for both.
     </p>
 
     <figure class="figure">
       <figcaption class="figure__head"><b>Fig. 2</b> <span>On-chain objects</span></figcaption>
       <div class="scroller scroller--mid">
-        <svg viewBox="0 0 900 400" role="img" aria-label="Diagram: the registry branches into a device group holding devices, and into agents. Each device has an outgoing telemetry channel written by PUBLISHER and an incoming command channel written by MASTER. Each agent has an outgoing decision log written by PUBLISHER and an incoming inbox written by SENDER.">
+        <svg viewBox="0 0 900 500" role="img" aria-label="Diagram: the registry branches into a device group holding devices, and into agents. Each device has an outgoing telemetry channel written by PUBLISHER and an incoming command channel written by MASTER; each agent has an outgoing decision log written by PUBLISHER and an incoming inbox written by SENDER. Each entity is registered plain or encrypted and both of its channels follow that choice. A PublicKeyRegistry sits below, holding each account's public key so a disclosure can be sealed to one reader.">
           <defs>
             <g id="f2-eye">
               <path d="M1.5 9 C4 4.5 14 4.5 16.5 9 C14 13.5 4 13.5 1.5 9 Z" class="ico" />
               <circle cx="9" cy="9" r="2.4" class="ico" />
+            </g>
+            <g id="f2-lock">
+              <rect x="3" y="8" width="12" height="8.5" rx="2" class="ico" />
+              <path d="M6 8 V5.5 A3 3 0 0 1 12 5.5 V8" class="ico" />
             </g>
           </defs>
 
@@ -619,45 +629,65 @@
           <text class="t-body" x="215" y="148" text-anchor="middle" style="fill:var(--ink)">device group &#8220;home&#8221;</text>
           <path d="M215 166 V196" stroke="var(--line)" fill="none" />
 
-          <rect x="60" y="196" width="310" height="160" rx="5" class="s-card" />
+          <rect x="60" y="196" width="310" height="178" rx="5" class="s-card" />
           <rect x="60" y="196" width="310" height="3" rx="1.5" class="s-cap-teal" />
           <text class="t-cap" x="78" y="218">DEVICE</text>
           <text class="t-title" x="78" y="240">shelly-plug-s</text>
+          <text class="t-small" x="78" y="258">plain or encrypted &#8212; fixed at registration</text>
 
-          <rect x="78" y="254" width="274" height="42" rx="3" class="s-panel" />
-          <rect x="78" y="254" width="4" height="42" rx="2" class="s-cap-teal" />
-          <text class="t-small" x="94" y="271" style="fill:var(--ink)">outgoing — telemetry</text>
-          <text class="t-small" x="94" y="287">written by PUBLISHER</text>
+          <rect x="78" y="272" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="78" y="272" width="4" height="42" rx="2" class="s-cap-teal" />
+          <text class="t-small" x="94" y="289" style="fill:var(--ink)">outgoing &#8212; telemetry</text>
+          <text class="t-small" x="94" y="305">written by PUBLISHER</text>
 
-          <rect x="78" y="302" width="274" height="42" rx="3" class="s-panel" />
-          <rect x="78" y="302" width="4" height="42" rx="2" class="s-cap-ochre" />
-          <text class="t-small" x="94" y="319" style="fill:var(--ink)">incoming — commands</text>
-          <text class="t-small" x="94" y="335">written by MASTER</text>
+          <rect x="78" y="320" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="78" y="320" width="4" height="42" rx="2" class="s-cap-ochre" />
+          <text class="t-small" x="94" y="337" style="fill:var(--ink)">incoming &#8212; commands</text>
+          <text class="t-small" x="94" y="353">written by MASTER</text>
 
           <!-- right: agent -->
           <rect x="560" y="120" width="250" height="46" rx="4" class="s-panel" />
           <text class="t-body" x="685" y="148" text-anchor="middle" style="fill:var(--ink)">agent identity</text>
           <path d="M685 166 V196" stroke="var(--line)" fill="none" />
 
-          <rect x="530" y="196" width="310" height="160" rx="5" class="s-card" />
+          <rect x="530" y="196" width="310" height="178" rx="5" class="s-card" />
           <rect x="530" y="196" width="310" height="3" rx="1.5" class="s-cap-ochre" />
           <text class="t-cap" x="548" y="218">AGENT</text>
           <text class="t-title" x="548" y="240">master-agent</text>
+          <text class="t-small" x="548" y="258">plain or encrypted &#8212; fixed at registration</text>
 
-          <rect x="548" y="254" width="274" height="42" rx="3" class="s-panel" />
-          <rect x="548" y="254" width="4" height="42" rx="2" class="s-cap-teal" />
-          <text class="t-small" x="564" y="271" style="fill:var(--ink)">outgoing — decision log</text>
-          <text class="t-small" x="564" y="287">written by PUBLISHER</text>
+          <rect x="548" y="272" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="548" y="272" width="4" height="42" rx="2" class="s-cap-teal" />
+          <text class="t-small" x="564" y="289" style="fill:var(--ink)">outgoing &#8212; decision log</text>
+          <text class="t-small" x="564" y="305">written by PUBLISHER</text>
 
-          <rect x="548" y="302" width="274" height="42" rx="3" class="s-panel" />
-          <rect x="548" y="302" width="4" height="42" rx="2" class="s-cap-ochre" />
-          <text class="t-small" x="564" y="319" style="fill:var(--ink)">incoming — inbox</text>
-          <text class="t-small" x="564" y="335">written by SENDER — another agent</text>
+          <rect x="548" y="320" width="274" height="42" rx="3" class="s-panel" />
+          <rect x="548" y="320" width="4" height="42" rx="2" class="s-cap-ochre" />
+          <text class="t-small" x="564" y="337" style="fill:var(--ink)">incoming &#8212; inbox</text>
+          <text class="t-small" x="564" y="353">written by SENDER &#8212; another agent</text>
+
+          <!-- leaders into the key registry -->
+          <path d="M215 374 V396" stroke="var(--line)" stroke-dasharray="4 4" fill="none" />
+          <path d="M685 374 V396" stroke="var(--line)" stroke-dasharray="4 4" fill="none" />
+
+          <!-- public key registry -->
+          <rect x="60" y="396" width="780" height="62" rx="5" class="s-chain" />
+          <use href="#f2-lock" class="ico--indigo" x="80" y="414" width="18" height="18" />
+          <text class="t-title" x="108" y="422" style="fill:var(--indigo)">PublicKeyRegistry</text>
+          <text class="t-small" x="108" y="442">holds each account&#8217;s public key, so a disclosure can be sealed to exactly one reader</text>
 
           <!-- read note -->
-          <use href="#f2-eye" class="ico--grey" x="376" y="374" width="18" height="18" />
-          <text class="t-small" x="402" y="387">every channel is readable by anyone, no permission needed</text>
+          <use href="#f2-eye" class="ico--grey" x="228" y="470" width="18" height="18" />
+          <text class="t-small" x="254" y="483">any channel can be read by anyone &#8212; what comes back depends on its kind</text>
         </svg>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          Reading needs no permission and never has. On a <strong>plain</strong> channel that hands
+          you the message; on an <strong>encrypted</strong> one it hands you ciphertext, and turning
+          that back into a message is a separate, authorized step. One group can hold both kinds
+          side by side.
+        </p>
       </div>
     </figure>
   </section>
@@ -667,7 +697,7 @@
     <h2><span class="num">03</span>What a channel is</h2>
     <p>
       A log that only grows. Writing is gated by role; reading is open to all. Every message
-      carries the same small envelope, whatever the device.
+      carries the same small envelope &#8212; whatever the device, and whatever the channel kind.
     </p>
 
     <figure class="figure">
@@ -760,6 +790,8 @@
           The <strong>topic</strong> is the contract between hardware and automation. A Shelly plug
           publishes <code>telemetry.switch_status</code> and accepts <code>command.switch.set</code>;
           an air-quality sensor publishes <code>telemetry.air_quality</code> and accepts nothing.
+          Encryption changes none of this: the envelope is what goes <em>inside</em> the seal, so
+          <code>v: 1</code> framing carries through an encrypted channel untouched.
         </p>
       </div>
     </figure>
@@ -767,14 +799,104 @@
 
   <!-- ============================ FIG 4 ============================ -->
   <section class="chapter">
-    <h2><span class="num">04</span>Who holds which key</h2>
+    <h2><span class="num">04</span>What an encrypted channel hides</h2>
     <p>
-      Authority isn't a setting an agent can talk its way around — it's a role granted by the
-      owner's wallet. Without it, the transaction is rejected by the contract.
+      Encryption here hides the reading, not the fact of one. The payload is sealed before it
+      leaves the bridge and is only ever stored sealed &#8212; but the transaction that carried it
+      is an ordinary public transaction, and everything around the payload stays legible to
+      anyone watching the chain.
     </p>
 
     <figure class="figure">
-      <figcaption class="figure__head"><b>Fig. 4</b> <span>Permissions, as granted keys</span></figcaption>
+      <figcaption class="figure__head"><b>Fig. 4</b> <span>The same message, both kinds</span></figcaption>
+      <div class="scroller scroller--mid">
+        <svg viewBox="0 0 900 410" role="img" aria-label="Diagram comparing one message stored on a plain channel and on an encrypted channel. On the plain channel the envelope fields are readable; on the encrypted channel the same envelope is a sealed block of ciphertext. A band across the bottom lists what stays publicly visible either way: who published, when, which channel, how many messages, and how big.">
+          <defs>
+            <pattern id="fe-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="8" height="8" fill="var(--card-2)" />
+              <path d="M0 0 V8" stroke="var(--ink-3)" stroke-width="1.6" opacity=".45" />
+            </pattern>
+            <g id="fe-lock">
+              <rect x="3" y="8" width="12" height="8.5" rx="2" class="ico" />
+              <path d="M6 8 V5.5 A3 3 0 0 1 12 5.5 V8" class="ico" />
+            </g>
+            <g id="fe-eye">
+              <path d="M1.5 9 C4 4.5 14 4.5 16.5 9 C14 13.5 4 13.5 1.5 9 Z" class="ico" />
+              <circle cx="9" cy="9" r="2.4" class="ico" />
+            </g>
+          </defs>
+
+          <text class="t-cap" x="230" y="30" text-anchor="middle">PLAIN CHANNEL</text>
+          <text class="t-cap" x="670" y="30" text-anchor="middle">ENCRYPTED CHANNEL</text>
+
+          <!-- plain -->
+          <rect x="40" y="44" width="380" height="200" rx="5" class="s-card" />
+          <rect x="40" y="44" width="380" height="3" rx="1.5" class="s-cap-teal" />
+          <text class="t-cap" x="58" y="72">STORED AT OFFSET 128</text>
+          <text class="t-small" x="58" y="100" style="fill:var(--ink)">ts &#183; dev</text>
+          <text class="t-small" x="150" y="100">1770000000 &#183; thermal-sensor-1</text>
+          <text class="t-small" x="58" y="122" style="fill:var(--ink)">topic</text>
+          <text class="t-small" x="150" y="122">telemetry.thermal_status</text>
+          <text class="t-small" x="58" y="144" style="fill:var(--ink)">p</text>
+          <text class="t-small" x="150" y="144">{ &quot;temperature_c&quot;: 21.4 }</text>
+          <path d="M58 172 H402" stroke="var(--line-2)" fill="none" />
+          <use href="#fe-eye" class="ico--grey" x="58" y="190" width="18" height="18" />
+          <text class="t-small" x="84" y="203">anyone can read this &#8212; and gets the message</text>
+
+          <!-- encrypted -->
+          <rect x="480" y="44" width="380" height="200" rx="5" class="s-card" />
+          <rect x="480" y="44" width="380" height="3" rx="1.5" class="s-cap-teal" />
+          <text class="t-cap" x="498" y="72">STORED AT OFFSET 128</text>
+          <rect x="498" y="88" width="344" height="56" rx="3" fill="url(#fe-hatch)" stroke="var(--line)" />
+          <use href="#fe-lock" class="ico--grey" x="516" y="106" width="20" height="20" />
+          <text class="t-small" x="548" y="121" style="fill:var(--ink)">sealed &#8212; 320 bytes of ciphertext</text>
+          <text class="t-small" x="498" y="164">the same envelope is inside, unchanged</text>
+          <path d="M498 172 H842" stroke="var(--line-2)" fill="none" />
+          <use href="#fe-eye" class="ico--grey" x="498" y="190" width="18" height="18" />
+          <text class="t-small" x="524" y="203">anyone can read this &#8212; and gets exactly this</text>
+
+          <!-- what stays public -->
+          <rect x="40" y="274" width="820" height="96" rx="5" class="s-panel" />
+          <text class="t-cap" x="58" y="298">VISIBLE ON-CHAIN EITHER WAY</text>
+
+          <text class="t-small" x="58" y="330" style="fill:var(--ink)">who published</text>
+          <text class="t-small" x="58" y="348">wallet address</text>
+          <text class="t-small" x="220" y="330" style="fill:var(--ink)">when</text>
+          <text class="t-small" x="220" y="348">block time</text>
+          <text class="t-small" x="382" y="330" style="fill:var(--ink)">which channel</text>
+          <text class="t-small" x="382" y="348">contract address</text>
+          <text class="t-small" x="560" y="330" style="fill:var(--ink)">how many</text>
+          <text class="t-small" x="560" y="348">offset count</text>
+          <text class="t-small" x="706" y="330" style="fill:var(--ink)">how big</text>
+          <text class="t-small" x="706" y="348">byte length</text>
+
+          <text class="t-small" x="450" y="394" text-anchor="middle" style="fill:var(--teal)">what the seal covers is the reading itself &#8212; nothing around it</text>
+        </svg>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          So encryption buys confidentiality of <strong>content</strong>, not of traffic. The
+          publishing wallet travels in the clear alongside the sealed payload, and the event each
+          publish emits indexes the device, the channel and the publisher. A watcher can still tell
+          you that this sensor reported, and when, and how often. What it cannot tell you is what
+          it said.
+        </p>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============================ FIG 5 ============================ -->
+  <section class="chapter">
+    <h2><span class="num">05</span>Who holds which key</h2>
+    <p>
+      Authority isn't a setting an agent can talk its way around — it's granted by the owner's
+      wallet, and without it the contract rejects the transaction. Encrypted channels add a second,
+      separate axis: who may <strong>write</strong> is a role, and who may <strong>read</strong>
+      is a list.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 5</b> <span>Who may write</span></figcaption>
       <div class="scroller scroller--mid">
         <svg viewBox="0 0 900 340" role="img" aria-label="Diagram: the owner grants a PUBLISHER key to the bridge agent and a MASTER key to the master agent. The bridge writes to the device's telemetry channel, the master writes to its command channel, and any wallet without a role has its transaction reverted.">
           <defs>
@@ -856,11 +978,101 @@
         </p>
       </div>
     </figure>
+
+    <p>
+      Reading is the other axis, and it is built out of different parts. A reader is not granted a
+      role; it is added to a list kept on the channel itself. And what it needs in order to open
+      what it is sent is a <em>viewing</em> key &#8212; which need not be the key that spends.
+    </p>
+
+    <figure class="figure">
+      <figcaption class="figure__head"><b>Fig. 6</b> <span>Who may read</span></figcaption>
+      <div class="scroller scroller--mid">
+        <svg viewBox="0 0 900 300" role="img" aria-label="Diagram: the owner adds a reader to a list kept on the encrypted channel itself, not to a role. The reader wallet holds a signing key and a separate viewing key; it registers the public half of the viewing key with the PublicKeyRegistry, which the channel looks up when it discloses a message sealed to that key.">
+          <defs>
+            <marker id="fr-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-grey" />
+            </marker>
+            <marker id="fr-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-teal" />
+            </marker>
+            <g id="fr-lock">
+              <rect x="3" y="8" width="12" height="8.5" rx="2" class="ico" />
+              <path d="M6 8 V5.5 A3 3 0 0 1 12 5.5 V8" class="ico" />
+            </g>
+            <g id="fr-owner">
+              <circle cx="9" cy="6" r="3" class="ico" />
+              <path d="M3.5 15.5 C3.5 11.5 14.5 11.5 14.5 15.5" class="ico" />
+            </g>
+            <g id="fr-key">
+              <circle cx="5" cy="9" r="3.2" class="ico" />
+              <path d="M8.2 9 H16 M13.5 9 V12 M15.8 9 V11.5" class="ico" />
+            </g>
+          </defs>
+
+          <!-- owner -->
+          <rect x="40" y="16" width="220" height="46" rx="5" class="s-card" />
+          <use href="#fr-owner" class="ico--grey" x="58" y="30" width="18" height="18" />
+          <text class="t-body" x="84" y="44" style="fill:var(--ink)">the owner</text>
+          <path d="M262 42 C 300 42, 300 130, 324 148" class="wire wire--thin" marker-end="url(#fr-grey)" />
+          <text class="t-small" x="276" y="104">addReader</text>
+
+          <!-- public key registry -->
+          <rect x="330" y="16" width="240" height="46" rx="5" class="s-panel" />
+          <text class="t-body" x="450" y="44" text-anchor="middle" style="fill:var(--ink)">PublicKeyRegistry</text>
+          <path d="M450 62 V96" stroke="var(--line)" stroke-dasharray="4 4" fill="none" />
+          <text class="t-small" x="578" y="84">the channel looks the reader up here</text>
+
+          <!-- channel -->
+          <rect x="330" y="96" width="240" height="130" rx="5" class="s-chain" />
+          <use href="#fr-lock" class="ico--indigo" x="348" y="112" width="18" height="18" />
+          <text class="t-title" x="376" y="127" style="fill:var(--indigo)">encrypted channel</text>
+          <text class="t-cap" x="348" y="156">READERS &#8212; A LIST</text>
+          <text class="t-small" x="348" y="178" style="fill:var(--ink)">0x10E2&#8230;0B63</text>
+          <text class="t-small" x="348" y="196" style="fill:var(--ink)">0x4A85&#8230;d5E2</text>
+          <text class="t-small" x="348" y="216">not an AccessControl role</text>
+
+          <!-- reader wallet -->
+          <rect x="640" y="96" width="240" height="130" rx="5" class="s-card" />
+          <text class="t-cap" x="658" y="118">READER WALLET</text>
+
+          <rect x="658" y="130" width="204" height="40" rx="3" class="s-panel" />
+          <rect x="658" y="130" width="4" height="40" rx="2" class="s-cap-ochre" />
+          <use href="#fr-key" class="ico--ochre" x="668" y="140" width="18" height="18" />
+          <text class="t-small" x="692" y="147" style="fill:var(--ink)">signing key</text>
+          <text class="t-small" x="692" y="162">spends, signs txs</text>
+
+          <rect x="658" y="176" width="204" height="40" rx="3" class="s-panel" />
+          <rect x="658" y="176" width="4" height="40" rx="2" class="s-cap-teal" />
+          <use href="#fr-key" class="ico--teal" x="668" y="186" width="18" height="18" />
+          <text class="t-small" x="692" y="193" style="fill:var(--ink)">viewing key</text>
+          <text class="t-small" x="692" y="208">opens disclosures</text>
+
+          <!-- registers the public half -->
+          <path d="M770 96 V39 H576" class="wire wire--thin" marker-end="url(#fr-grey)" />
+          <text class="t-small" x="600" y="32">registers the public half</text>
+
+          <!-- disclosure -->
+          <path d="M450 226 V262 H758 V232" class="wire wire--teal wire--read" marker-end="url(#fr-teal)" />
+          <text class="t-small" x="604" y="282" text-anchor="middle" style="fill:var(--teal)">disclosed &#8212; sealed to that viewing key</text>
+        </svg>
+      </div>
+      <div class="figure__foot">
+        <p class="caption">
+          The registry stores whatever public key an account hands it and never proves the account
+          holds the private half. That is precisely what makes a viewing key <strong>delegable</strong>:
+          you can give someone the ability to read a channel without giving them the key that spends,
+          and you can rotate it without changing your address and silently breaking every grant you
+          were given. The same property is the sharp edge &#8212; register the wrong key and what
+          comes back decrypts to nonsense rather than to an error that says &#8220;wrong key&#8221;.
+        </p>
+      </div>
+    </figure>
   </section>
 
-  <!-- ============================ FIG 5 ============================ -->
+  <!-- ============================ FIG 7 ============================ -->
   <section class="chapter">
-    <h2><span class="num">05</span>Optional — proving <em>which device</em> spoke</h2>
+    <h2><span class="num">06</span>Optional — proving <em>which device</em> spoke</h2>
     <p>
       A wallet proves who was <em>allowed</em> to write. It doesn't prove which physical machine
       produced the reading. Where an agent runs on a host with a <strong>Vodafone Pairpoint</strong>
@@ -869,7 +1081,7 @@
     </p>
 
     <figure class="figure">
-      <figcaption class="figure__head"><b>Fig. 5</b> <span>SIM-signed messages via Pairpoint</span></figcaption>
+      <figcaption class="figure__head"><b>Fig. 7</b> <span>SIM-signed messages via Pairpoint</span></figcaption>
       <div class="scroller scroller--mid">
         <svg viewBox="0 0 900 250" role="img" aria-label="Diagram: an agent running on a host with a Pairpoint-authenticated SIM signs its reading, producing an envelope containing the reading verbatim plus a signature blob. That envelope is published on-chain as the message payload, and any reader can verify it — a valid signature means trusted, a missing or bad one is flagged unverified.">
           <defs>
@@ -963,9 +1175,9 @@
     </figure>
   </section>
 
-  <!-- ============================ FIG 6 ============================ -->
+  <!-- ============================ FIG 8 ============================ -->
   <section class="chapter">
-    <h2><span class="num">06</span>Optional — where the agent <em>thinks</em></h2>
+    <h2><span class="num">07</span>Optional — where the agent <em>thinks</em></h2>
     <p>
       The chain records what an agent did; where it reasons is a separate choice, and it's yours —
       model, provider and harness. With a <strong>private inference</strong> provider — we recommend
@@ -974,15 +1186,12 @@
     </p>
 
     <figure class="figure">
-      <figcaption class="figure__head"><b>Fig. 6</b> <span>Private inference, and its one catch</span></figcaption>
+      <figcaption class="figure__head"><b>Fig. 8</b> <span>Private inference</span></figcaption>
       <div class="scroller scroller--mid">
-        <svg viewBox="0 0 900 270" role="img" aria-label="Diagram: the agent sends prompts to a model running inside a hardware TEE enclave, where the host, GPU operator and provider cannot read them and nothing is retained for training. A dashed warning branch shows a gateway failing over to a third-party model outside the enclave, which carries no privacy guarantee.">
+        <svg viewBox="0 0 620 270" role="img" aria-label="Diagram: the agent sends prompts to a model running inside a hardware TEE enclave, where the host, GPU operator and provider cannot read them and nothing is retained for training.">
           <defs>
             <marker id="f6-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
               <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-teal" />
-            </marker>
-            <marker id="f6-deny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
-              <path d="M0 1.2 L9.5 5 L0 8.8 Z" class="ah-deny" />
             </marker>
             <g id="f6-brain">
               <circle cx="9" cy="9" r="6" class="ico" />
@@ -992,15 +1201,10 @@
               <rect x="3.5" y="8.5" width="11" height="7.5" rx="1.8" class="ico" />
               <path d="M6.2 8.5 V6.2 A2.8 2.8 0 0 1 11.8 6.2 V8.5" class="ico" />
             </g>
-            <g id="f6-warn">
-              <path d="M9 2.8 L16.2 15.6 H1.8 Z" class="ico" />
-              <path d="M9 7.4 V11 M9 12.9 V13.3" class="ico" />
-            </g>
           </defs>
 
           <text class="t-cap" x="20" y="40">THE AGENT</text>
           <text class="t-cap" x="280" y="40">PRIVATE INFERENCE</text>
-          <text class="t-cap" x="660" y="40">IF IT FAILS OVER</text>
 
           <!-- agent -->
           <rect x="20" y="60" width="170" height="140" rx="5" class="s-card" />
@@ -1030,59 +1234,49 @@
           <text class="t-small" x="338" y="200">the provider cannot read this</text>
           <text class="t-small" x="338" y="222">nothing is kept for training</text>
 
-          <!-- failover branch -->
-          <path d="M604 150 H654" class="wire wire--deny wire--read" marker-end="url(#f6-deny)" />
-
-          <rect x="660" y="106" width="220" height="88" rx="5" class="s-card" />
-          <use href="#f6-warn" class="ico--deny" x="678" y="120" width="18" height="18" />
-          <text class="t-small" x="704" y="133" style="fill:var(--deny)">a third-party model</text>
-          <text class="t-small" x="678" y="158">outside the enclave — no</text>
-          <text class="t-small" x="678" y="174">privacy guarantee at all</text>
         </svg>
       </div>
       <div class="figure__foot">
         <p class="caption">
-          The catch worth knowing: a provider's gateway can quietly fall back to an ordinary model
-          when an enclave is busy, and the prompt goes with it. SmartClaws ships a check that reports
-          which endpoints are configured <strong>and which actually served recent turns</strong> — the
-          two diverge exactly when it matters. It confirms what the configuration claims; hardware
-          attestation and per-message proof are further steps beyond that.
+          SmartClaws ships a skill and a provider plugin that verify <strong>each message</strong>:
+          they check the enclave's attestation and its signature over the exact request and response
+          bytes, and grade every turn &#8212; proven, attested, or merely claimed.
         </p>
       </div>
     </figure>
   </section>
 
-  <!-- ============================ FIG 7 ============================ -->
+  <!-- ============================ FIG 9 ============================ -->
   <section class="chapter">
-    <h2><span class="num">07</span>What ships</h2>
+    <h2><span class="num">08</span>What ships</h2>
     <p>
       One shared service layer under three ways to reach it, so what an operator does by hand
       and what an agent does automatically stay in step.
     </p>
 
     <figure class="figure">
-      <figcaption class="figure__head"><b>Fig. 7</b> <span>The software</span></figcaption>
+      <figcaption class="figure__head"><b>Fig. 9</b> <span>The software</span></figcaption>
       <div class="scroller">
         <div class="slabs">
           <div class="slab slab--indigo">
             <b>contracts</b>
-            <span>Registry, groups, devices, agents, channels — on SKALE.</span>
+            <span>Registry, groups, devices, agents &#8212; and channels in two kinds, plain and encrypted &#8212; on SKALE.</span>
           </div>
           <div class="slab slab--teal">
             <b>sdk</b>
-            <span>Wallets, reads, publishes, role grants, backups. Everything else calls this.</span>
+            <span>Wallets, reads, publishes, role grants, reader lists, viewing keys, disclosure, backups. Everything else calls this.</span>
           </div>
           <div class="slab slab--ochre">
             <b>cli</b>
-            <span>The operator's tool: set up, register, grant.</span>
+            <span>The operator's tool: set up, register, grant, disclose.</span>
           </div>
           <div class="slab slab--ochre">
             <b>agent plugin</b>
-            <span>Four tools an agent can call: wallet, read, publish, notify.</span>
+            <span>Thirty-one tools an agent can call &#8212; setup, identity, publish, read, disclose, authority, readers, view keys, recovery.</span>
           </div>
           <div class="slab slab--ochre">
             <b>dashboard</b>
-            <span>Browse groups, devices, channels, messages.</span>
+            <span>Browse groups, devices, channels, messages &#8212; and see which channels are sealed.</span>
           </div>
         </div>
       </div>
@@ -1093,12 +1287,20 @@
           topics mean. A new device type is a skill plus a bridge, not a protocol change — and both
           optional layers above arrive the same way, without touching the contracts.
         </p>
+        <p class="caption">
+          Two honest limits at this point in the work. The dashboard reads encrypted channels as an
+          <strong>observer</strong>: it will show you that a channel is sealed and how much traffic
+          it carries, but opening a message needs a private key, which has no business in a browser
+          tab. And the shipped skills and bridge scripts still speak the plain path only &#8212;
+          teaching them encryption is the piece of work still outstanding.
+        </p>
       </div>
     </figure>
   </section>
 
   <p class="colophon">
     SKALE Base Testnet · chain ID 324705682 · Solidity 0.8.28 · TypeScript SDK, CLI, OpenClaw plugin<br>
+    Registry 0xD8C2&#8230;282e · PublicKeyRegistry 0xB4d6&#8230;A75B · encrypted channels deployed 2026-08-17<br>
     Device names, topics and payloads are the ones the repository ships.
   </p>
 

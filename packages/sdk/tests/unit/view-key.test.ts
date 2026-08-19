@@ -26,12 +26,17 @@ function withHome<T>(run: (home: string) => T): T {
 }
 
 describe("viewingPrivateKey", () => {
-    test("falls back to the signing key so a single-key wallet is unchanged", () => {
+    test("requires a stored viewing key and never falls back to the signing key", () => {
         const privateKey = generatePrivateKey();
-        expect(viewingPrivateKey({ privateKey })).toBe(privateKey);
+        try {
+            viewingPrivateKey({ privateKey });
+            throw new Error("expected throw");
+        } catch (error) {
+            expect((error as { code?: string }).code).toBe("NO_VIEW_KEY");
+        }
     });
 
-    test("prefers the view key once one is set", () => {
+    test("returns the view key once one is set", () => {
         const privateKey = generatePrivateKey();
         const viewPrivateKey = generatePrivateKey();
         expect(viewingPrivateKey({ privateKey, viewPrivateKey })).toBe(viewPrivateKey);
@@ -84,14 +89,19 @@ describe("view key storage", () => {
         });
     });
 
-    test("forgetting the view key hands the role back to the signing key", () => {
+    test("forgetting the view key leaves disclose without a key", () => {
         withHome((home) => {
             const signing = generatePrivateKey();
             importWallet(signing, home);
             generateViewKey(home);
             const wallet = removeViewKey(home);
             expect(wallet.viewPrivateKey).toBeUndefined();
-            expect(viewingPrivateKey(wallet)).toBe(signing);
+            try {
+                viewingPrivateKey(wallet);
+                throw new Error("expected throw");
+            } catch (error) {
+                expect((error as { code?: string }).code).toBe("NO_VIEW_KEY");
+            }
         });
     });
 
@@ -141,16 +151,12 @@ describe("registration and decryption agree", () => {
      * payload, and unauthenticated ECIES reports it as a decode error rather than a key error.
      */
     test("the registered public key is always derived from the viewing key", () => {
-        const signing = generatePrivateKey();
-        const view = generatePrivateKey();
-
-        for (const wallet of [
-            { privateKey: signing },
-            { privateKey: signing, viewPrivateKey: view },
-        ]) {
-            const registered = publicKeyFromPrivateKey(viewingPrivateKey(wallet));
-            expect(publicKeyMatches(registered, viewingPrivateKey(wallet))).toBe(true);
-        }
+        const wallet = {
+            privateKey: generatePrivateKey(),
+            viewPrivateKey: generatePrivateKey(),
+        };
+        const registered = publicKeyFromPrivateKey(viewingPrivateKey(wallet));
+        expect(publicKeyMatches(registered, viewingPrivateKey(wallet))).toBe(true);
     });
 
     test("a wallet whose signing key was registered cannot open a separate view key", () => {
@@ -187,7 +193,7 @@ describe("view-key lifecycle helpers", () => {
             expect(rotated.fingerprint).not.toBe(first.fingerprint);
             expect(rotated.backupName).toMatch(/^backup-/);
             const forgotten = forgetViewKeyChecked(home);
-            expect(forgotten.usesSigningKey).toBe(true);
+            expect(forgotten.viewKeyMissing).toBe(true);
             expect(JSON.stringify(forgotten)).not.toContain("privateKey");
         });
     });

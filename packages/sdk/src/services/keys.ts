@@ -83,11 +83,17 @@ export function isValidSecp256k1PublicKey(publicKey: Secp256k1PublicKey): boolea
  * The private key that opens this wallet's disclosures.
  *
  * Registration and decryption must agree on this, so both go through here rather than
- * reaching for `wallet.privateKey` directly. Falling back to the signing key keeps the
- * single-key setup working unchanged.
+ * reaching for `wallet.privateKey`. Missing `viewPrivateKey` fails closed: the signing
+ * key is not a substitute.
  */
 export function viewingPrivateKey(wallet: Pick<WalletFile, "privateKey" | "viewPrivateKey">): Hex {
-    return (wallet.viewPrivateKey ?? wallet.privateKey) as Hex;
+    if (wallet.viewPrivateKey === undefined) {
+        throw new SmartClawsError(
+            "NO_VIEW_KEY",
+            "No viewing key is stored. Generate one before registering or disclosing.",
+        );
+    }
+    return wallet.viewPrivateKey as Hex;
 }
 
 /** Whether a registered public key is the one `viewingPrivateKey` can actually open. */

@@ -16,6 +16,7 @@ import DeviceFactoryArtifact from "../../../smart-contracts/artifacts/contracts/
 import DeviceGroupFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/DeviceGroupFactory.sol/DeviceGroupFactory.json";
 import EncryptedChannelFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/EncryptedChannelFactory.sol/EncryptedChannelFactory.json";
 import PublicKeyRegistryFactoryArtifact from "../../../smart-contracts/artifacts/contracts/factories/PublicKeyRegistryFactory.sol/PublicKeyRegistryFactory.json";
+import PublicKeyRegistryArtifact from "../../../smart-contracts/artifacts/contracts/PublicKeyRegistry.sol/PublicKeyRegistry.json";
 
 const ANVIL_PRIVATE_KEY =
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
@@ -63,6 +64,8 @@ export async function deployRegistry(): Promise<Address> {
         PublicKeyRegistryFactoryArtifact,
         "PublicKeyRegistryFactory",
     );
+    const publicKeyRegistry = await deployArtifact(PublicKeyRegistryArtifact, "PublicKeyRegistry");
+
     // Argument order mirrors the SmartClaws constructor exactly.
     const hash = await walletClient.deployContract({
         abi: SmartClawsArtifact.abi,
@@ -74,6 +77,7 @@ export async function deployRegistry(): Promise<Address> {
             deviceGroupFactory,
             agentFactory,
             publicKeyRegistryFactory,
+            publicKeyRegistry,
         ],
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });

@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { verifyContract } from "@nomicfoundation/hardhat-verify/verify";
+import { verifyAllContracts } from "./verification-utils.js";
 
 async function main() {
     const address = process.env.VERIFY_ADDRESS;
@@ -8,20 +8,20 @@ async function main() {
     }
 
     const constructorArgs = process.env.VERIFY_ARGS ? JSON.parse(process.env.VERIFY_ARGS) : [];
-
     const contract = process.env.VERIFY_CONTRACT;
+    if (!contract) {
+        throw new Error("Set VERIFY_CONTRACT env var (fully qualified name)");
+    }
 
-    console.log(`Verifying ${contract ?? "auto-detect"} at ${address}...`);
-
-    await verifyContract(
+    await verifyAllContracts(hre, [
         {
+            label: contract.split(":").pop() ?? contract,
             address,
             constructorArgs,
             contract,
-            provider: "etherscan",
+            force: process.env.VERIFY_FORCE === "1",
         },
-        hre,
-    );
+    ]);
 }
 
 main().catch((error) => {
