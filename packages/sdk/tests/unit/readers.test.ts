@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import type { Config, DeviceFile, WalletFile } from "@smartclaws/core/types";
+import type { Config, HydratedDeviceFile, WalletFile } from "@smartclaws/core/types";
 import { getAddress } from "viem";
 import * as contracts from "../../src/contracts.js";
 import { SmartClawsError } from "../../src/errors.js";
@@ -35,7 +35,7 @@ const READER = "0x00000000000000000000000000000000000000aa";
 const GROUP = "0x0000000000000000000000000000000000000011";
 const DEVICE = "0x0000000000000000000000000000000000000032";
 
-function encryptedDevice(): DeviceFile {
+function encryptedDevice(): HydratedDeviceFile {
     return {
         name: "sensor",
         deviceContract: DEVICE,

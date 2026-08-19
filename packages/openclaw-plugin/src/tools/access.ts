@@ -22,8 +22,9 @@ interface AccessEntry {
     kind: "device" | "agent";
     name: string;
     encrypted: boolean;
-    incomingChannel: string;
-    outgoingChannel: string;
+    /** Null on a summary device record, whose channels are not hydrated locally. */
+    incomingChannel: string | null;
+    outgoingChannel: string | null;
     canReadIncoming: boolean;
     canReadOutgoing: boolean;
 }
@@ -128,8 +129,8 @@ export function accessTool(tool: SmartClawsToolFactory) {
                             kind: "device",
                             name: item.record.name,
                             encrypted: item.record.encrypted === true,
-                            incomingChannel: item.record.incomingChannel,
-                            outgoingChannel: item.record.outgoingChannel,
+                            incomingChannel: item.record.incomingChannel ?? null,
+                            outgoingChannel: item.record.outgoingChannel ?? null,
                             canReadIncoming: status.isIncomingReader,
                             canReadOutgoing: status.isOutgoingReader,
                         };
