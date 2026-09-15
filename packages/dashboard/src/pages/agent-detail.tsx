@@ -6,6 +6,7 @@ import { AccessPanel } from "@/components/shared/access-panel";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { ChannelAddressBar } from "@/components/shared/channel-address-bar";
 import { ChannelView } from "@/components/shared/channel-view";
+import { OwnerPill } from "@/components/shared/owner-pill";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +29,7 @@ function AgentDetailContent({ address }: { address: Address }) {
         agentId,
         metadata,
         active,
+        owner,
         incomingChannel,
         outgoingChannel,
         channelKind,
@@ -101,6 +103,10 @@ function AgentDetailContent({ address }: { address: Address }) {
                     </div>
                     <p className="text-muted-foreground/80 truncate text-xs">{address}</p>
                 </div>
+                <OwnerPill
+                    address={owner}
+                    title="Ownable2Step owner of this agent contract — may transfer ownership and administer its roles"
+                />
             </div>
 
             {metadata && (

@@ -14,78 +14,26 @@ function StepNumber({ n }: { n: number }) {
 export function SetupDialog() {
     return (
         <div className="flex flex-col gap-3">
-            {/* Step 1: Install skills */}
+            {/* Step 1: Install OpenClaw */}
             <MessageBubble variant="secondary" clickable={false}>
                 <span className="flex items-center">
-                    <StepNumber n={1} /> Install the skills:
+                    <StepNumber n={1} /> Install OpenClaw on your device, then ask your agent to
+                    install the SmartClaws skill, or install it yourself:
                 </span>
             </MessageBubble>
             <MessageBubble variant="primary">
-                Install smartclaws-openclaw-plugin, then install the smartclaws onboarding skill and
-                the role/device skills you need
+                Install the smartclaws skill with{" "}
+                <code className="font-mono text-[0.9em]">clawhub install smartclaws</code>
             </MessageBubble>
 
-            {/* Step 2: Set up SmartClaws */}
+            {/* Step 2: Let the agent guide setup */}
             <MessageBubble variant="secondary" clickable={false}>
                 <span className="flex items-center">
-                    <StepNumber n={2} /> Initialize the CLI and generate a wallet:
+                    <StepNumber n={2} /> The skill teaches the agent how SmartClaws works and drives
+                    the full setup. Ask it to get started:
                 </span>
             </MessageBubble>
-            <MessageBubble variant="primary">
-                Set up SmartClaws and create a new wallet
-            </MessageBubble>
-
-            <div className="flex items-center gap-4 my-1">
-                <div
-                    className="flex-1 h-[1.5px]"
-                    style={{
-                        backgroundImage:
-                            "repeating-linear-gradient(to right, var(--muted-foreground) 0, var(--muted-foreground) 4px, transparent 4px, transparent 12px)",
-                        opacity: 0.4,
-                    }}
-                />
-                <span className="text-xs text-muted-foreground shrink-0">
-                    Transfer CREDITS to the wallet
-                </span>
-                <div
-                    className="flex-1 h-[1.5px]"
-                    style={{
-                        backgroundImage:
-                            "repeating-linear-gradient(to right, var(--muted-foreground) 0, var(--muted-foreground) 4px, transparent 4px, transparent 12px)",
-                        opacity: 0.4,
-                    }}
-                />
-            </div>
-
-            {/* Step 3: Register device group */}
-            <MessageBubble variant="secondary" clickable={false}>
-                <span className="flex items-center">
-                    <StepNumber n={3} /> Fund the wallet and register:
-                </span>
-            </MessageBubble>
-            <MessageBubble variant="primary">
-                Wallet funded. Register a new device group: my-sensors.
-            </MessageBubble>
-
-            {/* Step 4: Set up sensor */}
-            <MessageBubble variant="secondary" clickable={false}>
-                <span className="flex items-center">
-                    <StepNumber n={4} /> Connect a sensor and start publishing data:
-                </span>
-            </MessageBubble>
-            <MessageBubble variant="primary">
-                Set up a temperature sensor and start publishing data
-            </MessageBubble>
-
-            {/* Step 5: Query data */}
-            <MessageBubble variant="secondary" clickable={false}>
-                <span className="flex items-center">
-                    <StepNumber n={5} /> Query your on-chain data:
-                </span>
-            </MessageBubble>
-            <MessageBubble variant="primary">
-                What's the current temperature? Show me the trend for the last hour
-            </MessageBubble>
+            <MessageBubble variant="primary">Set up SmartClaws</MessageBubble>
         </div>
     );
 }

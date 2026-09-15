@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { Address } from "viem";
+import { DisclosureLog } from "@/components/shared/disclosure-log";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SensorCharts } from "@/components/shared/sensor-charts";
 import { StatCard } from "@/components/shared/stat-card";
@@ -25,6 +26,7 @@ import {
 import { useChannelCapacity } from "@/hooks/use-channel-capacity";
 import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
+import { highlightJson } from "@/lib/json-highlight";
 
 function formatBytes(bytes: bigint): string {
     const n = Number(bytes);
@@ -65,63 +67,6 @@ function compactJson(obj: Record<string, unknown>): ReactNode {
             <span className="text-muted-foreground">{" }"}</span>
         </span>
     );
-}
-
-function highlightJson(json: string): ReactNode[] {
-    const parts: ReactNode[] = [];
-    const regex =
-        /("(?:\\.|[^"\\])*")\s*(:)?|(\b(?:true|false|null)\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],:])/g;
-    let lastIndex = 0;
-    let match = regex.exec(json);
-
-    while (match !== null) {
-        if (match.index > lastIndex) {
-            parts.push(json.slice(lastIndex, match.index));
-        }
-        const [full, str, colon, bool, num, punct] = match;
-        if (str) {
-            if (colon) {
-                parts.push(
-                    <span key={match.index} className="text-sky-400">
-                        {str}
-                    </span>,
-                    <span key={`${match.index}c`} className="text-muted-foreground">
-                        :
-                    </span>,
-                );
-            } else {
-                parts.push(
-                    <span key={match.index} className="text-emerald-400">
-                        {str}
-                    </span>,
-                );
-            }
-        } else if (bool) {
-            parts.push(
-                <span key={match.index} className="text-violet-400">
-                    {full}
-                </span>,
-            );
-        } else if (num) {
-            parts.push(
-                <span key={match.index} className="text-amber-400">
-                    {full}
-                </span>,
-            );
-        } else if (punct) {
-            parts.push(
-                <span key={match.index} className="text-muted-foreground">
-                    {full}
-                </span>,
-            );
-        }
-        lastIndex = match.index + full.length;
-        match = regex.exec(json);
-    }
-    if (lastIndex < json.length) {
-        parts.push(json.slice(lastIndex));
-    }
-    return parts;
 }
 
 interface ChannelViewProps {
@@ -413,6 +358,8 @@ export function ChannelView({
                     )}
                 </div>
             )}
+
+            {isEncrypted && <DisclosureLog address={address} />}
         </div>
     );
 }

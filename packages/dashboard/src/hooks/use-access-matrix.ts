@@ -4,7 +4,7 @@ import type { Address } from "viem";
 import { useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain } from "@/config/wagmi";
-import { useAccessGraph, useAllDevices } from "@/hooks/use-access-graph";
+import { type AccountLabel, useAccessGraph, useAllDevices } from "@/hooks/use-access-graph";
 import { useChannelKinds } from "@/hooks/use-channel-kind";
 import {
     type ReaderDirection,
@@ -33,6 +33,8 @@ export interface ReaderGrant {
 export interface AccessMatrixRow {
     account: Address;
     label: string;
+    /** Absent for a reader outside the registry graph. */
+    kind?: AccountLabel["kind"];
     grants: AccessGrant[];
     readerGrants: ReaderGrant[];
     canWriteSomewhere: boolean;
@@ -167,6 +169,7 @@ export function useAccessMatrix() {
                 row = {
                     account: candidate.address,
                     label: candidate.label,
+                    kind: candidate.kind,
                     grants: [],
                     readerGrants: [],
                     canWriteSomewhere: false,
@@ -198,6 +201,7 @@ export function useAccessMatrix() {
                     row = {
                         account,
                         label: candidate?.label ?? "external reader",
+                        kind: candidate?.kind,
                         grants: [],
                         readerGrants: [],
                         canWriteSomewhere: false,

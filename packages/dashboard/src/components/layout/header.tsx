@@ -1,15 +1,15 @@
-import { Box, Cpu, Home, LayoutDashboard, Monitor, Radio, Rocket, Wrench } from "lucide-react";
-import { useLocation } from "react-router";
+import { Box, Cpu, KeyRound, LayoutDashboard, Monitor, Radio, Rocket, Wrench } from "lucide-react";
+import { Link, useLocation } from "react-router";
 import logoSvg from "@/assets/logo.svg";
+import { buttonVariants } from "@/components/ui/button";
 import { useHeaderActions } from "./header-context";
 
 const routes: { path: string; label: string; icon: React.ElementType }[] = [
-    { path: "/", label: "Home", icon: Home },
-    { path: "/overview", label: "Overview", icon: LayoutDashboard },
+    { path: "/", label: "Overview", icon: LayoutDashboard },
     { path: "/groups", label: "Device Groups", icon: Box },
     { path: "/agents", label: "Agents", icon: Cpu },
+    { path: "/access", label: "Access", icon: KeyRound },
     { path: "/skills", label: "Skills", icon: Wrench },
-    { path: "/setup", label: "Setup", icon: Rocket },
     { path: "/channels", label: "Channel", icon: Radio },
     { path: "/devices", label: "Device", icon: Monitor },
 ];
@@ -43,8 +43,14 @@ export function Header() {
                 </div>
             )}
 
-            {/* Right side: page-specific actions */}
-            {actions && <div className="hidden md:flex items-center">{actions}</div>}
+            {/* Right side: page-specific actions, then the way into onboarding */}
+            <div className="hidden md:flex items-center gap-2">
+                {actions}
+                <Link to="/setup" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                    <Rocket aria-hidden="true" />
+                    Setup
+                </Link>
+            </div>
         </header>
     );
 }

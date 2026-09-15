@@ -6,6 +6,7 @@ import { AccessPanel } from "@/components/shared/access-panel";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { ChannelAddressBar } from "@/components/shared/channel-address-bar";
 import { ChannelView } from "@/components/shared/channel-view";
+import { OwnerPill } from "@/components/shared/owner-pill";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,8 +27,16 @@ export function DeviceDetailPage() {
 }
 
 function DeviceDetailContent({ address, knownKind }: { address: string; knownKind?: ChannelKind }) {
-    const { incomingChannel, outgoingChannel, channelKind, deviceId, group, isLoading } =
-        useDeviceDetail(address as Address, knownKind);
+    const {
+        incomingChannel,
+        outgoingChannel,
+        channelKind,
+        deviceId,
+        group,
+        admin,
+        adminCount,
+        isLoading,
+    } = useDeviceDetail(address as Address, knownKind);
     const [activeTab, setActiveTab] = useState("outgoing");
 
     // `access` is not a channel tab, so no address bar is shown for it.
@@ -74,6 +83,11 @@ function DeviceDetailContent({ address, knownKind }: { address: string; knownKin
                     </div>
                     <p className="text-muted-foreground/80 text-xs truncate">{address}</p>
                 </div>
+                <OwnerPill
+                    address={admin}
+                    label="Admin"
+                    title={`Holds DEVICE_ADMIN_ROLE — a device has no owner(), so this is the account that controls it. Its group holds DEFAULT_ADMIN above it.${adminCount > 1 ? ` ${adminCount} accounts hold this role; the first is shown.` : ""}`}
+                />
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
