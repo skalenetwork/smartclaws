@@ -4,9 +4,17 @@ import type { Address } from "viem";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isWallet } from "@/hooks/use-access-graph";
 import { useAccessRoles } from "@/hooks/use-access-roles";
 import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { READER_META, roleMeta, type SubjectKind } from "@/lib/roles";
+
+/**
+ * An agent and the wallet it acts through share a name; this tells the two rows apart.
+ */
+export function WalletHint() {
+    return <span className="text-muted-foreground/60 text-[11px]">wallet</span>;
+}
 
 interface AccessPanelProps {
     subject: Address | undefined;
@@ -68,6 +76,7 @@ export function AccessPanel({ subject, kind, channelKind }: AccessPanelProps) {
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-sm font-medium">{holder.label}</span>
+                                        {isWallet(holder.kind) && <WalletHint />}
                                         {holder.roles.map((role) => {
                                             const meta = roleMeta(kind, role);
                                             return (
@@ -127,6 +136,7 @@ export function AccessPanel({ subject, kind, channelKind }: AccessPanelProps) {
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-sm font-medium">{reader.label}</span>
+                                        {isWallet(reader.kind) && <WalletHint />}
                                         {reader.directions.map((direction) => (
                                             <Badge
                                                 key={direction}

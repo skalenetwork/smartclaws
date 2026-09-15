@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router";
 import { cn } from "@/lib/utils";
 
 const items = [
-    { to: "/overview", label: "Overview", icon: LayoutDashboard },
+    { to: "/", label: "Overview", icon: LayoutDashboard },
     { to: "/groups", label: "Groups", icon: Layers },
     { to: "/agents", label: "Agents", icon: Cpu },
     { to: "/access", label: "Access", icon: KeyRound },
@@ -18,7 +18,9 @@ export function MobileNav() {
         <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 md:hidden">
             <div className="flex items-center gap-1 rounded-full border border-border/50 bg-background/60 backdrop-blur-xl px-2 py-2 shadow-lg">
                 {items.map(({ to, label, icon: Icon }) => {
-                    const isActive = location.pathname.startsWith(to);
+                    // Every path starts with "/", so the overview only matches exactly.
+                    const isActive =
+                        to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
                     return (
                         <Link
                             key={to}

@@ -5,13 +5,13 @@ import {
     Box,
     Calendar,
     ExternalLink,
-    User,
     Wrench,
 } from "lucide-react";
 import { Link, useParams } from "react-router";
 import type { Address } from "viem";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
+import { OwnerPill } from "@/components/shared/owner-pill";
 import { SkillsView } from "@/components/shared/skills-view";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,12 +64,10 @@ function GroupDetailContent({ address }: { address: string }) {
                     <p className="text-muted-foreground/80 text-xs truncate">{address}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                    {owner && (
-                        <div className="flex items-center gap-1.5 bg-muted/50 rounded-full px-3.5 py-2 text-xs text-muted-foreground">
-                            <User className="h-3.5 w-3.5" />
-                            Owner: {owner.slice(0, 6)}…{owner.slice(-4)}
-                        </div>
-                    )}
+                    <OwnerPill
+                        address={owner}
+                        title="Ownable2Step owner of this device group — registers devices and holds DEFAULT_ADMIN on each of them"
+                    />
                     {explorerUrl && (
                         <a
                             href={explorerUrl}

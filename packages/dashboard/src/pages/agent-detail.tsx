@@ -1,17 +1,18 @@
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, KeyRound } from "lucide-react";
-import { useState } from "react";
 import { Link, useParams } from "react-router";
 import type { Address } from "viem";
 import { AccessPanel } from "@/components/shared/access-panel";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { ChannelAddressBar } from "@/components/shared/channel-address-bar";
 import { ChannelView } from "@/components/shared/channel-view";
+import { OwnerPill } from "@/components/shared/owner-pill";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgentDetail } from "@/hooks/use-agent-detail";
 import { useAgentLiveness } from "@/hooks/use-agent-liveness";
+import { useTabParam } from "@/hooks/use-tab-param";
 import { timeAgo, timeAgoColors } from "@/lib/time-ago";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ function AgentDetailContent({ address }: { address: Address }) {
         agentId,
         metadata,
         active,
+        owner,
         incomingChannel,
         outgoingChannel,
         channelKind,
@@ -36,7 +38,7 @@ function AgentDetailContent({ address }: { address: Address }) {
     } = useAgentDetail(address);
     const { liveness } = useAgentLiveness();
     const live = liveness[address] ?? {};
-    const [activeTab, setActiveTab] = useState("outgoing");
+    const [activeTab, setActiveTab] = useTabParam();
 
     // `access` is not a channel tab, so no address bar is shown for it.
     const activeChannel =
@@ -101,6 +103,10 @@ function AgentDetailContent({ address }: { address: Address }) {
                     </div>
                     <p className="text-muted-foreground/80 truncate text-xs">{address}</p>
                 </div>
+                <OwnerPill
+                    address={owner}
+                    title="Ownable2Step owner of this agent contract — may transfer ownership and administer its roles"
+                />
             </div>
 
             {metadata && (

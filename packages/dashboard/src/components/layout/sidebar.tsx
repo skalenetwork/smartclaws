@@ -176,7 +176,7 @@ export function Sidebar() {
         <aside className="hidden md:flex w-56 flex-col border-r border-border">
             <Link
                 to="/"
-                className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0"
+                className="flex items-center gap-2 px-4 h-14 border-b border-border shrink-0"
             >
                 <img src={logoSvg} alt="SmartClaws" className="h-4 w-4" />
                 <span
@@ -193,10 +193,10 @@ export function Sidebar() {
             <nav className="flex-1 px-2 pb-3 overflow-y-auto">
                 <div className="pt-2">
                     <Link
-                        to="/overview"
+                        to="/"
                         className={cn(
                             "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
-                            location.pathname === "/overview"
+                            location.pathname === "/"
                                 ? "bg-accent text-accent-foreground font-medium"
                                 : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                         )}

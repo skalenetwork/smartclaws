@@ -1,11 +1,11 @@
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, KeyRound } from "lucide-react";
-import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 import type { Address } from "viem";
 import { AccessPanel } from "@/components/shared/access-panel";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { ChannelAddressBar } from "@/components/shared/channel-address-bar";
 import { ChannelView } from "@/components/shared/channel-view";
+import { OwnerPill } from "@/components/shared/owner-pill";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
 import { useDeviceDetail } from "@/hooks/use-device-detail";
+import { useTabParam } from "@/hooks/use-tab-param";
 
 export function DeviceDetailPage() {
     const { address } = useParams<{ address: string }>();
@@ -26,9 +27,17 @@ export function DeviceDetailPage() {
 }
 
 function DeviceDetailContent({ address, knownKind }: { address: string; knownKind?: ChannelKind }) {
-    const { incomingChannel, outgoingChannel, channelKind, deviceId, group, isLoading } =
-        useDeviceDetail(address as Address, knownKind);
-    const [activeTab, setActiveTab] = useState("outgoing");
+    const {
+        incomingChannel,
+        outgoingChannel,
+        channelKind,
+        deviceId,
+        group,
+        admin,
+        adminCount,
+        isLoading,
+    } = useDeviceDetail(address as Address, knownKind);
+    const [activeTab, setActiveTab] = useTabParam();
 
     // `access` is not a channel tab, so no address bar is shown for it.
     const activeChannel =
@@ -74,6 +83,11 @@ function DeviceDetailContent({ address, knownKind }: { address: string; knownKin
                     </div>
                     <p className="text-muted-foreground/80 text-xs truncate">{address}</p>
                 </div>
+                <OwnerPill
+                    address={admin}
+                    label="Admin"
+                    title={`Holds DEVICE_ADMIN_ROLE — a device has no owner(), so this is the account that controls it. Its group holds DEFAULT_ADMIN above it.${adminCount > 1 ? ` ${adminCount} accounts hold this role; the first is shown.` : ""}`}
+                />
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>

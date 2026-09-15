@@ -1,12 +1,14 @@
 import { KeyRound, ShieldCheck } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
+import { WalletHint } from "@/components/shared/access-panel";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isWallet } from "@/hooks/use-access-graph";
 import { type SubjectRef, useAccessMatrix } from "@/hooks/use-access-matrix";
 import { READER_META, roleMeta } from "@/lib/roles";
 
@@ -65,6 +67,7 @@ export function AccessPage() {
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-sm font-medium">{row.label}</span>
+                                        {isWallet(row.kind) && <WalletHint />}
                                         <span className="text-muted-foreground/60 text-[11px]">
                                             controls {row.grants.length} · reads{" "}
                                             {row.readerGrants.length}

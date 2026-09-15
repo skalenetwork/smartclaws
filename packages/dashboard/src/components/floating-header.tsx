@@ -1,12 +1,4 @@
-import {
-    BookOpen,
-    BookText,
-    ChevronDown,
-    ExternalLink,
-    LayoutDashboard,
-    Puzzle,
-    Radio,
-} from "lucide-react";
+import { BookOpen, ChevronDown, ExternalLink, LayoutDashboard, Puzzle, Radio } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import logoSvg from "@/assets/logo.svg";
@@ -58,21 +50,12 @@ export function FloatingHeader() {
                 </Link>
                 <div className="h-4 w-px bg-border/50" />
                 <Link
-                    to="/overview"
+                    to="/"
                     className="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
                 >
                     <LayoutDashboard className="h-3.5 w-3.5" />
                     <span className="hidden md:inline">Dashboard</span>
                 </Link>
-                <a
-                    href="https://docs.skale.space/get-started/skale"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hidden md:flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-                >
-                    <BookText className="h-3.5 w-3.5" />
-                    Docs
-                </a>
                 <div className="relative group" ref={skillsRef}>
                     <button
                         type="button"

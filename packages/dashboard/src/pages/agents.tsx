@@ -2,6 +2,7 @@ import { Cpu } from "lucide-react";
 import { Link } from "react-router";
 import { AddressAvatar } from "@/components/shared/address-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
+import { OwnerPill } from "@/components/shared/owner-pill";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,6 +47,11 @@ function AgentRow({ agent, liveness }: { agent: AgentInfo; liveness: AgentLivene
                                 {agent.metadata}
                             </p>
                         )}
+                        <OwnerPill
+                            address={agent.owner}
+                            variant="inline"
+                            title="Ownable2Step owner of this agent contract"
+                        />
                     </div>
 
                     <div className="hidden shrink-0 text-right sm:block">

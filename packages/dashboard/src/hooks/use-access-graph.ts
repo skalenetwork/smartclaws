@@ -1,7 +1,7 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Address } from "viem";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain, registryAddress } from "@/config/wagmi";
 
@@ -9,7 +9,17 @@ export interface AccountLabel {
     address: Address;
     /** Short human label, e.g. "owner of home" or "master-1". */
     label: string;
-    kind: "registry" | "group" | "group-owner" | "agent" | "agent-owner" | "device";
+    /**
+     * The name to show in place of the address, when the graph gives it one. An agent's
+     * wallet takes the agent's id; a bare group owner or a device contract has none.
+     */
+    name?: string;
+    kind: "registry" | "group" | "group-owner" | "agent" | "agent-owner" | "device" | "viewer";
+}
+
+/** Externally owned accounts — the wallets behind contracts, rather than contracts. */
+export function isWallet(kind: AccountLabel["kind"] | undefined): boolean {
+    return kind === "agent-owner" || kind === "group-owner" || kind === "viewer";
 }
 
 /**
@@ -28,6 +38,7 @@ export interface AccountLabel {
  */
 export function useAccessGraph() {
     const registry = { address: registryAddress, abi: abis.registry, chainId: chain.id } as const;
+    const { address: viewer } = useAccount();
 
     const { data: lists, isLoading: isLoadingLists } = useReadContracts({
         contracts: [
@@ -74,36 +85,60 @@ export function useAccessGraph() {
 
     const candidates = useMemo(() => {
         const byAddress = new Map<string, AccountLabel>();
-        const add = (address: Address | undefined, label: string, kind: AccountLabel["kind"]) => {
+        const add = (
+            address: Address | undefined,
+            label: string,
+            kind: AccountLabel["kind"],
+            name?: string,
+        ) => {
             if (!address) return;
             const key = address.toLowerCase();
-            // First label wins — group owner beats a later generic entry.
-            if (!byAddress.has(key)) byAddress.set(key, { address, label, kind });
+            // First label wins, so the most specific identity must be added first.
+            if (!byAddress.has(key)) byAddress.set(key, { address, label, kind, name });
         };
 
-        add(registryAddress, "registry", "registry");
+        add(registryAddress, "registry", "registry", "registry");
+
+        // Agents before groups: an agent's wallet usually also owns the groups it set up
+        // (and holds DEVICE_ADMIN on their devices), and the agent is who it acts as.
+        agentAddresses.forEach((address, i) => {
+            const owner = agentInfo?.[i * 2]?.result as Address | undefined;
+            const agentId = agentInfo?.[i * 2 + 1]?.result as string | undefined;
+            add(address, agentId ?? "agent", "agent", agentId);
+            add(owner, agentId ?? "agent wallet", "agent-owner", agentId);
+        });
 
         groupAddresses.forEach((address, i) => {
             const owner = groupInfo?.[i * 4]?.result as Address | undefined;
-            const name = (groupInfo?.[i * 4 + 1]?.result as string | undefined) ?? "group";
+            const groupName = groupInfo?.[i * 4 + 1]?.result as string | undefined;
             const devices = [
                 ...((groupInfo?.[i * 4 + 2]?.result as Address[] | undefined) ?? []),
                 ...((groupInfo?.[i * 4 + 3]?.result as Address[] | undefined) ?? []),
             ];
-            add(address, `group ${name}`, "group");
-            add(owner, `owner of ${name}`, "group-owner");
+            add(address, `group ${groupName ?? ""}`.trim(), "group", groupName);
+            add(owner, `owner of ${groupName ?? "group"}`, "group-owner");
             for (const device of devices) add(device, "device", "device");
         });
 
-        agentAddresses.forEach((address, i) => {
-            const owner = agentInfo?.[i * 2]?.result as Address | undefined;
-            const agentId = (agentInfo?.[i * 2 + 1]?.result as string | undefined) ?? "agent";
-            add(address, agentId, "agent");
-            add(owner, `wallet of ${agentId}`, "agent-owner");
-        });
+        // The connected wallet reads as "You" everywhere, keeping any identity the graph gave
+        // it. Listing it also means its roles get probed like any other account's.
+        if (viewer) {
+            const key = viewer.toLowerCase();
+            const known = byAddress.get(key);
+            byAddress.set(
+                key,
+                known
+                    ? {
+                          ...known,
+                          label: `You · ${known.label}`,
+                          name: known.name ? `You · ${known.name}` : "You",
+                      }
+                    : { address: viewer, label: "You", name: "You", kind: "viewer" },
+            );
+        }
 
         return [...byAddress.values()];
-    }, [agentAddresses, groupAddresses, agentInfo, groupInfo]);
+    }, [agentAddresses, groupAddresses, agentInfo, groupInfo, viewer]);
 
     return {
         candidates,

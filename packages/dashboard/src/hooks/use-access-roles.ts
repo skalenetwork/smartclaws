@@ -26,6 +26,8 @@ export interface AccessHolder {
 export interface AccessReader {
     account: Address;
     label: string;
+    /** Absent for a reader outside the registry graph. */
+    kind?: AccountLabel["kind"];
     directions: ReaderDirection[];
 }
 
@@ -164,6 +166,7 @@ export function useAccessRoles(
                     byAccount.set(key, {
                         account,
                         label: known?.label ?? "external reader",
+                        kind: known?.kind,
                         directions: [direction],
                     });
                 }
