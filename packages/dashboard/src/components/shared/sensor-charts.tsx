@@ -25,7 +25,7 @@ function useTextFields(messages: DecodedMessage[]): { key: string; value: string
             .filter(([key, val]) => {
                 if (typeof val === "number") return false;
                 if (TIMESTAMP_KEYS.has(key.toLowerCase())) return false;
-                return val != null;
+                return typeof val === "string" || typeof val === "boolean";
             })
             .map(([key, val]) => ({ key, value: String(val) }));
     }, [messages]);
