@@ -10,7 +10,7 @@ import {
     LockKeyholeOpen,
     MessageSquare,
 } from "lucide-react";
-import { Fragment, type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
 import { DisclosureLog } from "@/components/shared/disclosure-log";
@@ -31,6 +31,7 @@ import {
 import { useChannelCapacity } from "@/hooks/use-channel-capacity";
 import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
+import { usePublishTimes } from "@/hooks/use-publish-times";
 import { useDisclose, useSessionRecords } from "@/hooks/use-viewer";
 import { highlightJson } from "@/lib/json-highlight";
 import type { DiscloseStage } from "@/lib/viewer/disclose";
@@ -45,6 +46,29 @@ function formatBytes(bytes: bigint): string {
 
 function formatTimestamp(ts: number): string {
     return new Date(ts * 1000).toLocaleString();
+}
+
+function chainTimeIso(seconds: number | undefined): string | null {
+    return seconds === undefined ? null : new Date(seconds * 1000).toISOString();
+}
+
+/**
+ * When an encrypted message was added to the chain. Not the time inside the payload, which
+ * is encrypted with it — the tooltip says so, since the two can differ.
+ */
+function ChainTime({ seconds, loading }: { seconds: number | undefined; loading: boolean }) {
+    if (seconds === undefined) {
+        return loading ? (
+            <Loader2 className="h-3 w-3 animate-spin" aria-label="Looking up block time" />
+        ) : (
+            <span title="Added to the chain more than about six days ago; not looked up">—</span>
+        );
+    }
+    return (
+        <span title="When this message was added to the chain. The timestamp inside the payload is encrypted.">
+            {formatTimestamp(seconds)}
+        </span>
+    );
 }
 
 const STAGE_LABEL: Record<DiscloseStage, string> = {
@@ -117,6 +141,12 @@ export function ChannelView({
     const { address: viewer } = useAccount();
     const { decrypted } = useSessionRecords(viewer);
     const { disclose, stages } = useDisclose(address);
+    // Encrypted payloads carry their timestamp inside the ciphertext; the block is public.
+    const encryptedOffsets = useMemo(
+        () => messages.filter((msg) => msg.encrypted).map((msg) => msg.offset),
+        [messages],
+    );
+    const publishTimes = usePublishTimes(address, encryptedOffsets, isEncrypted);
 
     const toggleExpand = (key: string) => {
         setExpanded((prev) => {
@@ -319,11 +349,16 @@ export function ChannelView({
                                                         : `${msg.raw.slice(0, 40)}…`}
                                             </TableCell>
                                             <TableCell className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
-                                                {envelope
-                                                    ? formatTimestamp(envelope.ts)
-                                                    : msg.encrypted
-                                                      ? "Encrypted"
-                                                      : "—"}
+                                                {envelope ? (
+                                                    formatTimestamp(envelope.ts)
+                                                ) : msg.encrypted ? (
+                                                    <ChainTime
+                                                        seconds={publishTimes.timeOf(msg.offset)}
+                                                        loading={publishTimes.isLoading}
+                                                    />
+                                                ) : (
+                                                    "—"
+                                                )}
                                             </TableCell>
                                             {isEncrypted && (
                                                 <TableCell className="py-2 px-3">
@@ -385,6 +420,12 @@ export function ChannelView({
                                                                   ? JSON.stringify(
                                                                         {
                                                                             encrypted: true,
+                                                                            addedToChainAt:
+                                                                                chainTimeIso(
+                                                                                    publishTimes.timeOf(
+                                                                                        msg.offset,
+                                                                                    ),
+                                                                                ),
                                                                             ciphertextBytes:
                                                                                 msg.ciphertextBytes,
                                                                             rawHex: msg.raw,
