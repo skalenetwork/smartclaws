@@ -1,5 +1,4 @@
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, KeyRound } from "lucide-react";
-import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 import type { Address } from "viem";
 import { AccessPanel } from "@/components/shared/access-panel";
@@ -14,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
 import { useDeviceDetail } from "@/hooks/use-device-detail";
+import { useTabParam } from "@/hooks/use-tab-param";
 
 export function DeviceDetailPage() {
     const { address } = useParams<{ address: string }>();
@@ -37,7 +37,7 @@ function DeviceDetailContent({ address, knownKind }: { address: string; knownKin
         adminCount,
         isLoading,
     } = useDeviceDetail(address as Address, knownKind);
-    const [activeTab, setActiveTab] = useState("outgoing");
+    const [activeTab, setActiveTab] = useTabParam();
 
     // `access` is not a channel tab, so no address bar is shown for it.
     const activeChannel =
