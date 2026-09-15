@@ -12,7 +12,7 @@
     },
     "packages/cli": {
       "name": "@smartclaws/cli",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@inquirer/prompts": "^7.9.0",
         "@smartclaws/core": "workspace:*",
@@ -27,17 +27,18 @@
     },
     "packages/core": {
       "name": "@smartclaws/core",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "devDependencies": {
         "typescript": "^6.0.0",
       },
     },
     "packages/dashboard": {
       "name": "@smartclaws/dashboard",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@fontsource-variable/inter": "^5.2.8",
+        "@noble/curves": "1.9.1",
         "@radix-ui/react-tabs": "^1.1.13",
         "@smartclaws/core": "workspace:*",
         "@tanstack/react-query": "^5.80.0",
@@ -87,7 +88,7 @@
     },
     "packages/openclaw-plugin": {
       "name": "smartclaws-openclaw-plugin",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "typebox": "^1.1.38",
       },
@@ -105,7 +106,7 @@
     },
     "packages/sdk": {
       "name": "@smartclaws/sdk",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@skalenetwork/bite": "^0.8.1",
         "@smartclaws/core": "workspace:*",
@@ -119,7 +120,7 @@
     },
     "smart-contracts": {
       "name": "@skalenetwork/smartclaws-contracts",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "devDependencies": {
         "@nomicfoundation/hardhat-ethers-chai-matchers": "^3.0.0",
         "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.3",

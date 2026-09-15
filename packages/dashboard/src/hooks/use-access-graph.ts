@@ -1,7 +1,7 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Address } from "viem";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { abis } from "@/config/contracts";
 import { chain, registryAddress } from "@/config/wagmi";
 
@@ -14,12 +14,12 @@ export interface AccountLabel {
      * wallet takes the agent's id; a bare group owner or a device contract has none.
      */
     name?: string;
-    kind: "registry" | "group" | "group-owner" | "agent" | "agent-owner" | "device";
+    kind: "registry" | "group" | "group-owner" | "agent" | "agent-owner" | "device" | "viewer";
 }
 
 /** Externally owned accounts — the wallets behind contracts, rather than contracts. */
 export function isWallet(kind: AccountLabel["kind"] | undefined): boolean {
-    return kind === "agent-owner" || kind === "group-owner";
+    return kind === "agent-owner" || kind === "group-owner" || kind === "viewer";
 }
 
 /**
@@ -38,6 +38,7 @@ export function isWallet(kind: AccountLabel["kind"] | undefined): boolean {
  */
 export function useAccessGraph() {
     const registry = { address: registryAddress, abi: abis.registry, chainId: chain.id } as const;
+    const { address: viewer } = useAccount();
 
     const { data: lists, isLoading: isLoadingLists } = useReadContracts({
         contracts: [
@@ -119,8 +120,25 @@ export function useAccessGraph() {
             for (const device of devices) add(device, "device", "device");
         });
 
+        // The connected wallet reads as "You" everywhere, keeping any identity the graph gave
+        // it. Listing it also means its roles get probed like any other account's.
+        if (viewer) {
+            const key = viewer.toLowerCase();
+            const known = byAddress.get(key);
+            byAddress.set(
+                key,
+                known
+                    ? {
+                          ...known,
+                          label: `You · ${known.label}`,
+                          name: known.name ? `You · ${known.name}` : "You",
+                      }
+                    : { address: viewer, label: "You", name: "You", kind: "viewer" },
+            );
+        }
+
         return [...byAddress.values()];
-    }, [agentAddresses, groupAddresses, agentInfo, groupInfo]);
+    }, [agentAddresses, groupAddresses, agentInfo, groupInfo, viewer]);
 
     return {
         candidates,

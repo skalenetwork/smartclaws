@@ -1,19 +1,24 @@
 import {
+    Check,
     ChevronRight,
     ChevronsDown,
     Database,
+    Eye,
     Hash,
     Loader2,
     LockKeyhole,
+    LockKeyholeOpen,
     MessageSquare,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useState } from "react";
 import type { Address } from "viem";
+import { useAccount } from "wagmi";
 import { DisclosureLog } from "@/components/shared/disclosure-log";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SensorCharts } from "@/components/shared/sensor-charts";
 import { StatCard } from "@/components/shared/stat-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table,
@@ -26,7 +31,10 @@ import {
 import { useChannelCapacity } from "@/hooks/use-channel-capacity";
 import type { ChannelKind } from "@/hooks/use-channel-kind";
 import { useChannelMessages } from "@/hooks/use-channel-messages";
+import { useDisclose, useSessionRecords } from "@/hooks/use-viewer";
 import { highlightJson } from "@/lib/json-highlight";
+import type { DiscloseStage } from "@/lib/viewer/disclose";
+import { decryptedKey } from "@/lib/viewer/session-records";
 
 function formatBytes(bytes: bigint): string {
     const n = Number(bytes);
@@ -38,6 +46,12 @@ function formatBytes(bytes: bigint): string {
 function formatTimestamp(ts: number): string {
     return new Date(ts * 1000).toLocaleString();
 }
+
+const STAGE_LABEL: Record<DiscloseStage, string> = {
+    confirm: "Confirm in wallet",
+    requesting: "Requesting",
+    decrypting: "Decrypting",
+};
 
 function compactJson(obj: Record<string, unknown>): ReactNode {
     const entries = Object.entries(obj);
@@ -100,6 +114,9 @@ export function ChannelView({
     } = useChannelMessages(address, 20, knownKind);
     const { hasPruned } = useChannelCapacity(address);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const { address: viewer } = useAccount();
+    const { decrypted } = useSessionRecords(viewer);
+    const { disclose, stages } = useDisclose(address);
 
     const toggleExpand = (key: string) => {
         setExpanded((prev) => {
@@ -127,6 +144,8 @@ export function ChannelView({
         maxCapacity !== undefined && totalBytes !== undefined && Number(maxCapacity) > 0
             ? Math.round((Number(totalBytes) / Number(maxCapacity)) * 100)
             : null;
+    // #, Topic, Payload, Timestamp, [Actions], expand chevron
+    const columnCount = isEncrypted ? 6 : 5;
 
     return (
         <div className="space-y-4">
@@ -230,18 +249,23 @@ export function ChannelView({
                                 <TableHead className="px-3">Topic</TableHead>
                                 <TableHead className="px-3">Payload</TableHead>
                                 <TableHead className="px-3">Timestamp</TableHead>
-                                <TableHead className="px-3">Device</TableHead>
+                                {isEncrypted && <TableHead className="px-3">Actions</TableHead>}
                                 <TableHead className="w-10 px-3" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {messages.map((msg) => {
                                 const key = msg.offset.toString();
+                                const offset = Number(msg.offset);
                                 const isExpanded = expanded.has(key);
+                                const record = msg.encrypted
+                                    ? decrypted[decryptedKey(address, offset)]
+                                    : undefined;
+                                const envelope = record ? record.envelope : msg.envelope;
+                                const stage = stages[offset];
                                 return (
-                                    <>
+                                    <Fragment key={key}>
                                         <TableRow
-                                            key={key}
                                             className="cursor-pointer"
                                             onClick={() => toggleExpand(key)}
                                         >
@@ -249,41 +273,90 @@ export function ChannelView({
                                                 #{key}
                                             </TableCell>
                                             <TableCell className="py-2 px-3">
-                                                {msg.encrypted ? (
-                                                    <Badge variant="outline" className="text-xs">
-                                                        <LockKeyhole className="mr-1 h-3 w-3" />
-                                                        Ciphertext
-                                                    </Badge>
-                                                ) : msg.envelope ? (
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        {msg.envelope.topic}
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge
-                                                        variant="destructive"
-                                                        className="text-xs"
-                                                    >
-                                                        {msg.error ?? "Raw"}
-                                                    </Badge>
-                                                )}
+                                                <div className="flex items-center gap-1.5">
+                                                    {msg.encrypted && !record ? (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-xs"
+                                                        >
+                                                            <LockKeyhole className="mr-1 h-3 w-3" />
+                                                            Ciphertext
+                                                        </Badge>
+                                                    ) : envelope ? (
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className="text-xs"
+                                                        >
+                                                            {envelope.topic}
+                                                        </Badge>
+                                                    ) : !record ? (
+                                                        <Badge
+                                                            variant="destructive"
+                                                            className="text-xs"
+                                                        >
+                                                            {msg.error ?? "Raw"}
+                                                        </Badge>
+                                                    ) : null}
+                                                    {record && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="border-emerald-500/30 text-xs text-emerald-600 dark:text-emerald-400"
+                                                            title="Disclosed to your wallet and decrypted in this tab"
+                                                        >
+                                                            <LockKeyholeOpen className="mr-1 h-3 w-3" />
+                                                            Decrypted
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="py-2 px-3 text-xs font-mono text-muted-foreground max-w-72 truncate">
-                                                {msg.encrypted
-                                                    ? `${msg.ciphertextBytes ?? 0} bytes · ${msg.raw.slice(0, 24)}…`
-                                                    : msg.envelope
-                                                      ? compactJson(msg.envelope.p)
-                                                      : `${msg.raw.slice(0, 40)}…`}
+                                                {envelope
+                                                    ? compactJson(envelope.p)
+                                                    : record
+                                                      ? record.text
+                                                      : msg.encrypted
+                                                        ? `${msg.ciphertextBytes ?? 0} bytes`
+                                                        : `${msg.raw.slice(0, 40)}…`}
                                             </TableCell>
                                             <TableCell className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
-                                                {msg.encrypted
-                                                    ? "Encrypted"
-                                                    : msg.envelope
-                                                      ? formatTimestamp(msg.envelope.ts)
+                                                {envelope
+                                                    ? formatTimestamp(envelope.ts)
+                                                    : msg.encrypted
+                                                      ? "Encrypted"
                                                       : "—"}
                                             </TableCell>
-                                            <TableCell className="py-2 px-3 text-xs text-muted-foreground">
-                                                {msg.envelope?.dev ?? "—"}
-                                            </TableCell>
+                                            {isEncrypted && (
+                                                <TableCell className="py-2 px-3">
+                                                    {record ? (
+                                                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                                                            <Check className="h-3.5 w-3.5" />
+                                                            Readable
+                                                        </span>
+                                                    ) : (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="xs"
+                                                            disabled={!!stage}
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                void disclose(
+                                                                    offset,
+                                                                    msg.ciphertextBytes ?? 0,
+                                                                );
+                                                            }}
+                                                        >
+                                                            {stage ? (
+                                                                <Loader2 className="animate-spin" />
+                                                            ) : (
+                                                                <Eye />
+                                                            )}
+                                                            {stage
+                                                                ? STAGE_LABEL[stage]
+                                                                : "Disclose"}
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
+                                            )}
                                             <TableCell className="py-2 px-3">
                                                 <ChevronRight
                                                     className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
@@ -291,38 +364,48 @@ export function ChannelView({
                                             </TableCell>
                                         </TableRow>
                                         {isExpanded && (
-                                            <TableRow
-                                                key={`${key}-expand`}
-                                                className="hover:bg-transparent"
-                                            >
-                                                <TableCell colSpan={6} className="p-0">
+                                            <TableRow className="hover:bg-transparent">
+                                                <TableCell colSpan={columnCount} className="p-0">
+                                                    {record && (
+                                                        <p className="px-4 pt-2.5 text-[11px] text-emerald-600 dark:text-emerald-400">
+                                                            Decrypted in this tab · visible only to
+                                                            you
+                                                        </p>
+                                                    )}
                                                     <pre className="text-xs font-mono bg-muted/30 rounded-lg p-3 m-2 overflow-x-auto leading-relaxed">
                                                         {highlightJson(
-                                                            msg.encrypted
+                                                            record
                                                                 ? JSON.stringify(
-                                                                      {
-                                                                          encrypted: true,
-                                                                          ciphertextBytes:
-                                                                              msg.ciphertextBytes,
-                                                                          rawHex: msg.raw,
-                                                                          channelKind,
-                                                                      },
+                                                                      record.envelope ??
+                                                                          record.text,
                                                                       null,
                                                                       2,
                                                                   )
-                                                                : msg.envelope
+                                                                : msg.encrypted
                                                                   ? JSON.stringify(
-                                                                        msg.envelope,
+                                                                        {
+                                                                            encrypted: true,
+                                                                            ciphertextBytes:
+                                                                                msg.ciphertextBytes,
+                                                                            rawHex: msg.raw,
+                                                                            channelKind,
+                                                                        },
                                                                         null,
                                                                         2,
                                                                     )
-                                                                  : msg.raw,
+                                                                  : msg.envelope
+                                                                    ? JSON.stringify(
+                                                                          msg.envelope,
+                                                                          null,
+                                                                          2,
+                                                                      )
+                                                                    : msg.raw,
                                                         )}
                                                     </pre>
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                    </>
+                                    </Fragment>
                                 );
                             })}
                         </TableBody>

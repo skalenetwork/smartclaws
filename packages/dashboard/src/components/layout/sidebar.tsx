@@ -176,7 +176,7 @@ export function Sidebar() {
         <aside className="hidden md:flex w-56 flex-col border-r border-border">
             <Link
                 to="/"
-                className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0"
+                className="flex items-center gap-2 px-4 h-14 border-b border-border shrink-0"
             >
                 <img src={logoSvg} alt="SmartClaws" className="h-4 w-4" />
                 <span

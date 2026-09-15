@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import logoSvg from "@/assets/logo.svg";
 import { buttonVariants } from "@/components/ui/button";
 import { useHeaderActions } from "./header-context";
+import { WalletButton } from "./wallet-button";
 
 const routes: { path: string; label: string; icon: React.ElementType }[] = [
     { path: "/", label: "Overview", icon: LayoutDashboard },
@@ -28,7 +29,7 @@ export function Header() {
     const { actions } = useHeaderActions();
 
     return (
-        <header className="flex items-center justify-between h-12 pl-4 pr-2 border-b border-border shrink-0 bg-background/80 backdrop-blur-xs">
+        <header className="flex items-center justify-between h-14 pl-4 pr-3 border-b border-border shrink-0 bg-background/80 backdrop-blur-xs">
             {/* Mobile: logo */}
             <div className="flex items-center gap-2.5 md:hidden">
                 <img src={logoSvg} alt="SmartClaws" className="h-5 w-5" />
@@ -43,13 +44,21 @@ export function Header() {
                 </div>
             )}
 
-            {/* Right side: page-specific actions, then the way into onboarding */}
-            <div className="hidden md:flex items-center gap-2">
-                {actions}
-                <Link to="/setup" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            {/* Right side: page actions and onboarding (desktop), then the wallet (always) */}
+            <div className="flex items-center gap-2">
+                {actions && <div className="hidden md:flex items-center">{actions}</div>}
+                <Link
+                    to="/setup"
+                    className={buttonVariants({
+                        variant: "ghost",
+                        size: "sm",
+                        className: "hidden md:inline-flex",
+                    })}
+                >
                     <Rocket aria-hidden="true" />
                     Setup
                 </Link>
+                <WalletButton />
             </div>
         </header>
     );
